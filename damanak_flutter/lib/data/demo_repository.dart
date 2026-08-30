@@ -7,8 +7,11 @@ import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
 import '../models/claim_attachment.dart';
+import '../models/claim_ai_review.dart';
 import '../models/inventory.dart';
+import '../models/integration.dart';
 import '../models/maintenance_request.dart';
+import '../models/app_notification.dart';
 import '../models/product.dart';
 import '../models/product_ai_import.dart';
 import '../models/register.dart';
@@ -233,6 +236,10 @@ class DemoDamanakRepository implements DamanakRepository {
     yearlyPrice: 990,
     maxMembers: 5,
     monthlyWarranties: 600,
+    monthlyAiImports: 100,
+    monthlyAiClaimReviews: 50,
+    maxBranches: 3,
+    customBranding: true,
   );
 
   final List<Product> _products = [];
@@ -248,6 +255,11 @@ class DemoDamanakRepository implements DamanakRepository {
   final List<CashRegisterSession> _registerSessions = [];
   final List<Supplier> _suppliers = [];
   final List<PurchaseOrder> _purchaseOrders = [];
+  final List<AppNotification> _notifications = [];
+  NotificationPreferences _notificationPreferences =
+      const NotificationPreferences();
+  final List<ApiKeyInfo> _apiKeys = [];
+  final List<WebhookInfo> _webhooks = [];
 
   SubscriptionInfo _subscription = SubscriptionInfo(
     id: 'demo-subscription',
@@ -409,6 +421,11 @@ class DemoDamanakRepository implements DamanakRepository {
     required String address,
     required String invoicePrefix,
     required int defaultWarrantyMonths,
+    required String logoUrl,
+    required String brandColor,
+    required String customerPortalTitle,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     _store = StoreWorkspace(
       id: storeId,
@@ -424,6 +441,11 @@ class DemoDamanakRepository implements DamanakRepository {
       address: address.trim(),
       invoicePrefix: invoicePrefix.trim().toUpperCase(),
       defaultWarrantyMonths: defaultWarrantyMonths,
+      logoUrl: logoUrl.trim(),
+      brandColor: brandColor,
+      customerPortalTitle: customerPortalTitle.trim(),
+      warrantyPolicy: warrantyPolicy.trim(),
+      warrantyExclusions: warrantyExclusions.trim(),
     );
     return _store;
   }
@@ -568,6 +590,8 @@ class DemoDamanakRepository implements DamanakRepository {
     required bool trackInventory,
     required bool isSerialized,
     required num reorderPoint,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     final product = Product(
       id: _uuid.v4(),
@@ -583,6 +607,8 @@ class DemoDamanakRepository implements DamanakRepository {
       trackInventory: trackInventory,
       isSerialized: isSerialized,
       reorderPoint: reorderPoint,
+      warrantyPolicy: warrantyPolicy.trim(),
+      warrantyExclusions: warrantyExclusions.trim(),
       isActive: true,
       createdAt: DateTime.now(),
     );
@@ -621,6 +647,8 @@ class DemoDamanakRepository implements DamanakRepository {
     required bool isSerialized,
     required num reorderPoint,
     required bool isActive,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     final index = _products.indexWhere((item) => item.id == productId);
     if (index < 0) throw StateError('PRODUCT_NOT_FOUND');
@@ -640,6 +668,8 @@ class DemoDamanakRepository implements DamanakRepository {
       isSerialized: isSerialized,
       reorderPoint: reorderPoint,
       isActive: isActive,
+      warrantyPolicy: warrantyPolicy.trim(),
+      warrantyExclusions: warrantyExclusions.trim(),
       createdAt: current.createdAt,
     );
     _products[index] = product;
@@ -1528,6 +1558,22 @@ class DemoDamanakRepository implements DamanakRepository {
       slaDueAt: DateTime.now().add(const Duration(hours: 48)),
     );
     _requests.insert(0, request);
+    if (_notificationPreferences.claimCreated) {
+      _notifications.insert(
+        0,
+        AppNotification(
+          id: _uuid.v4(),
+          storeId: storeId,
+          type: NotificationEventType.claimCreated,
+          title:
+              'مطالبة جديدة CLM-${request.claimNumber.toString().padLeft(6, '0')}',
+          body: request.issue,
+          requestId: request.id,
+          createdAt: DateTime.now(),
+          readAt: null,
+        ),
+      );
+    }
     return request;
   }
 
@@ -1550,6 +1596,148 @@ class DemoDamanakRepository implements DamanakRepository {
   @override
   Future<Uri> createRequestAttachmentLink(String storagePath) async {
     throw StateError('CLAIM_ATTACHMENT_UNAVAILABLE');
+  }
+
+  @override
+  Future<ClaimAiReview> analyzeClaim({
+    required String storeId,
+    required String requestId,
+    required bool includeAttachments,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return ClaimAiReview(
+      id: _uuid.v4(),
+      summary: 'العطل يظهر عند تشغيل المنتج ويحتاج إلى فحص مصدر الطاقة.',
+      suggestedCategory: ClaimCategory.malfunction,
+      suggestedPriority: ClaimPriority.normal,
+      missingInformation: const ['متى بدأ العطل؟', 'هل جُرّب مصدر طاقة آخر؟'],
+      signals: const ['تعذر التشغيل'],
+      confidence: 0.84,
+      disclaimer: 'اقتراح للمراجعة البشرية، وليس قرار قبول أو رفض.',
+      includedAttachments: includeAttachments,
+      usage: const ClaimAiUsage(
+        provider: 'openai',
+        model: 'gpt-5.6-luna',
+        inputTokens: 900,
+        outputTokens: 180,
+        estimatedCostUsd: 0.000396,
+        monthlyUsed: 1,
+        monthlyLimit: 50,
+      ),
+    );
+  }
+
+  @override
+  Future<List<AppNotification>> loadNotifications(String storeId) async => [
+    ..._notifications,
+  ];
+
+  @override
+  Future<NotificationPreferences> loadNotificationPreferences(
+    String storeId,
+  ) async => _notificationPreferences;
+
+  @override
+  Future<NotificationPreferences> saveNotificationPreferences({
+    required String storeId,
+    required NotificationPreferences preferences,
+  }) async {
+    _notificationPreferences = preferences;
+    return preferences;
+  }
+
+  @override
+  Future<void> markNotificationRead(String notificationId) async {
+    final index = _notifications.indexWhere(
+      (item) => item.id == notificationId,
+    );
+    if (index < 0) return;
+    final item = _notifications[index];
+    _notifications[index] = AppNotification(
+      id: item.id,
+      storeId: item.storeId,
+      type: item.type,
+      title: item.title,
+      body: item.body,
+      requestId: item.requestId,
+      createdAt: item.createdAt,
+      readAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<ApiKeyInfo>> loadApiKeys(String storeId) async => [..._apiKeys];
+
+  @override
+  Future<CreatedApiKey> createApiKey({
+    required String storeId,
+    required String name,
+    required List<String> scopes,
+  }) async {
+    final secret = 'dmn_live_${'a' * 64}';
+    final info = ApiKeyInfo(
+      id: _uuid.v4(),
+      name: name.trim(),
+      keyPrefix: secret.substring(0, 17),
+      scopes: scopes,
+      createdAt: DateTime.now(),
+      lastUsedAt: null,
+      revokedAt: null,
+    );
+    _apiKeys.insert(0, info);
+    return CreatedApiKey(info: info, secret: secret);
+  }
+
+  @override
+  Future<void> revokeApiKey(String keyId) async {
+    final index = _apiKeys.indexWhere((item) => item.id == keyId);
+    if (index < 0) return;
+    final item = _apiKeys[index];
+    _apiKeys[index] = ApiKeyInfo(
+      id: item.id,
+      name: item.name,
+      keyPrefix: item.keyPrefix,
+      scopes: item.scopes,
+      createdAt: item.createdAt,
+      lastUsedAt: item.lastUsedAt,
+      revokedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<WebhookInfo>> loadWebhooks(String storeId) async => [
+    ..._webhooks,
+  ];
+
+  @override
+  Future<CreatedWebhook> createWebhook({
+    required String storeId,
+    required String endpointUrl,
+    required List<String> events,
+  }) async {
+    final info = WebhookInfo(
+      id: _uuid.v4(),
+      endpointUrl: endpointUrl.trim(),
+      events: events,
+      isActive: true,
+      createdAt: DateTime.now(),
+    );
+    _webhooks.insert(0, info);
+    return CreatedWebhook(info: info, secret: 'whsec_${'b' * 64}');
+  }
+
+  @override
+  Future<void> setWebhookActive(String webhookId, bool active) async {
+    final index = _webhooks.indexWhere((item) => item.id == webhookId);
+    if (index < 0) return;
+    final item = _webhooks[index];
+    _webhooks[index] = WebhookInfo(
+      id: item.id,
+      endpointUrl: item.endpointUrl,
+      events: item.events,
+      isActive: active,
+      createdAt: item.createdAt,
+    );
   }
 
   @override
@@ -1606,6 +1794,9 @@ class DemoDamanakRepository implements DamanakRepository {
       yearlyPrice: 390,
       maxMembers: 2,
       monthlyWarranties: 100,
+      monthlyAiImports: 10,
+      monthlyAiClaimReviews: 5,
+      maxBranches: 1,
     ),
     _plan,
     PlanInfo(
@@ -1615,6 +1806,12 @@ class DemoDamanakRepository implements DamanakRepository {
       yearlyPrice: 1990,
       maxMembers: 15,
       monthlyWarranties: 3000,
+      monthlyAiImports: 500,
+      monthlyAiClaimReviews: 250,
+      maxBranches: 20,
+      apiAccess: true,
+      webhookAccess: true,
+      customBranding: true,
     ),
   ];
 

@@ -1,7 +1,12 @@
 import 'package:damanak/app.dart';
 import 'package:damanak/screens/product_import_screen.dart';
+import 'package:damanak/screens/notifications_screen.dart';
+import 'package:damanak/screens/integrations_screen.dart';
+import 'package:damanak/screens/settings_screen.dart';
+import 'package:damanak/screens/claim_detail_screen.dart';
 import 'package:damanak/screens/startup_screen.dart';
 import 'package:damanak/state/app_controller.dart';
+import 'package:damanak/state/app_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -296,6 +301,114 @@ void main() {
     expect(find.text('قالب جاهز'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('تبقى الإشعارات والتفضيلات قابلة للاستخدام عند تكبير 200%', (
+    tester,
+  ) async {
+    _useNarrowLargeText(tester);
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+    await controller.startDemo();
+    await controller.addMaintenanceRequest(
+      warrantyId: controller.warranties.first.id,
+      issue: 'الجهاز لا يعمل',
+    );
+    await controller.refreshNotifications();
+    await tester.pumpWidget(
+      AppScope(
+        controller: controller,
+        child: const DamanakAppFrame(home: NotificationsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('الإشعارات'), findsOneWidget);
+    expect(find.textContaining('مطالبة جديدة'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('تفضيلات الإشعارات'));
+    await tester.pumpAndSettle();
+    expect(find.text('تنبيهات العمل فقط'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('تبقى هوية المتجر والتكاملات واضحة عند تكبير 200%', (
+    tester,
+  ) async {
+    _useNarrowLargeText(tester);
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+    await controller.startDemo();
+
+    await tester.pumpWidget(
+      AppScope(
+        controller: controller,
+        child: const DamanakAppFrame(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('هوية بطاقة العميل'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(
+      AppScope(
+        controller: controller,
+        child: const DamanakAppFrame(home: IntegrationsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('اربط نظامك بضمانك'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('API'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('API'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Webhooks'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Webhooks'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('يبقى مساعد فرز المطالبة واضحاً ولا يقرر تلقائياً', (
+    tester,
+  ) async {
+    _useNarrowLargeText(tester);
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+    await controller.startDemo();
+    await controller.addMaintenanceRequest(
+      warrantyId: controller.warranties.first.id,
+      issue: 'الجهاز ينطفئ عند التشغيل',
+    );
+    final request = controller.requests.first;
+    await tester.pumpWidget(
+      AppScope(
+        controller: controller,
+        child: DamanakAppFrame(home: ClaimDetailScreen(requestId: request.id)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('مساعد فرز المطالبة'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('مساعد فرز المطالبة'), findsOneWidget);
+    expect(find.textContaining('لا يتخذ قراراً'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+void _useNarrowLargeText(WidgetTester tester) {
+  tester.view.physicalSize = const Size(320, 568);
+  tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = 2;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 }
 
 Future<void> _openPointOfSale(WidgetTester tester) async {

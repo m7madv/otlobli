@@ -10,6 +10,7 @@ type WarrantyRow = {
   id: string;
   warranty_number: string;
   store_id: string;
+  product_id?: string | null;
   customer_name: string;
   customer_phone: string;
   product_name: string;
@@ -245,12 +246,42 @@ function claimCategoryOptions() {
 
 export function renderWarranty(
   warranty: WarrantyRow,
-  store: { name: string; city: string | null; phone: string | null },
+  store: {
+    name: string;
+    city: string | null;
+    phone: string | null;
+    logo_url?: string | null;
+    brand_color?: string | null;
+    customer_portal_title?: string | null;
+    warranty_policy?: string | null;
+    warranty_exclusions?: string | null;
+  },
   claims: PublicClaimRow[],
   token: string,
   submittedClaimNumber: string | null,
   attachmentWarning: boolean,
+  productPolicy: { policy?: string | null; exclusions?: string | null } = {},
 ) {
+  const allowedBrandColors = new Set([
+    "#087F5B",
+    "#1D4ED8",
+    "#6D28D9",
+    "#9F1239",
+    "#334155",
+    "#7C2D12",
+  ]);
+  const accent = allowedBrandColors.has(store.brand_color || "")
+    ? store.brand_color!
+    : "#087F5B";
+  const portalTitle = store.customer_portal_title?.trim() ||
+    "بطاقة ضمان موثّقة";
+  const policy = productPolicy.policy?.trim() || store.warranty_policy?.trim() ||
+    "يغطي الضمان عيوب الصناعة والأعطال المشمولة خلال المدة الموضحة في البطاقة.";
+  const exclusions = productPolicy.exclusions?.trim() ||
+    store.warranty_exclusions?.trim() || "";
+  const logo = store.logo_url?.startsWith("https://")
+    ? `<img class="logo" src="${escapeHtml(store.logo_url)}" alt="شعار ${escapeHtml(store.name)}">`
+    : `<div class="mark" aria-hidden="true">✓</div>`;
   const status = warrantyStatus(warranty.expiry_date);
   const canSubmitClaim = status.className !== "expired";
   const claimsHtml = claims.length === 0
@@ -302,17 +333,19 @@ export function renderWarranty(
       <meta name="robots" content="noindex,nofollow,noarchive">
       <title>ضمان ${escapeHtml(warranty.warranty_number)} | ضمانك</title>
       <style>
-        :root { color-scheme: light dark; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        :root { color-scheme: light dark; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; --accent:${accent}; }
         * { box-sizing: border-box; }
         body { margin: 0; background: #f4f7f6; color: #17211f; line-height: 1.65; }
         main { width: min(680px,calc(100% - 28px)); margin: 28px auto; }
         header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
-        .mark { display:grid; place-items:center; width:48px; height:48px; border-radius:15px; background:#087f5b; color:white; font-size:24px; }
+        .mark,.logo { width:48px; height:48px; border-radius:15px; }
+        .mark { display:grid; place-items:center; background:var(--accent); color:white; font-size:24px; }
+        .logo { display:block; object-fit:contain; background:#fff; border:1px solid #d9e1df; }
         h1,h2,p { margin:0; }
         h1 { font-size:clamp(1.45rem,5vw,2rem); }
         .muted { color:#5f6e6a; }
         .card { background:#fff; border:1px solid #d9e1df; border-radius:22px; overflow:hidden; box-shadow:0 16px 44px rgba(15,45,36,.07); }
-        .card-head { padding:22px; background:#087f5b; color:#fff; }
+        .card-head { padding:22px; background:var(--accent); color:#fff; }
         .card-head p { opacity:.8; }
         .body { padding:22px; }
         .status { display:inline-flex; align-items:center; min-height:34px; padding:5px 12px; border-radius:999px; font-weight:750; margin-bottom:18px; }
@@ -341,12 +374,12 @@ export function renderWarranty(
         input,select,textarea,button { width:100%; min-height:48px; font:inherit; }
         input,select,textarea { padding:12px 14px; color:inherit; background:transparent; border:1px solid #aebbb7; border-radius:14px; }
         textarea { min-height:112px; resize:vertical; }
-        input:focus,select:focus,textarea:focus { outline:3px solid rgba(8,127,91,.22); border-color:#087f5b; }
+        input:focus,select:focus,textarea:focus { outline:3px solid rgba(8,127,91,.22); border-color:var(--accent); }
         .files { font-weight:600; }
         .hint { color:#5f6e6a; font-size:.88rem; font-weight:500; }
         .consent { display:flex; align-items:flex-start; gap:9px; font-weight:600; }
-        .consent input { width:22px; min-height:22px; margin-top:2px; accent-color:#087f5b; }
-        button { border:0; border-radius:999px; background:#087f5b; color:#fff; font-weight:800; cursor:pointer; }
+        .consent input { width:22px; min-height:22px; margin-top:2px; accent-color:var(--accent); }
+        button { border:0; border-radius:999px; background:var(--accent); color:#fff; font-weight:800; cursor:pointer; }
         button:focus-visible { outline:3px solid rgba(8,127,91,.3); outline-offset:3px; }
         .website { position:absolute; inset-inline-start:-10000px; width:1px; height:1px; overflow:hidden; }
         footer { margin-top:18px; text-align:center; color:#6b7774; font-size:.88rem; }
@@ -368,7 +401,7 @@ export function renderWarranty(
     </head>
     <body>
       <main>
-        <header><div class="mark" aria-hidden="true">✓</div><div><h1>بطاقة ضمان موثّقة</h1><p class="muted">صادرة عبر ضمانك</p></div></header>
+        <header>${logo}<div><h1>${escapeHtml(portalTitle)}</h1><p class="muted">صادرة عبر ضمانك</p></div></header>
         ${submittedNotice}
         <article class="card">
           <div class="card-head"><h2>${escapeHtml(store.name)}</h2><p>${
@@ -406,6 +439,11 @@ export function renderWarranty(
   }</p>
           </div>
         </article>
+        <section class="section" aria-labelledby="policy-title">
+          <div class="section-head"><div><h2 id="policy-title">تغطية الضمان</h2><p class="muted">السياسة المعتمدة لهذا المنتج.</p></div></div>
+          <p>${escapeHtml(policy)}</p>
+          ${exclusions ? `<h2 style="font-size:1rem;margin-top:16px">الاستثناءات</h2><p class="muted">${escapeHtml(exclusions)}</p>` : ""}
+        </section>
         <section class="section" aria-labelledby="claims-title">
           <div class="section-head"><div><h2 id="claims-title">مطالبات هذا الضمان</h2><p class="muted">الحالة المعروضة هي آخر تحديث شاركه المتجر.</p></div></div>
           <div class="claims">${claimsHtml}</div>
@@ -749,7 +787,7 @@ async function viewWarranty(request: Request) {
   const { data: warranty, error } = await admin
     .from("warranties")
     .select(
-      "id,warranty_number,store_id,customer_name,customer_phone,product_name,serial_number,purchase_date,expiry_date,created_at,voided_at",
+      "id,warranty_number,store_id,product_id,customer_name,customer_phone,product_name,serial_number,purchase_date,expiry_date,created_at,voided_at",
     )
     .eq("id", payload.warrantyId)
     .is("voided_at", null)
@@ -757,10 +795,15 @@ async function viewWarranty(request: Request) {
   if (error || !warranty) return json(404, { error: "WARRANTY_NOT_FOUND" });
   const { data: store, error: storeError } = await admin
     .from("stores")
-    .select("name,city,phone")
+    .select("name,city,phone,logo_url,brand_color,customer_portal_title,warranty_policy,warranty_exclusions")
     .eq("id", warranty.store_id)
     .maybeSingle();
   if (storeError || !store) return json(404, { error: "STORE_NOT_FOUND" });
+  const { data: product } = warranty.product_id
+    ? await admin.from("products").select("warranty_policy,warranty_exclusions")
+      .eq("id", warranty.product_id).eq("store_id", warranty.store_id)
+      .maybeSingle()
+    : { data: null };
 
   const { data: claims, error: claimsError } = await admin
     .from("maintenance_requests")
@@ -781,6 +824,10 @@ async function viewWarranty(request: Request) {
       token,
       url.searchParams.get("submitted")?.trim() || null,
       url.searchParams.get("attachmentWarning") === "1",
+      {
+        policy: product?.warranty_policy,
+        exclusions: product?.warranty_exclusions,
+      },
     ),
     {
       status: 200,
@@ -788,7 +835,7 @@ async function viewWarranty(request: Request) {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "private, no-store, max-age=0",
         "content-security-policy":
-          "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+          "default-src 'none'; style-src 'unsafe-inline'; img-src https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         "permissions-policy": "camera=(), microphone=(), geolocation=()",
         "referrer-policy": "no-referrer",
         "x-content-type-options": "nosniff",

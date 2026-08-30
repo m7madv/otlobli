@@ -33,3 +33,9 @@ verify_jwt = false
 
 [functions.warranty-card]
 verify_jwt = false
+
+[functions.damanak-api]
+verify_jwt = false
+
+[functions.dispatch-webhooks]
+verify_jwt = false

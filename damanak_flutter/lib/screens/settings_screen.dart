@@ -21,9 +21,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _address = TextEditingController();
   final _commercialRegistration = TextEditingController();
   final _invoicePrefix = TextEditingController();
+  final _logoUrl = TextEditingController();
+  final _customerPortalTitle = TextEditingController();
+  final _warrantyPolicy = TextEditingController();
+  final _warrantyExclusions = TextEditingController();
   String _country = 'SA';
   String _currency = 'SAR';
   int _defaultWarrantyMonths = 12;
+  String _brandColor = '#087F5B';
   bool _loaded = false;
 
   @override
@@ -37,9 +42,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _address.text = store.address;
     _commercialRegistration.text = store.commercialRegistration;
     _invoicePrefix.text = store.invoicePrefix;
+    _logoUrl.text = store.logoUrl;
+    _customerPortalTitle.text = store.customerPortalTitle;
+    _warrantyPolicy.text = store.warrantyPolicy;
+    _warrantyExclusions.text = store.warrantyExclusions;
     _country = store.countryCode;
     _currency = store.currencyCode;
     _defaultWarrantyMonths = store.defaultWarrantyMonths;
+    _brandColor = store.brandColor;
     _loaded = true;
   }
 
@@ -51,6 +61,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _address.dispose();
     _commercialRegistration.dispose();
     _invoicePrefix.dispose();
+    _logoUrl.dispose();
+    _customerPortalTitle.dispose();
+    _warrantyPolicy.dispose();
+    _warrantyExclusions.dispose();
     super.dispose();
   }
 
@@ -69,6 +83,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       address: _address.text,
       invoicePrefix: _invoicePrefix.text,
       defaultWarrantyMonths: _defaultWarrantyMonths,
+      logoUrl: _logoUrl.text,
+      brandColor: _brandColor,
+      customerPortalTitle: _customerPortalTitle.text,
+      warrantyPolicy: _warrantyPolicy.text,
+      warrantyExclusions: _warrantyExclusions.text,
     );
   }
 
@@ -77,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final controller = AppScope.of(context);
     final colors = context.colors;
     final canEdit = controller.membership!.role.canManageTeam;
+    final canBrand = controller.subscription!.plan.customBranding;
     return Scaffold(
       appBar: AppBar(title: const Text('بيانات المتجر')),
       body: SafeArea(
@@ -122,6 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
                             initialValue: _country,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'الدولة',
                               prefixIcon: Icon(Icons.public_outlined),
@@ -191,12 +212,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
+                      title: 'هوية بطاقة العميل',
+                      icon: Icons.verified_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!canBrand)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Text(
+                                'الهوية المخصصة مشمولة في باقتي نمو وتوسع. ستبقى هوية ضمانك الافتراضية في الباقة الحالية.',
+                                style: TextStyle(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          TextFormField(
+                            controller: _customerPortalTitle,
+                            enabled: canEdit && canBrand,
+                            maxLength: 80,
+                            decoration: const InputDecoration(
+                              labelText: 'عنوان بطاقة الضمان',
+                              hintText: 'بطاقة ضمان موثّقة',
+                              prefixIcon: Icon(Icons.title_rounded),
+                            ),
+                            validator: (value) {
+                              if (!canBrand) return null;
+                              final length = value?.trim().length ?? 0;
+                              return length < 3 ? 'اكتب عنواناً واضحاً' : null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _logoUrl,
+                            enabled: canEdit && canBrand,
+                            textDirection: TextDirection.ltr,
+                            keyboardType: TextInputType.url,
+                            decoration: const InputDecoration(
+                              labelText: 'رابط شعار HTTPS (اختياري)',
+                              prefixIcon: Icon(Icons.image_outlined),
+                              helperText:
+                                  'استخدم رابط صورة ثابتاً ومشفراً. لن يظهر الرابط نفسه للعميل.',
+                            ),
+                            validator: (value) {
+                              final url = value?.trim() ?? '';
+                              if (url.isEmpty || !canBrand) return null;
+                              final parsed = Uri.tryParse(url);
+                              return parsed?.scheme == 'https' &&
+                                      parsed!.host.isNotEmpty
+                                  ? null
+                                  : 'استخدم رابطاً يبدأ بـ https://';
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'لون واحد للهوية',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              for (final value in _brandColors)
+                                _BrandColorButton(
+                                  value: value,
+                                  selected: value == _brandColor,
+                                  enabled: canEdit && canBrand,
+                                  onSelected: () =>
+                                      setState(() => _brandColor = value),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _SettingsSection(
                       title: 'العملة والسجل',
                       icon: Icons.payments_outlined,
                       child: Column(
                         children: [
                           DropdownButtonFormField<String>(
                             initialValue: _currency,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'عملة المتجر الأساسية',
                               prefixIcon: Icon(Icons.payments_outlined),
@@ -259,6 +358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
                             initialValue: _defaultWarrantyMonths,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'مدة الضمان الافتراضية',
                               prefixIcon: Icon(Icons.event_repeat_outlined),
@@ -277,6 +377,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         value ?? _defaultWarrantyMonths,
                                   )
                                 : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _warrantyPolicy,
+                            enabled: canEdit,
+                            minLines: 3,
+                            maxLines: 7,
+                            maxLength: 4000,
+                            decoration: const InputDecoration(
+                              labelText: 'ما الذي يغطيه الضمان؟',
+                              hintText:
+                                  'مثال: عيوب الصناعة والأعطال الداخلية خلال مدة الضمان.',
+                              alignLabelWithHint: true,
+                              prefixIcon: Icon(Icons.policy_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _warrantyExclusions,
+                            enabled: canEdit,
+                            minLines: 3,
+                            maxLines: 7,
+                            maxLength: 4000,
+                            decoration: const InputDecoration(
+                              labelText: 'الاستثناءات',
+                              hintText:
+                                  'مثال: الكسر، السوائل، وسوء الاستخدام ما لم يُذكر غير ذلك.',
+                              alignLabelWithHint: true,
+                              prefixIcon: Icon(Icons.gpp_bad_outlined),
+                            ),
                           ),
                         ],
                       ),
@@ -320,6 +450,59 @@ const _countries = <String, String>{
   'SY': 'سوريا',
 };
 
+const _brandColors = <String>[
+  '#087F5B',
+  '#1D4ED8',
+  '#6D28D9',
+  '#9F1239',
+  '#334155',
+  '#7C2D12',
+];
+
+class _BrandColorButton extends StatelessWidget {
+  const _BrandColorButton({
+    required this.value,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final String value;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(int.parse(value.substring(1), radix: 16) + 0xFF000000);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: selected ? 'لون الهوية المحدد' : 'اختيار لون الهوية',
+      child: InkWell(
+        onTap: enabled ? onSelected : null,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 48,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: enabled ? color : color.withValues(alpha: 0.35),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected ? context.colors.onSurface : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            child: selected
+                ? const Icon(Icons.check_rounded, color: Colors.white)
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({
     required this.title,
@@ -344,7 +527,12 @@ class _SettingsSection extends StatelessWidget {
               children: [
                 Icon(icon, color: colors.primary, size: 21),
                 const SizedBox(width: 8),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),

@@ -10,8 +10,11 @@ import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
 import '../models/claim_attachment.dart';
+import '../models/claim_ai_review.dart';
 import '../models/inventory.dart';
+import '../models/integration.dart';
 import '../models/maintenance_request.dart';
+import '../models/app_notification.dart';
 import '../models/product.dart';
 import '../models/product_ai_import.dart';
 import '../models/register.dart';
@@ -80,6 +83,12 @@ class AppController extends ChangeNotifier {
   final List<TeamMember> _team = [];
   final List<PlanInfo> _plans = [];
   final List<AuditEvent> _auditLogs = [];
+  final List<AppNotification> _notifications = [];
+  final List<ApiKeyInfo> _apiKeys = [];
+  final List<WebhookInfo> _webhooks = [];
+  final Map<String, ClaimAiReview> _claimAiReviews = {};
+  NotificationPreferences _notificationPreferences =
+      const NotificationPreferences();
   final List<StoreProductOffer> _storeOffers = [];
   final Set<String> _processingPurchases = {};
   int _storeProductRefreshSerial = 0;
@@ -152,6 +161,17 @@ class AppController extends ChangeNotifier {
   UnmodifiableListView<PlanInfo> get plans => UnmodifiableListView(_plans);
   UnmodifiableListView<AuditEvent> get auditLogs =>
       UnmodifiableListView(_auditLogs);
+  UnmodifiableListView<AppNotification> get notifications =>
+      UnmodifiableListView(_notifications);
+  NotificationPreferences get notificationPreferences =>
+      _notificationPreferences;
+  int get unreadNotificationCount =>
+      _notifications.where((item) => item.isUnread).length;
+  UnmodifiableListView<ApiKeyInfo> get apiKeys =>
+      UnmodifiableListView(_apiKeys);
+  UnmodifiableListView<WebhookInfo> get webhooks =>
+      UnmodifiableListView(_webhooks);
+  ClaimAiReview? claimAiReview(String requestId) => _claimAiReviews[requestId];
 
   StoreProductOffer? storeOffer(String planId, BillingCycle cycle) {
     for (final offer in _storeOffers) {
@@ -342,6 +362,11 @@ class AppController extends ChangeNotifier {
     required String address,
     required String invoicePrefix,
     required int defaultWarrantyMonths,
+    String? logoUrl,
+    String? brandColor,
+    String? customerPortalTitle,
+    String? warrantyPolicy,
+    String? warrantyExclusions,
   }) async {
     await _guard(() async {
       _store = await _repository!.updateStore(
@@ -358,6 +383,11 @@ class AppController extends ChangeNotifier {
         address: address,
         invoicePrefix: invoicePrefix,
         defaultWarrantyMonths: defaultWarrantyMonths,
+        logoUrl: logoUrl ?? _store!.logoUrl,
+        brandColor: brandColor ?? _store!.brandColor,
+        customerPortalTitle: customerPortalTitle ?? _store!.customerPortalTitle,
+        warrantyPolicy: warrantyPolicy ?? _store!.warrantyPolicy,
+        warrantyExclusions: warrantyExclusions ?? _store!.warrantyExclusions,
       );
       _noticeMessage = 'تم حفظ بيانات المتجر.';
     });
@@ -366,6 +396,140 @@ class AppController extends ChangeNotifier {
   Future<void> refresh() async {
     if (_store == null) return;
     await _guard(_loadWorkspace);
+  }
+
+  Future<void> refreshNotifications() async {
+    if (_store == null) return;
+    await _guard(() async {
+      final items = await _repository!.loadNotifications(_store!.id);
+      _notifications
+        ..clear()
+        ..addAll(items);
+    });
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    final index = _notifications.indexWhere(
+      (item) => item.id == notificationId,
+    );
+    if (index < 0 || !_notifications[index].isUnread) return;
+    await _repository!.markNotificationRead(notificationId);
+    final item = _notifications[index];
+    _notifications[index] = AppNotification(
+      id: item.id,
+      storeId: item.storeId,
+      type: item.type,
+      title: item.title,
+      body: item.body,
+      requestId: item.requestId,
+      createdAt: item.createdAt,
+      readAt: DateTime.now(),
+    );
+    notifyListeners();
+  }
+
+  Future<void> saveNotificationPreferences(
+    NotificationPreferences preferences,
+  ) async {
+    await _guard(() async {
+      _notificationPreferences = await _repository!.saveNotificationPreferences(
+        storeId: _store!.id,
+        preferences: preferences,
+      );
+      _noticeMessage = 'تم حفظ تفضيلات الإشعارات.';
+    });
+  }
+
+  Future<ClaimAiReview?> analyzeClaim({
+    required String requestId,
+    bool includeAttachments = false,
+  }) async {
+    ClaimAiReview? result;
+    await _guard(() async {
+      result = await _repository!.analyzeClaim(
+        storeId: _store!.id,
+        requestId: requestId,
+        includeAttachments: includeAttachments,
+      );
+      _claimAiReviews[requestId] = result!;
+    });
+    return result;
+  }
+
+  Future<void> loadIntegrations() async {
+    if (_store == null || _membership?.role != MemberRole.owner) return;
+    await _guard(() async {
+      final results = await Future.wait<Object>([
+        _repository!.loadApiKeys(_store!.id),
+        _repository!.loadWebhooks(_store!.id),
+      ]);
+      _apiKeys
+        ..clear()
+        ..addAll(results[0] as List<ApiKeyInfo>);
+      _webhooks
+        ..clear()
+        ..addAll(results[1] as List<WebhookInfo>);
+    });
+  }
+
+  Future<CreatedApiKey?> createApiKey({
+    required String name,
+    required List<String> scopes,
+  }) async {
+    CreatedApiKey? result;
+    await _guard(() async {
+      result = await _repository!.createApiKey(
+        storeId: _store!.id,
+        name: name,
+        scopes: scopes,
+      );
+      _apiKeys.insert(0, result!.info);
+    });
+    return result;
+  }
+
+  Future<void> revokeApiKey(String keyId) async {
+    await _guard(() async {
+      await _repository!.revokeApiKey(keyId);
+      await _loadIntegrationsWithoutGuard();
+      _noticeMessage = 'تم إلغاء المفتاح فوراً.';
+    });
+  }
+
+  Future<CreatedWebhook?> createWebhook({
+    required String endpointUrl,
+    required List<String> events,
+  }) async {
+    CreatedWebhook? result;
+    await _guard(() async {
+      result = await _repository!.createWebhook(
+        storeId: _store!.id,
+        endpointUrl: endpointUrl,
+        events: events,
+      );
+      _webhooks.insert(0, result!.info);
+    });
+    return result;
+  }
+
+  Future<void> setWebhookActive(String webhookId, bool active) async {
+    await _guard(() async {
+      await _repository!.setWebhookActive(webhookId, active);
+      await _loadIntegrationsWithoutGuard();
+    });
+  }
+
+  Future<void> _loadIntegrationsWithoutGuard() async {
+    final results = await Future.wait<Object>([
+      _repository!.loadApiKeys(_store!.id),
+      _repository!.loadWebhooks(_store!.id),
+    ]);
+    _apiKeys
+      ..clear()
+      ..addAll(results[0] as List<ApiKeyInfo>);
+    _webhooks
+      ..clear()
+      ..addAll(results[1] as List<WebhookInfo>);
   }
 
   Future<void> loadMoreWarranties() async {
@@ -453,6 +617,8 @@ class AppController extends ChangeNotifier {
     bool trackInventory = true,
     bool isSerialized = false,
     num reorderPoint = 2,
+    String warrantyPolicy = '',
+    String warrantyExclusions = '',
   }) async {
     Product? created;
     await _guard(() async {
@@ -469,6 +635,8 @@ class AppController extends ChangeNotifier {
         trackInventory: trackInventory,
         isSerialized: isSerialized,
         reorderPoint: reorderPoint,
+        warrantyPolicy: warrantyPolicy,
+        warrantyExclusions: warrantyExclusions,
       );
       _products.insert(0, created!);
     });
@@ -489,6 +657,8 @@ class AppController extends ChangeNotifier {
     bool isSerialized = false,
     num reorderPoint = 2,
     bool isActive = true,
+    String warrantyPolicy = '',
+    String warrantyExclusions = '',
   }) async {
     Product? updated;
     await _guard(() async {
@@ -507,6 +677,8 @@ class AppController extends ChangeNotifier {
         isSerialized: isSerialized,
         reorderPoint: reorderPoint,
         isActive: isActive,
+        warrantyPolicy: warrantyPolicy,
+        warrantyExclusions: warrantyExclusions,
       );
       final index = _products.indexWhere((item) => item.id == productId);
       if (!isActive) {
@@ -1319,6 +1491,8 @@ class AppController extends ChangeNotifier {
         _repository!.loadAuditLogs(storeId)
       else
         Future.value(<AuditEvent>[]),
+      _repository!.loadNotifications(storeId),
+      _repository!.loadNotificationPreferences(storeId),
     ]);
     _products
       ..clear()
@@ -1363,6 +1537,10 @@ class AppController extends ChangeNotifier {
     _auditLogs
       ..clear()
       ..addAll(results[13] as List<AuditEvent>);
+    _notifications
+      ..clear()
+      ..addAll(results[14] as List<AppNotification>);
+    _notificationPreferences = results[15] as NotificationPreferences;
     _activeBranchId ??= activeBranch?.id;
   }
 
@@ -1424,6 +1602,37 @@ class AppController extends ChangeNotifier {
     if (value.contains('seat_limit_reached')) {
       return 'وصل المتجر إلى الحد الأقصى لأعضاء الخطة الحالية.';
     }
+    if (value.contains('branch_limit_reached')) {
+      return 'وصل المتجر إلى حد الفروع في الباقة الحالية.';
+    }
+    if (value.contains('plan_api_required') ||
+        value.contains('plan_webhook_required')) {
+      return 'هذه الميزة متاحة في باقة توسع فقط.';
+    }
+    if (value.contains('plan_branding_required')) {
+      return 'الهوية المخصصة متاحة في باقتي نمو وتوسع.';
+    }
+    if (value.contains('api_key_limit_reached')) {
+      return 'وصل المتجر إلى حد 5 مفاتيح فعالة. ألغِ مفتاحاً قديماً أولاً.';
+    }
+    if (value.contains('webhook_limit_reached')) {
+      return 'وصل المتجر إلى حد 5 روابط فعالة.';
+    }
+    if (value.contains('claim_ai_monthly_limit')) {
+      return 'استهلك المتجر مراجعات المطالبات الذكية لهذا الشهر.';
+    }
+    if (value.contains('claim_ai_not_included')) {
+      return 'مراجعة المطالبات الذكية غير مشمولة في الباقة الحالية.';
+    }
+    if (value.contains('claim_ai_provider_not_configured')) {
+      return 'مساعد المطالبات غير مهيأ على الخادم بعد.';
+    }
+    if (value.contains('claim_ai_cooldown')) {
+      return 'تم تحليل هذه المطالبة قبل قليل. راجع النتيجة الحالية أولاً.';
+    }
+    if (value.contains('claim_review_manager_required')) {
+      return 'مساعد فرز المطالبة متاح للمالك والمدير فقط.';
+    }
     if (value.contains('subscription_inactive')) {
       return 'الاشتراك غير فعّال. افتح صفحة الاشتراك لتجديده.';
     }
@@ -1463,14 +1672,26 @@ class AppController extends ChangeNotifier {
     if (value.contains('claim_assignee_invalid')) {
       return 'اختر موظفاً نشطاً من فريق المتجر.';
     }
-    if (value.contains('ai_import_daily_limit')) {
-      return 'وصل المتجر إلى حد تحليل المستندات اليومي.';
+    if (value.contains('ai_import_monthly_limit')) {
+      return 'استهلك المتجر تحليلات ملفات المنتجات لهذا الشهر.';
+    }
+    if (value.contains('ai_import_daily_safety_limit')) {
+      return 'تم إيقاف تحليل الملفات مؤقتاً لحماية الحساب من الاستخدام غير المعتاد.';
+    }
+    if (value.contains('ai_import_not_included')) {
+      return 'تحليل ملفات المنتجات غير مشمول في الباقة الحالية؛ استخدم CSV.';
+    }
+    if (value.contains('ai_provider_not_configured')) {
+      return 'خدمة تحليل ملفات المنتجات غير مهيأة على الخادم بعد.';
     }
     if (value.contains('import_manager_required')) {
       return 'استيراد المستندات متاح للمالك أو المدير فقط.';
     }
     if (value.contains('ai_import_failed')) {
       return 'تعذر تحليل المستند. جرّب ملفاً أوضح أو استخدم CSV.';
+    }
+    if (value.contains('claim_ai_failed')) {
+      return 'تعذر تحليل المطالبة الآن. راجعها يدوياً أو حاول لاحقاً.';
     }
     if (value.contains('claim_attachment')) {
       return 'تعذر فتح ملف المطالبة. تحقق من الاتصال وحاول مرة أخرى.';
@@ -1518,6 +1739,11 @@ class AppController extends ChangeNotifier {
     _team.clear();
     _plans.clear();
     _auditLogs.clear();
+    _notifications.clear();
+    _apiKeys.clear();
+    _webhooks.clear();
+    _claimAiReviews.clear();
+    _notificationPreferences = const NotificationPreferences();
     _storeOffers.clear();
     _storeBillingState = StoreBillingState.idle;
     _storeBillingPlatform = StoreBillingPlatform.unavailable;

@@ -56,6 +56,11 @@ class StoreWorkspace {
     this.address = '',
     this.invoicePrefix = 'INV',
     this.defaultWarrantyMonths = 12,
+    this.logoUrl = '',
+    this.brandColor = '#087F5B',
+    this.customerPortalTitle = 'بطاقة ضمان موثّقة',
+    this.warrantyPolicy = '',
+    this.warrantyExclusions = '',
   });
 
   final String id;
@@ -71,6 +76,11 @@ class StoreWorkspace {
   final String address;
   final String invoicePrefix;
   final int defaultWarrantyMonths;
+  final String logoUrl;
+  final String brandColor;
+  final String customerPortalTitle;
+  final String warrantyPolicy;
+  final String warrantyExclusions;
 
   factory StoreWorkspace.fromJson(Map<String, dynamic> json) {
     return StoreWorkspace(
@@ -87,6 +97,12 @@ class StoreWorkspace {
       address: json['address'] as String? ?? '',
       invoicePrefix: json['invoice_prefix'] as String? ?? 'INV',
       defaultWarrantyMonths: json['default_warranty_months'] as int? ?? 12,
+      logoUrl: json['logo_url'] as String? ?? '',
+      brandColor: json['brand_color'] as String? ?? '#087F5B',
+      customerPortalTitle:
+          json['customer_portal_title'] as String? ?? 'بطاقة ضمان موثّقة',
+      warrantyPolicy: json['warranty_policy'] as String? ?? '',
+      warrantyExclusions: json['warranty_exclusions'] as String? ?? '',
     );
   }
 }

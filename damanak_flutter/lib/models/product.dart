@@ -13,6 +13,8 @@ class Product {
     this.trackInventory = true,
     this.isSerialized = false,
     this.reorderPoint = 2,
+    this.warrantyPolicy = '',
+    this.warrantyExclusions = '',
     required this.isActive,
     required this.createdAt,
   });
@@ -30,6 +32,8 @@ class Product {
   final bool trackInventory;
   final bool isSerialized;
   final num reorderPoint;
+  final String warrantyPolicy;
+  final String warrantyExclusions;
   final bool isActive;
   final DateTime createdAt;
 
@@ -58,6 +62,8 @@ class Product {
       trackInventory: json['track_inventory'] as bool? ?? true,
       isSerialized: json['is_serialized'] as bool? ?? false,
       reorderPoint: json['reorder_point'] as num? ?? 2,
+      warrantyPolicy: json['warranty_policy'] as String? ?? '',
+      warrantyExclusions: json['warranty_exclusions'] as String? ?? '',
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
     );

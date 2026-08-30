@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 
 class BrandMark extends StatelessWidget {
-  const BrandMark({this.compact = false, this.onDark = false, super.key});
+  const BrandMark({
+    this.compact = false,
+    this.onDark = false,
+    this.iconOnly = false,
+    super.key,
+  });
 
   final bool compact;
   final bool onDark;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -47,33 +53,35 @@ class BrandMark extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ضمانك',
-              style: TextStyle(
-                color: titleColor,
-                fontWeight: FontWeight.w700,
-                fontSize: compact ? 19 : 23,
-                height: 1,
-              ),
-            ),
-            if (!compact) ...[
-              const SizedBox(height: 4),
+        if (!iconOnly) ...[
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'ثقة موثّقة، خدمة أسهل',
+                'ضمانك',
                 style: TextStyle(
-                  color: subtitleColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  color: titleColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: compact ? 19 : 23,
+                  height: 1,
                 ),
               ),
+              if (!compact) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'ثقة موثّقة، خدمة أسهل',
+                  style: TextStyle(
+                    color: subtitleColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
+        ],
       ],
     );
   }

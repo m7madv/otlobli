@@ -62,18 +62,40 @@ class AiImportUsage {
     required this.outputTokens,
     required this.estimatedCostUsd,
     required this.model,
+    this.provider = '',
+    this.pricingTier = 'paid',
+    this.fallbackUsed = false,
+    this.monthlyUsed = 0,
+    this.monthlyLimit = 0,
   });
 
   final int inputTokens;
   final int outputTokens;
   final double? estimatedCostUsd;
   final String model;
+  final String provider;
+  final String pricingTier;
+  final bool fallbackUsed;
+  final int monthlyUsed;
+  final int monthlyLimit;
+
+  bool get isFreeProvider => provider == 'gemini' && pricingTier == 'free';
+  String get providerLabel => switch (provider) {
+    'gemini' => 'Gemini',
+    'openai' => 'OpenAI',
+    _ => 'الذكاء الاصطناعي',
+  };
 
   factory AiImportUsage.fromJson(Map<String, dynamic> json) => AiImportUsage(
     inputTokens: (json['inputTokens'] as num? ?? 0).toInt(),
     outputTokens: (json['outputTokens'] as num? ?? 0).toInt(),
     estimatedCostUsd: (json['estimatedCostUsd'] as num?)?.toDouble(),
     model: json['model'] as String? ?? '',
+    provider: json['provider'] as String? ?? '',
+    pricingTier: json['pricingTier'] as String? ?? 'paid',
+    fallbackUsed: json['fallbackUsed'] as bool? ?? false,
+    monthlyUsed: (json['monthlyUsed'] as num? ?? 0).toInt(),
+    monthlyLimit: (json['monthlyLimit'] as num? ?? 0).toInt(),
   );
 }
 

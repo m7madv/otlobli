@@ -25,6 +25,11 @@ void main() {
         'inputTokens': 8000,
         'outputTokens': 450,
         'estimatedCostUsd': 0.008025,
+        'provider': 'gemini',
+        'pricingTier': 'free',
+        'fallbackUsed': false,
+        'monthlyUsed': 3,
+        'monthlyLimit': 100,
         'model': 'gpt-5.4-mini',
       },
     });
@@ -37,6 +42,10 @@ void main() {
     expect(result.products.single.confidence, 0.93);
     expect(result.usage.inputTokens, 8000);
     expect(result.usage.estimatedCostUsd, closeTo(0.008025, 0.000001));
+    expect(result.usage.providerLabel, 'Gemini');
+    expect(result.usage.isFreeProvider, isTrue);
+    expect(result.usage.monthlyUsed, 3);
+    expect(result.usage.monthlyLimit, 100);
   });
 
   test('يتعامل مع الحقول الاختيارية الناقصة دون انهيار', () {

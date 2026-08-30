@@ -11,6 +11,7 @@ import '../widgets/message_banner.dart';
 import '../widgets/page_frame.dart';
 import '../widgets/status_chip.dart';
 import 'claim_detail_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -142,9 +143,31 @@ class _MobileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (MediaQuery.sizeOf(context).width >= 820) return const SizedBox.shrink();
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 16),
-      child: BrandMark(compact: true),
+    final controller = AppScope.of(context);
+    final iconOnly =
+        MediaQuery.sizeOf(context).width < 360 &&
+        MediaQuery.textScalerOf(context).scale(1) >= 1.6;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          BrandMark(compact: true, iconOnly: iconOnly),
+          const Spacer(),
+          Badge.count(
+            count: controller.unreadNotificationCount,
+            isLabelVisible: controller.unreadNotificationCount > 0,
+            child: IconButton.filledTonal(
+              tooltip: 'الإشعارات',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.notifications_none_rounded),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

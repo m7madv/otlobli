@@ -84,6 +84,14 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'استخدم التحليل للكتالوجات غير الشخصية فقط. لا ترفع فواتير تحتوي أسماء عملاء أو أرقام هواتف؛ ستراجع كل بند قبل حفظه.',
+                              style: TextStyle(
+                                color: context.colors.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                            ),
                             if (_fileName != null) ...[
                               const SizedBox(height: 12),
                               Text(
@@ -297,7 +305,14 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
         _aiUsage = result.usage;
       });
     } on FormatException catch (error) {
-      if (mounted) setState(() => _error = _friendlyAiError(error.message));
+      if (mounted) {
+        final message = error.message;
+        setState(
+          () => _error = RegExp(r'[\u0600-\u06FF]').hasMatch(message)
+              ? message
+              : _friendlyAiError(message),
+        );
+      }
     } catch (_) {
       if (mounted) {
         setState(
@@ -384,8 +399,20 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
     if (normalized.contains('AI_FILE_TOO_LARGE')) {
       return 'حجم المستند أكبر من 8 MB.';
     }
-    if (normalized.contains('AI_IMPORT_DAILY_LIMIT')) {
-      return 'وصل المتجر إلى حد 20 تحليلاً اليوم. أكمل غداً أو استخدم CSV.';
+    if (normalized.contains('AI_IMPORT_DAILY_SAFETY_LIMIT')) {
+      return 'وصل المتجر إلى حد 25 تحليلاً اليوم. أكمل غداً أو استخدم CSV.';
+    }
+    if (normalized.contains('AI_IMPORT_MONTHLY_LIMIT')) {
+      return 'استهلك المتجر تحليلات الذكاء الاصطناعي المشمولة هذا الشهر. استخدم CSV أو انتظر بداية الشهر التالي.';
+    }
+    if (normalized.contains('AI_IMPORT_DAILY_SAFETY_LIMIT')) {
+      return 'تم إيقاف التحليل مؤقتاً لحماية الحساب من الاستخدام غير المعتاد. حاول غداً أو استخدم CSV.';
+    }
+    if (normalized.contains('AI_IMPORT_NOT_INCLUDED')) {
+      return 'تحليل الملفات غير مشمول في الخطة الحالية. ما زال استيراد CSV متاحاً.';
+    }
+    if (normalized.contains('AI_PROVIDER_NOT_CONFIGURED')) {
+      return 'خدمة الذكاء الاصطناعي غير مهيأة على الخادم بعد.';
     }
     if (normalized.contains('AI_NO_PRODUCTS')) {
       return 'لم نعثر على بنود منتجات واضحة في المستند.';
@@ -413,6 +440,16 @@ class _AiUsageNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cost = usage.estimatedCostUsd;
+    final quota = usage.monthlyLimit > 0
+        ? ' • ${usage.monthlyUsed}/${usage.monthlyLimit} هذا الشهر'
+        : '';
+    final provider = usage.providerLabel;
+    final fallback = usage.fallbackUsed ? ' بعد التحويل التلقائي' : '';
+    final costText = usage.isFreeProvider
+        ? 'دون تكلفة مزود حالياً'
+        : cost == null
+        ? 'التكلفة غير متاحة'
+        : 'تكلفة تقريبية \$${cost.toStringAsFixed(4)}';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -426,10 +463,7 @@ class _AiUsageNote extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              cost == null
-                  ? 'اقتراح بالذكاء الاصطناعي — راجع كل بند قبل الحفظ.'
-                  : 'اقتراح بالذكاء الاصطناعي — تكلفة هذا المستند نحو '
-                        '\$${cost.toStringAsFixed(4)}. راجع كل بند قبل الحفظ.',
+              'اقتراح من $provider$fallback — $costText$quota. راجع كل بند قبل الحفظ.',
               style: TextStyle(
                 color: context.colors.onPrimaryContainer,
                 fontWeight: FontWeight.w600,

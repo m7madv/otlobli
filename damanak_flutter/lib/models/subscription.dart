@@ -26,7 +26,7 @@ class PlanPresentation {
       'بطاقة ضمان رقمية برمز QR',
       'رابط مشاركة آمن للضمان',
       'سجل ضمانات قابل للبحث',
-      'طلبات صيانة أساسية',
+      'مطالبات وصور ومستندات العميل',
     ],
   );
 
@@ -46,14 +46,14 @@ class PlanPresentation {
 
   static const scale = PlanPresentation(
     audience: 'لسلاسل الفروع والعمليات ذات الحجم الكبير',
-    branchLabel: 'مناسب لفروع متعددة',
-    suggestedBranches: null,
+    branchLabel: 'حتى 20 فرعاً',
+    suggestedBranches: 20,
     features: [
       'كل مزايا نمو',
+      'API بصلاحيات قابلة للتحديد',
+      'Webhooks موقعة للمطالبات',
+      'حصص أعلى للضمانات والتحليل',
       'سجل نشاط للمالك والمدير',
-      'الموردون وأوامر الشراء',
-      'تحويل المخزون بين الفروع',
-      'إدارة المرتجعات والصندوق',
     ],
   );
 
@@ -80,6 +80,12 @@ class PlanInfo {
     required this.yearlyPrice,
     required this.maxMembers,
     required this.monthlyWarranties,
+    this.monthlyAiImports = 0,
+    this.monthlyAiClaimReviews = 0,
+    this.maxBranches = 1,
+    this.apiAccess = false,
+    this.webhookAccess = false,
+    this.customBranding = false,
   });
 
   final String id;
@@ -88,12 +94,27 @@ class PlanInfo {
   final num yearlyPrice;
   final int maxMembers;
   final int monthlyWarranties;
+  final int monthlyAiImports;
+  final int monthlyAiClaimReviews;
+  final int maxBranches;
+  final bool apiAccess;
+  final bool webhookAccess;
+  final bool customBranding;
 
   PlanPresentation get presentation => PlanPresentation.forPlanId(id);
   String get audience => presentation.audience;
   String get branchLabel => presentation.branchLabel;
   int? get suggestedBranches => presentation.suggestedBranches;
-  List<String> get features => presentation.features;
+  List<String> get features => [
+    ...presentation.features,
+    if (monthlyAiImports > 0)
+      '$monthlyAiImports تحليل ملف منتجات بالذكاء الاصطناعي شهرياً',
+    if (monthlyAiClaimReviews > 0)
+      '$monthlyAiClaimReviews مراجعة ذكية للمطالبات شهرياً',
+    if (customBranding) 'هوية وسياسة ضمان مخصصة للعميل',
+    if (apiAccess) 'مفاتيح API تُعرض مرة واحدة فقط',
+    if (webhookAccess) 'إشعارات Webhook مع توقيع وإعادة محاولة',
+  ];
   bool get isRecommended => presentation.recommended;
 
   factory PlanInfo.fromJson(Map<String, dynamic> json) {
@@ -104,6 +125,12 @@ class PlanInfo {
       yearlyPrice: json['yearly_price'] as num? ?? 0,
       maxMembers: json['max_members'] as int? ?? 1,
       monthlyWarranties: json['monthly_warranties'] as int? ?? 0,
+      monthlyAiImports: json['monthly_ai_imports'] as int? ?? 0,
+      monthlyAiClaimReviews: json['monthly_ai_claim_reviews'] as int? ?? 0,
+      maxBranches: json['max_branches'] as int? ?? 1,
+      apiAccess: json['api_access'] as bool? ?? false,
+      webhookAccess: json['webhook_access'] as bool? ?? false,
+      customBranding: json['custom_branding'] as bool? ?? false,
     );
   }
 }

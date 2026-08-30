@@ -3,8 +3,11 @@ import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
 import '../models/claim_attachment.dart';
+import '../models/claim_ai_review.dart';
 import '../models/maintenance_request.dart';
+import '../models/app_notification.dart';
 import '../models/inventory.dart';
+import '../models/integration.dart';
 import '../models/product.dart';
 import '../models/product_ai_import.dart';
 import '../models/register.dart';
@@ -87,6 +90,11 @@ abstract interface class DamanakRepository {
     required String address,
     required String invoicePrefix,
     required int defaultWarrantyMonths,
+    required String logoUrl,
+    required String brandColor,
+    required String customerPortalTitle,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   });
 
   Future<List<Product>> loadProducts(String storeId);
@@ -103,6 +111,8 @@ abstract interface class DamanakRepository {
     required bool trackInventory,
     required bool isSerialized,
     required num reorderPoint,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   });
   Future<Product> updateProduct({
     required String productId,
@@ -119,6 +129,8 @@ abstract interface class DamanakRepository {
     required bool isSerialized,
     required num reorderPoint,
     required bool isActive,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   });
   Future<AiProductImportResult> analyzeProductDocument({
     required String storeId,
@@ -246,6 +258,34 @@ abstract interface class DamanakRepository {
   Future<MaintenanceRequest> updateRequest(MaintenanceRequest request);
   Future<List<ClaimAttachment>> loadRequestAttachments(String requestId);
   Future<Uri> createRequestAttachmentLink(String storagePath);
+  Future<ClaimAiReview> analyzeClaim({
+    required String storeId,
+    required String requestId,
+    required bool includeAttachments,
+  });
+
+  Future<List<AppNotification>> loadNotifications(String storeId);
+  Future<NotificationPreferences> loadNotificationPreferences(String storeId);
+  Future<NotificationPreferences> saveNotificationPreferences({
+    required String storeId,
+    required NotificationPreferences preferences,
+  });
+  Future<void> markNotificationRead(String notificationId);
+
+  Future<List<ApiKeyInfo>> loadApiKeys(String storeId);
+  Future<CreatedApiKey> createApiKey({
+    required String storeId,
+    required String name,
+    required List<String> scopes,
+  });
+  Future<void> revokeApiKey(String keyId);
+  Future<List<WebhookInfo>> loadWebhooks(String storeId);
+  Future<CreatedWebhook> createWebhook({
+    required String storeId,
+    required String endpointUrl,
+    required List<String> events,
+  });
+  Future<void> setWebhookActive(String webhookId, bool active);
 
   Future<List<TeamMember>> loadTeam(String storeId);
   Future<StoreInvite> createInvite({

@@ -17,6 +17,8 @@ void main() {
       'yearly_price': 390,
       'max_members': 2,
       'monthly_warranties': 100,
+      'monthly_ai_imports': 10,
+      'max_branches': 1,
     });
     final growth = PlanInfo.fromJson({
       'id': 'growth',
@@ -25,6 +27,9 @@ void main() {
       'yearly_price': 990,
       'max_members': 5,
       'monthly_warranties': 600,
+      'monthly_ai_imports': 100,
+      'max_branches': 3,
+      'custom_branding': true,
     });
     final scale = PlanInfo.fromJson({
       'id': 'scale',
@@ -33,6 +38,11 @@ void main() {
       'yearly_price': 1990,
       'max_members': 15,
       'monthly_warranties': 3000,
+      'monthly_ai_imports': 500,
+      'max_branches': 20,
+      'custom_branding': true,
+      'api_access': true,
+      'webhook_access': true,
     });
 
     expect(starter.branchLabel, 'مناسب لفرع واحد');
@@ -45,24 +55,18 @@ void main() {
     expect(growth.features, contains('فريق بأدوار مستقلة'));
     expect(growth.features, contains('الفروع والمخزون ونقطة البيع'));
 
-    expect(scale.branchLabel, 'مناسب لفروع متعددة');
-    expect(scale.suggestedBranches, isNull);
+    expect(scale.branchLabel, 'حتى 20 فرعاً');
+    expect(scale.suggestedBranches, 20);
     expect(scale.features, contains('سجل نشاط للمالك والمدير'));
-    expect(scale.features, contains('الموردون وأوامر الشراء'));
+    expect(scale.features, contains('API بصلاحيات قابلة للتحديد'));
+    expect(scale.features, contains('Webhooks موقعة للمطالبات'));
 
     final visibleFeatures = [
       ...starter.features,
       ...growth.features,
       ...scale.features,
     ].join(' ');
-    for (final unavailableFeature in [
-      'صور ومرفقات',
-      'تعيين مسؤول',
-      'تنبيهات',
-      'إصدار ضمانات بدفعات',
-      'API',
-      'دعم بأولوية',
-    ]) {
+    for (final unavailableFeature in ['إصدار ضمانات بدفعات', 'دعم بأولوية']) {
       expect(visibleFeatures, isNot(contains(unavailableFeature)));
     }
   });

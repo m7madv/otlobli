@@ -600,6 +600,10 @@ class _PlanCard extends StatelessWidget {
                   text: '${plan.maxMembers} أعضاء',
                 ),
                 _PlanMetric(icon: Icons.store_outlined, text: plan.branchLabel),
+                _PlanMetric(
+                  icon: Icons.auto_awesome_outlined,
+                  text: '${plan.monthlyAiImports} تحليل ملف/شهر',
+                ),
               ],
             ),
             const SizedBox(height: 15),

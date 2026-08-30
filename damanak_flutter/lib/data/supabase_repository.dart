@@ -8,8 +8,11 @@ import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
 import '../models/claim_attachment.dart';
+import '../models/claim_ai_review.dart';
 import '../models/inventory.dart';
+import '../models/integration.dart';
 import '../models/maintenance_request.dart';
+import '../models/app_notification.dart';
 import '../models/product.dart';
 import '../models/product_ai_import.dart';
 import '../models/register.dart';
@@ -212,6 +215,11 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String address,
     required String invoicePrefix,
     required int defaultWarrantyMonths,
+    required String logoUrl,
+    required String brandColor,
+    required String customerPortalTitle,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     final row = await _client
         .from('stores')
@@ -228,6 +236,11 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'address': address.trim(),
           'invoice_prefix': invoicePrefix.trim().toUpperCase(),
           'default_warranty_months': defaultWarrantyMonths,
+          'logo_url': logoUrl.trim(),
+          'brand_color': brandColor,
+          'customer_portal_title': customerPortalTitle.trim(),
+          'warranty_policy': warrantyPolicy.trim(),
+          'warranty_exclusions': warrantyExclusions.trim(),
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', storeId)
@@ -391,6 +404,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required bool trackInventory,
     required bool isSerialized,
     required num reorderPoint,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     final row = await _client
         .from('products')
@@ -407,6 +422,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'track_inventory': trackInventory,
           'is_serialized': isSerialized,
           'reorder_point': reorderPoint,
+          'warranty_policy': warrantyPolicy.trim(),
+          'warranty_exclusions': warrantyExclusions.trim(),
           'created_by': _user.id,
         })
         .select()
@@ -430,6 +447,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required bool isSerialized,
     required num reorderPoint,
     required bool isActive,
+    required String warrantyPolicy,
+    required String warrantyExclusions,
   }) async {
     final row = await _client
         .from('products')
@@ -446,6 +465,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'is_serialized': isSerialized,
           'reorder_point': reorderPoint,
           'is_active': isActive,
+          'warranty_policy': warrantyPolicy.trim(),
+          'warranty_exclusions': warrantyExclusions.trim(),
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', productId)
@@ -1005,6 +1026,162 @@ class SupabaseDamanakRepository implements DamanakRepository {
       throw StateError('CLAIM_ATTACHMENT_LINK_INVALID');
     }
     return uri;
+  }
+
+  @override
+  Future<ClaimAiReview> analyzeClaim({
+    required String storeId,
+    required String requestId,
+    required bool includeAttachments,
+  }) async {
+    final response = await _client.functions.invoke(
+      'analyze-claim-ai',
+      body: {
+        'storeId': storeId,
+        'requestId': requestId,
+        'includeAttachments': includeAttachments,
+      },
+    );
+    if (response.status != 200 || response.data is! Map) {
+      final code = response.data is Map
+          ? (response.data as Map)['error']?.toString()
+          : null;
+      throw StateError(code ?? 'CLAIM_AI_FAILED');
+    }
+    return ClaimAiReview.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  @override
+  Future<List<AppNotification>> loadNotifications(String storeId) async {
+    await _client.rpc(
+      'enqueue_overdue_claim_notifications',
+      params: {'target_store_id': storeId},
+    );
+    final rows = await _client
+        .from('notifications')
+        .select()
+        .eq('store_id', storeId)
+        .order('created_at', ascending: false)
+        .limit(100);
+    return rows.map(AppNotification.fromJson).toList();
+  }
+
+  @override
+  Future<NotificationPreferences> loadNotificationPreferences(
+    String storeId,
+  ) async {
+    final row = await _client
+        .from('notification_preferences')
+        .select()
+        .eq('store_id', storeId)
+        .eq('user_id', _user.id)
+        .maybeSingle();
+    return row == null
+        ? const NotificationPreferences()
+        : NotificationPreferences.fromJson(row);
+  }
+
+  @override
+  Future<NotificationPreferences> saveNotificationPreferences({
+    required String storeId,
+    required NotificationPreferences preferences,
+  }) async {
+    final row = await _client
+        .from('notification_preferences')
+        .upsert({
+          'store_id': storeId,
+          'user_id': _user.id,
+          'claim_created': preferences.claimCreated,
+          'claim_assigned': preferences.claimAssigned,
+          'claim_overdue': preferences.claimOverdue,
+          'ready_for_pickup': preferences.readyForPickup,
+          'marketing': false,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .select()
+        .single();
+    return NotificationPreferences.fromJson(row);
+  }
+
+  @override
+  Future<void> markNotificationRead(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toIso8601String()})
+        .eq('id', notificationId);
+  }
+
+  @override
+  Future<List<ApiKeyInfo>> loadApiKeys(String storeId) async {
+    final value = await _client.rpc(
+      'list_store_api_keys',
+      params: {'target_store_id': storeId},
+    );
+    return (value as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => ApiKeyInfo.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  @override
+  Future<CreatedApiKey> createApiKey({
+    required String storeId,
+    required String name,
+    required List<String> scopes,
+  }) async {
+    final value = await _client.rpc(
+      'create_store_api_key',
+      params: {
+        'target_store_id': storeId,
+        'key_name': name.trim(),
+        'requested_scopes': scopes,
+      },
+    );
+    return CreatedApiKey.fromJson(Map<String, dynamic>.from(value as Map));
+  }
+
+  @override
+  Future<void> revokeApiKey(String keyId) async {
+    await _client.rpc('revoke_store_api_key', params: {'target_key_id': keyId});
+  }
+
+  @override
+  Future<List<WebhookInfo>> loadWebhooks(String storeId) async {
+    final value = await _client.rpc(
+      'list_store_webhooks',
+      params: {'target_store_id': storeId},
+    );
+    return (value as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => WebhookInfo.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  @override
+  Future<CreatedWebhook> createWebhook({
+    required String storeId,
+    required String endpointUrl,
+    required List<String> events,
+  }) async {
+    final value = await _client.rpc(
+      'create_store_webhook',
+      params: {
+        'target_store_id': storeId,
+        'target_url': endpointUrl.trim(),
+        'target_events': events,
+      },
+    );
+    return CreatedWebhook.fromJson(Map<String, dynamic>.from(value as Map));
+  }
+
+  @override
+  Future<void> setWebhookActive(String webhookId, bool active) async {
+    await _client.rpc(
+      'set_store_webhook_active',
+      params: {'target_webhook_id': webhookId, 'target_active': active},
+    );
   }
 
   @override

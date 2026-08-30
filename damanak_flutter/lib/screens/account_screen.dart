@@ -14,6 +14,8 @@ import 'register_screen.dart';
 import 'reports_screen.dart';
 import 'sales_screen.dart';
 import 'settings_screen.dart';
+import 'notifications_screen.dart';
+import 'integrations_screen.dart';
 import 'subscription_screen.dart';
 import 'team_screen.dart';
 
@@ -162,6 +164,14 @@ class AccountScreen extends StatelessWidget {
               title: 'الحساب',
               children: [
                 _HubTile(
+                  icon: Icons.notifications_none_rounded,
+                  title: 'الإشعارات',
+                  subtitle: controller.unreadNotificationCount == 0
+                      ? 'لا توجد تنبيهات غير مقروءة'
+                      : '${controller.unreadNotificationCount} تنبيهات غير مقروءة',
+                  onTap: () => _open(context, const NotificationsScreen()),
+                ),
+                _HubTile(
                   icon: Icons.storefront_outlined,
                   title: 'بيانات المتجر',
                   subtitle: '${store.city} • ${store.phone}',
@@ -173,6 +183,15 @@ class AccountScreen extends StatelessWidget {
                   subtitle: 'خطة ${controller.subscription!.plan.name}',
                   onTap: () => _open(context, const SubscriptionScreen()),
                 ),
+                if (controller.membership!.role.canManageSubscription)
+                  _HubTile(
+                    icon: Icons.hub_outlined,
+                    title: 'التكاملات',
+                    subtitle: controller.subscription!.plan.apiAccess
+                        ? 'API وWebhooks'
+                        : 'متاحة في باقة توسع',
+                    onTap: () => _open(context, const IntegrationsScreen()),
+                  ),
               ],
             ),
             const SizedBox(height: 18),

@@ -255,6 +255,9 @@ void main() {
     final function = File(
       'supabase/functions/import-products-ai/index.ts',
     ).readAsStringSync();
+    final routing = File(
+      'supabase/migrations/20260830200000_damanak_ai_provider_routing.sql',
+    ).readAsStringSync();
 
     for (final token in [
       'ai_import_jobs',
@@ -267,10 +270,13 @@ void main() {
     }
     for (final token in [
       'OPENAI_API_KEY',
-      'gpt-5.4-mini',
+      'GEMINI_API_KEY',
+      'gemini-2.5-flash-lite',
+      'gpt-5.6-luna',
       'json_schema',
       'store: false',
-      'AI_IMPORT_DAILY_LIMIT',
+      'AI_IMPORT_MONTHLY_LIMIT',
+      'AI_IMPORT_DAILY_SAFETY_LIMIT',
       'IMPORT_MANAGER_REQUIRED',
       'productImportSchema',
       'confidence',
@@ -279,5 +285,83 @@ void main() {
     }
     expect(function, contains('env("OPENAI_API_KEY")'));
     expect(function, isNot(contains('sk-proj-')));
+    for (final token in [
+      'monthly_ai_imports',
+      'provider_attempts',
+      'max_branches',
+      'enforce_branch_entitlement',
+    ]) {
+      expect(routing, contains(token));
+    }
+  });
+
+  test('الإشعارات والتكاملات تفرض الخطة وتخفي الأسرار', () {
+    final notifications = File(
+      'supabase/migrations/20260830220000_damanak_notification_center.sql',
+    ).readAsStringSync();
+    final integrations = File(
+      'supabase/migrations/20260830230000_damanak_integrations.sql',
+    ).readAsStringSync();
+    for (final token in [
+      'notification_preferences',
+      'notifications_select_own',
+      'enqueue_overdue_claim_notifications',
+      'marketing boolean not null default false',
+    ]) {
+      expect(notifications, contains(token));
+    }
+    for (final token in [
+      'extensions.digest(plain_key',
+      'store_plan_allows',
+      'PLAN_API_REQUIRED',
+      'PLAN_WEBHOOK_REQUIRED',
+      'authenticate_store_api_key',
+      'queue_claim_webhooks',
+      'claim_webhook_deliveries',
+      'for update skip locked',
+    ]) {
+      expect(integrations, contains(token));
+    }
+    expect(
+      integrations,
+      isNot(
+        contains(
+          'grant select on table public.store_api_keys to authenticated',
+        ),
+      ),
+    );
+  });
+
+  test('فرز المطالبة بالذكاء الاصطناعي مساعد بشري محدود ومحمي', () {
+    final migration = File(
+      'supabase/migrations/20260831000000_damanak_claim_ai_reviews.sql',
+    ).readAsStringSync();
+    final function = File(
+      'supabase/functions/analyze-claim-ai/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'monthly_ai_claim_reviews',
+      'ai_claim_reviews',
+      'ai_claim_reviews_select_managers',
+      "has_store_role(store_id, array['owner', 'manager'])",
+      'estimated_cost_usd',
+    ]) {
+      expect(migration, contains(token));
+    }
+    for (final token in [
+      'gpt-5.6-luna',
+      'store: false',
+      'includeAttachments',
+      'CLAIM_AI_MONTHLY_LIMIT',
+      'CLAIM_AI_COOLDOWN',
+      'CLAIM_REVIEW_MANAGER_REQUIRED',
+      'لا تقترح قبول المطالبة أو رفضها',
+    ]) {
+      expect(function, contains(token));
+    }
+    expect(function, isNot(contains('customer_name')));
+    expect(function, isNot(contains('customer_phone')));
+    expect(function, isNot(contains('.from("maintenance_requests").update')));
   });
 }

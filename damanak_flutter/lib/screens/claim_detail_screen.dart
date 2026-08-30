@@ -6,6 +6,7 @@ import '../core/app_theme.dart';
 import '../core/date_utils.dart';
 import '../models/account.dart';
 import '../models/claim_attachment.dart';
+import '../models/claim_ai_review.dart';
 import '../models/maintenance_request.dart';
 import '../models/warranty.dart';
 import '../state/app_scope.dart';
@@ -36,6 +37,7 @@ class ClaimDetailScreen extends StatelessWidget {
         .where((item) => item.id == request.serviceBranchId)
         .firstOrNull;
     final canDecide = controller.membership?.role.canManageTeam ?? false;
+    final aiReview = controller.claimAiReview(request.id);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -153,6 +155,21 @@ class ClaimDetailScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (canDecide) ...[
+                      const SizedBox(height: 12),
+                      _AiReviewCard(
+                        review: aiReview,
+                        busy: controller.busy,
+                        onAnalyze: () => _runAiReview(context, request),
+                        onApply: aiReview == null
+                            ? null
+                            : () => _applyAiSuggestions(
+                                context,
+                                request,
+                                aiReview,
+                              ),
+                      ),
+                    ],
                     _AttachmentsSection(requestId: request.id),
                     if (_hasServiceDetails(request)) ...[
                       const SizedBox(height: 12),
@@ -234,6 +251,97 @@ class ClaimDetailScreen extends StatelessWidget {
       request.decisionReason.isNotEmpty ||
       request.customerNotes.isNotEmpty ||
       request.internalNotes.isNotEmpty;
+
+  Future<void> _runAiReview(
+    BuildContext context,
+    MaintenanceRequest request,
+  ) async {
+    var includeAttachments = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('مساعد فرز المطالبة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'سيُرسل وصف المشكلة واسم المنتج إلى OpenAI دون اسم العميل أو هاتفه. النتيجة اقتراح للموظف ولا تقبل المطالبة أو ترفضها.',
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: includeAttachments,
+                onChanged: (value) =>
+                    setDialogState(() => includeAttachments = value),
+                title: const Text('تحليل أول ملفين أيضاً'),
+                subtitle: const Text(
+                  'قد تحتوي الملفات على بيانات شخصية وتزيد التكلفة. اتركه مغلقاً إن لم تكن الصور ضرورية.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('تحليل الآن'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final result = await AppScope.of(context).analyzeClaim(
+      requestId: request.id,
+      includeAttachments: includeAttachments,
+    );
+    if (!context.mounted || result != null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppScope.of(context).errorMessage ?? 'تعذر تحليل المطالبة الآن.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyAiSuggestions(
+    BuildContext context,
+    MaintenanceRequest request,
+    ClaimAiReview review,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('استخدام الاقتراح؟'),
+        content: Text(
+          'سيُحدّث التصنيف إلى «${review.suggestedCategory.label}» والأولوية إلى «${review.suggestedPriority.label}». لن تتغير حالة المطالبة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('رجوع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('تطبيق بعد المراجعة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await AppScope.of(context).saveMaintenanceRequest(
+      request.copyWith(
+        category: review.suggestedCategory,
+        priority: review.suggestedPriority,
+      ),
+    );
+  }
 
   Future<void> _sendCustomerUpdate(
     BuildContext context,
@@ -757,15 +865,15 @@ class _ClaimHeader extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    request.issue,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                Text(
+                  request.issue,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(width: 10),
                 MaintenanceStatusChip(status: request.status),
               ],
             ),
@@ -986,6 +1094,106 @@ class _ContactCard extends StatelessWidget {
   }
 }
 
+class _AiReviewCard extends StatelessWidget {
+  const _AiReviewCard({
+    required this.review,
+    required this.busy,
+    required this.onAnalyze,
+    required this.onApply,
+  });
+
+  final ClaimAiReview? review;
+  final bool busy;
+  final VoidCallback onAnalyze;
+  final VoidCallback? onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = review;
+    final colors = context.colors;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'مساعد فرز المطالبة',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            FilledButton.tonal(
+              onPressed: busy ? null : onAnalyze,
+              child: Text(value == null ? 'تحليل' : 'إعادة التحليل'),
+            ),
+            const SizedBox(height: 10),
+            if (value == null)
+              Text(
+                'يلخص وصف العميل ويقترح فئة وأولوية وأسئلة ناقصة. لا يتخذ قراراً ولا يغيّر المطالبة تلقائياً.',
+                style: TextStyle(color: colors.onSurfaceVariant),
+              )
+            else ...[
+              Text(value.summary, style: const TextStyle(height: 1.55)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text('فئة: ${value.suggestedCategory.label}')),
+                  Chip(label: Text('أولوية: ${value.suggestedPriority.label}')),
+                  Chip(label: Text('ثقة ${(value.confidence * 100).round()}%')),
+                ],
+              ),
+              if (value.missingInformation.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'معلومات يُفضّل طلبها',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 5),
+                for (final item in value.missingInformation)
+                  Text('• $item', style: const TextStyle(height: 1.5)),
+              ],
+              if (value.signals.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'إشارات في الوصف: ${value.signals.join('، ')}',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                [
+                  value.disclaimer,
+                  if (value.usage.estimatedCostUsd != null)
+                    'التكلفة التقريبية: \$${value.usage.estimatedCostUsd!.toStringAsFixed(4)}',
+                  '${value.usage.monthlyUsed}/${value.usage.monthlyLimit} هذا الشهر',
+                  if (value.includedAttachments) 'شمل أول ملفين',
+                ].join(' • '),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: busy ? null : onApply,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('استخدام التصنيف والأولوية بعد المراجعة'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children, this.trailing});
 
@@ -1001,17 +1209,14 @@ class _Section extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                ?trailing,
-              ],
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            if (trailing != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: trailing!,
+              ),
+            ],
             const Divider(height: 24),
             ...children,
           ],
@@ -1221,29 +1426,37 @@ class _DetailLine extends StatelessWidget {
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: colors.onSurfaceVariant,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final largeText = MediaQuery.textScalerOf(context).scale(14) >= 20;
+          final valueText = Text(
+            value,
+            textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
+            textAlign: ltr ? TextAlign.end : TextAlign.start,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          );
+          final labelText = Text(
+            label,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
-              textAlign: ltr ? TextAlign.end : TextAlign.start,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+          );
+          if (constraints.maxWidth < 360 || largeText) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [labelText, const SizedBox(height: 3), valueText],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 112, child: labelText),
+              Expanded(child: valueText),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1296,25 +1509,34 @@ class _TimelineItem extends StatelessWidget {
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            active ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 18,
-            color: active ? colors.primary : colors.onSurfaceVariant,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                active ? Icons.check_circle_rounded : Icons.circle_outlined,
+                size: 18,
+                color: active ? colors.primary : colors.onSurfaceVariant,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
+          const SizedBox(height: 3),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 28),
             child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              formatDate(date),
+              textDirection: TextDirection.ltr,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            formatDate(date),
-            textDirection: TextDirection.ltr,
-            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
@@ -1345,20 +1567,27 @@ class _MetaPill extends StatelessWidget {
         color: background ?? colors.surfaceContainer,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width - 92,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -28,6 +28,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _sku = TextEditingController();
   final _cost = TextEditingController();
   final _reorderPoint = TextEditingController(text: '2');
+  final _warrantyPolicy = TextEditingController();
+  final _warrantyExclusions = TextEditingController();
   int _warrantyMonths = 0;
   num _initialQuantity = 0;
   bool _trackInventory = true;
@@ -54,6 +56,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _trackInventory = product.trackInventory;
     _isSerialized = product.isSerialized;
     _warrantyMonths = product.warrantyMonths;
+    _warrantyPolicy.text = product.warrantyPolicy;
+    _warrantyExclusions.text = product.warrantyExclusions;
   }
 
   @override
@@ -82,6 +86,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _sku.dispose();
     _cost.dispose();
     _reorderPoint.dispose();
+    _warrantyPolicy.dispose();
+    _warrantyExclusions.dispose();
     super.dispose();
   }
 
@@ -112,6 +118,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             trackInventory: _trackInventory,
             isSerialized: _isSerialized,
             reorderPoint: num.tryParse(_reorderPoint.text.trim()) ?? 0,
+            warrantyPolicy: _warrantyPolicy.text,
+            warrantyExclusions: _warrantyExclusions.text,
           )
         : await controller.updateProduct(
             productId: widget.product!.id,
@@ -126,6 +134,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             trackInventory: _trackInventory,
             isSerialized: _isSerialized,
             reorderPoint: num.tryParse(_reorderPoint.text.trim()) ?? 0,
+            warrantyPolicy: _warrantyPolicy.text,
+            warrantyExclusions: _warrantyExclusions.text,
           );
     final branch = controller.activeBranch;
     if (product != null &&
@@ -380,6 +390,32 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                   _trackInventory = value;
                                   if (!value) _isSerialized = false;
                                 }),
+                              ),
+                              const SizedBox(height: 4),
+                              TextFormField(
+                                controller: _warrantyPolicy,
+                                minLines: 2,
+                                maxLines: 5,
+                                maxLength: 4000,
+                                decoration: const InputDecoration(
+                                  labelText: 'تغطية خاصة لهذا المنتج',
+                                  hintText:
+                                      'اتركها فارغة لاستخدام سياسة المتجر.',
+                                  alignLabelWithHint: true,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _warrantyExclusions,
+                                minLines: 2,
+                                maxLines: 5,
+                                maxLength: 4000,
+                                decoration: const InputDecoration(
+                                  labelText: 'استثناءات خاصة بهذا المنتج',
+                                  hintText:
+                                      'اتركها فارغة لاستخدام استثناءات المتجر.',
+                                  alignLabelWithHint: true,
+                                ),
                               ),
                               SwitchListTile.adaptive(
                                 contentPadding: EdgeInsets.zero,

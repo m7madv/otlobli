@@ -1,4 +1,6 @@
 import {
+  estimateProviderCost,
+  extractGeminiText,
   extractOutputText,
   productImportSchema,
   sanitizeProducts,
@@ -31,5 +33,19 @@ Deno.test("AI import schema is strict and sanitizes review-only rows", () => {
   }
   if (products[0].confidence !== 1) {
     throw new Error("confidence limit not enforced");
+  }
+});
+
+Deno.test("AI router extracts Gemini JSON and keeps the free tier at zero", () => {
+  const text = extractGeminiText({
+    candidates: [{ content: { parts: [{ text: '{"products":[]}' }] } }],
+  });
+  if (text !== '{"products":[]}') throw new Error("Gemini output missing");
+  if (estimateProviderCost("gemini", "free", 100000, 10000) !== 0) {
+    throw new Error("Gemini free-tier imports must estimate zero provider cost");
+  }
+  const openAiCost = estimateProviderCost("openai", "paid", 100000, 10000);
+  if (openAiCost === null || Math.abs(openAiCost - 0.032) > 0.000001) {
+    throw new Error("OpenAI Luna default cost changed unexpectedly");
   }
 });

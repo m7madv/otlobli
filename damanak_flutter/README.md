@@ -1,4 +1,4 @@
-# ضمانك للأعمال 4.3.1
+# ضمانك للأعمال 4.4.0
 
 تطبيق `Flutter` عربي مخصص لإصدار الضمانات الرقمية ومتابعة الصيانة للمتاجر في الخليج، مع أدوات اختيارية للفروع والمخزون ونقطة البيع. يبدأ من رحلة الضمان القصيرة، ويعمل على `Android` و`iOS` والويب، ويمكن فتح عرض تشغيلي كامل بلا خادم أو تكلفة.
 
@@ -68,17 +68,7 @@
 - لا يوجد مفتاح خدمة سري داخل تطبيق الجوال، وملفات المفاتيح الفعلية مستثناة من `Git`.
 - لا تطبّق مخطط ضمانك على قاعدة تطبيق آخر.
 
-طبّق الملفات بالترتيب:
-
-1. `supabase/migrations/20260824090000_damanak_core.sql`
-2. `supabase/migrations/20260824130000_damanak_business_operations.sql`
-3. `supabase/migrations/20260824160000_damanak_retail_operations.sql`
-4. `supabase/migrations/20260824180000_damanak_store_billing.sql`
-5. `supabase/migrations/20260825190000_damanak_simple_receipts.sql`
-6. `supabase/migrations/20260827120000_damanak_plan_value_quotas.sql`
-7. `supabase/migrations/20260827150000_damanak_database_hardening.sql`
-
-ثم انشر دالتي `supabase/functions/verify-store-purchase` و`supabase/functions/warranty-card`. توجد أسماء المنتجات والأسرار واختبارات القبول في [`docs/STORE_BILLING_SETUP.md`](docs/STORE_BILLING_SETUP.md).
+طبّق جميع ملفات `supabase/migrations` بترتيب الاسم، ثم انشر دوال مجلد `supabase/functions` المطلوبة للبيئة. توجد أسماء منتجات المتجر وأسرار الفوترة واختبارات القبول في [`docs/STORE_BILLING_SETUP.md`](docs/STORE_BILLING_SETUP.md)، وسياسة الذكاء الاصطناعي والحصص وتهيئة `API` و`webhooks` في [`docs/AI_AND_INTEGRATIONS.md`](docs/AI_AND_INTEGRATIONS.md).
 إعداد مزودي الدخول ودعوة الموظف موثق في [`docs/AUTH_AND_TEAM_SETUP.md`](docs/AUTH_AND_TEAM_SETUP.md).
 
 ## التشغيل المحلي
@@ -118,6 +108,6 @@ powershell -ExecutionPolicy Bypass -File scripts/build_signed_android.ps1
 
 - مشروع `Supabase` الإنتاجي المستقل هو `exxayzlklvgeyqhvtzgi`، والمخطط ودالة التحقق وترحيل الإيصالات المبسطة منشورة.
 - شاشة الدخول تعرض `Google/Apple` فقط، ومسار دعوة الموظف يدعم الرابط و`QR` والرمز الاحتياطي؛ مزودا الدخول مفعّلان.
-- منتجات واشتراكات `App Store` جاهزة، أما منتجات `Google Play` فموجودة وتنتظر اكتمال خطتي `monthly` و`yearly` لكل منتج.
-- بُني `Android` بالإعدادات الحية ومفتاح Google Play الحالي، وبُني `iOS` موقّعاً عبر GitHub مع ملف التزويد وApple Sign-In. لم يُرفع build 9 إلى المتجرين بعد.
+- منتجات اشتراك `App Store` الستة جاهزة للإرسال مع الإصدار، ومنتجات `Google Play` موجودة؛ قبول الشراء والاستعادة على حسابات الاختبار يبقى اختبار جهاز منفصلاً.
+- الإصدار المنشور للاختبار الداخلي على المتجرين هو Build `20`. المصدر الحالي `4.4.0+21` تطويري محلي، ولم تُنشر بعد ترحيلات المطالبات والذكاء الاصطناعي والإشعارات والتكاملات أو Build `21`.
 - قبول الكاميرا والخلفية والاستئناف وقارئ الشاشة على أجهزة حقيقية ما زال مطلوباً قبل النشر العام.
