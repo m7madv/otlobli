@@ -150,6 +150,30 @@ was deleted and no test started. The gate now requires `releaseStatus` and is
 temporarily `draft`. Commit that exact AAB draft to `alpha`, finish all 11 app
 setup tasks truthfully, then change only `releaseStatus` to `completed` and rerun.
 
+Run `33310601936` succeeded and committed the exact existing bundle as
+`86.244 (1112)` on `alpha` with status `draft`; there was no Android rebuild and
+the test has not started. Tracked Google Play assets now exist under
+`store-assets/google-play/`: feature graphic `1024x500` SHA-256
+`D1A07F89BFDF923EBF811260DA558D0DF91F2008C09E0533586B7A371D6F6F86`, plus
+two sanitized 9:16 phone screenshots `1512x2688` with hashes
+`EC961F642EB2AADD324F5B9FD71156717D68009E9B3E0DFB87F66BCE0A6C8279` and
+`96DBDD0CB41D4EA4B520497763E416B37229F777D5987BA738E8524B8E6DEDFA`.
+Nothing was uploaded to the store listing and no policy declaration was saved.
+
+Known declarations: no ads, not government, no health features; encrypted
+collection of account/contact/address/order/payment/wallet/optional media, push
+token, product interaction, support, and user-initiated diagnostic data already
+declared in the privacy sources. Because users can top up and spend an in-app
+wallet balance, declare `Mobile payments and digital wallets`, not no financial
+features. The in-app permanent deletion flow is real, but the current public
+pages only point back into the app and do not satisfy Google's external account
+deletion initiation requirement. Do not submit until the owner provides a
+public support email authorized for store display and IARC sharing, explicitly
+accepts IARC terms, and supplies a dedicated reusable Google review account
+without OTP/2FA. Never reuse a personal email found in history or submit the
+live WhatsApp OTP flow as reviewer access; Google requires reusable,
+non-expiring credentials.
+
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
 It lists 12 instances indexed 0..11; legacy LDPlayer4 lists none. Terminal-only
 enumeration proved exactly 12 unique Google accounts: index 0 `z12` has none,
