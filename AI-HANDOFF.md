@@ -201,16 +201,23 @@ AccountManager output during Google's authentication UI was not reliable for
 this state, so do not claim ADB account verification; use the recorded owner
 confirmation. Instance 01 is finalized as
 `01 - adelalzoubi2022@gmail.com`, closed, and ADB is back to 0. Instance 10 is
-closed and named `10 - EMPTY - ADD GOOGLE ACCOUNT`. The owner confirmed an
-independent login of `djjd19903@gmail.com` in instance 11; it is finalized as
-`11 - djjd19903@gmail.com` and closed. Instance 02 is the only running LDPlayer,
-opened on Android Settings, and still has a transitional name listing both
-`chatxhxh@gmail.com` and `djjd19903@gmail.com`. The owner must manually remove
-only `djjd19903@gmail.com` from 02 and retain `chatxhxh@gmail.com`. After owner
-confirmation, rename 02 to `02 - chatxhxh@gmail.com` and close it. Instances 10
-and 12 remain empty. All LDPlayer configs have ADB=0. Never enter, store, or
-print passwords. Do not stop the unrelated Android Studio AVD; use terminal
-launch and quit only.
+The owner confirmed the final one-account-per-instance state. Names 01..12 are:
+`adelalzoubi2022`, `chatxhxh`, `mhm1981x`, `mhm1981dx`, `mhm1981d`,
+`mhmaadd.974`, `dhhddhhhd96`, `workmoh7`, `ryanalzby524`, `bbhzhxjd`,
+`djjd19903`, and `samirkhaledalzoubi`, each at Gmail. Instance 10 is currently
+running; all others are stopped. All LDPlayer configs have ADB=0. Account
+contents are owner-verified, not ADB-verified. Never enter, store, or print
+passwords. Do not stop the unrelated Android Studio AVD; use terminal launch
+and quit only.
+
+This does not yet satisfy the Play gate. The dedicated Play list still has 11
+accounts and must receive `bbhzhxjd@gmail.com`; the exact alpha release remains
+draft. After it is published, every account must use the opt-in link and remain
+opted in continuously for 14 days. Installation/opening is not the literal
+opt-in counter rule, but the production-access form requires truthful details
+about feature usage, tester engagement, feedback, and changes. Run meaningful
+tests from the Play-installed build and collect honest feedback; never describe
+developer-controlled accounts as independent people or fabricate engagement.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
