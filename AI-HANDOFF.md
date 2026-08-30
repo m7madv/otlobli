@@ -201,10 +201,14 @@ AccountManager output during Google's authentication UI was not reliable for
 this state, so do not claim ADB account verification; use the recorded owner
 confirmation. Instance 01 is finalized as
 `01 - adelalzoubi2022@gmail.com`, closed, and ADB is back to 0. Instance 10 is
-closed and named `10 - EMPTY - ADD GOOGLE ACCOUNT`. Instance 02 still contains
-two accounts and may be split into empty instance 11 using a separate owner
-login. Instance 11 is currently open by the owner and was deliberately left
-untouched. All LDPlayer configs currently have ADB=0. Never enter, store, or
+closed and named `10 - EMPTY - ADD GOOGLE ACCOUNT`. The owner confirmed an
+independent login of `djjd19903@gmail.com` in instance 11; it is finalized as
+`11 - djjd19903@gmail.com` and closed. Instance 02 is the only running LDPlayer,
+opened on Android Settings, and still has a transitional name listing both
+`chatxhxh@gmail.com` and `djjd19903@gmail.com`. The owner must manually remove
+only `djjd19903@gmail.com` from 02 and retain `chatxhxh@gmail.com`. After owner
+confirmation, rename 02 to `02 - chatxhxh@gmail.com` and close it. Instances 10
+and 12 remain empty. All LDPlayer configs have ADB=0. Never enter, store, or
 print passwords. Do not stop the unrelated Android Studio AVD; use terminal
 launch and quit only.
 
