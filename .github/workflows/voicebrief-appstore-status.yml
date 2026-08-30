@@ -19,6 +19,7 @@ jobs:
     env:
       VOICEBRIEF_APP_ID: "6805194629"
       VOICEBRIEF_BUILD_NUMBER: "15"
+      VOICEBRIEF_INTERNAL_GROUP_NAME: "VoiceBrief Internal"
 
     steps:
       - name: Install App Store Connect client dependencies
@@ -56,6 +57,7 @@ jobs:
 
           app_id = os.environ["VOICEBRIEF_APP_ID"]
           build_number = os.environ["VOICEBRIEF_BUILD_NUMBER"]
+          internal_group_name = os.environ["VOICEBRIEF_INTERNAL_GROUP_NAME"]
           key_id = os.environ["APP_STORE_CONNECT_API_KEY_ID"]
           issuer_id = os.environ["APP_STORE_CONNECT_ISSUER_ID"]
           key_path = pathlib.Path(os.environ["APP_STORE_CONNECT_API_KEY_PATH"])
@@ -139,6 +141,101 @@ jobs:
               time.sleep(20)
 
           attributes = build.get("attributes", {})
+          build_id = build.get("id")
+          if not build_id:
+              raise SystemExit(f"VoiceBrief build {build_number} has no build ID.")
+
+          if attributes.get("processingState") != "VALID":
+              raise SystemExit(
+                  f"VoiceBrief build {build_number} is "
+                  f"{attributes.get('processingState')}."
+              )
+
+          group_params = urllib.parse.urlencode(
+              {
+                  "filter[app]": app_id,
+                  "filter[name]": internal_group_name,
+                  "filter[isInternalGroup]": "true",
+                  "limit": "10",
+              }
+          )
+          groups_url = (
+              "https://api.appstoreconnect.apple.com/v1/betaGroups?"
+              + group_params
+          )
+          groups_request = urllib.request.Request(groups_url, headers=headers)
+          with urllib.request.urlopen(groups_request, timeout=30) as response:
+              groups_payload = json.load(response)
+          group = next(
+              (
+                  candidate
+                  for candidate in groups_payload.get("data", [])
+                  if candidate.get("attributes", {}).get("name")
+                  == internal_group_name
+                  and candidate.get("attributes", {}).get("isInternalGroup")
+                  is True
+              ),
+              None,
+          )
+          if group is None:
+              raise SystemExit(
+                  f"Internal beta group {internal_group_name!r} was not found "
+                  f"for VoiceBrief app {app_id}."
+              )
+
+          group_id = group.get("id")
+          if not group_id:
+              raise SystemExit(
+                  f"Internal beta group {internal_group_name!r} has no group ID."
+              )
+          relationship_url = (
+              "https://api.appstoreconnect.apple.com/v1/betaGroups/"
+              f"{urllib.parse.quote(group_id, safe='')}/relationships/builds"
+          )
+
+          def group_build_ids():
+              relationship_request = urllib.request.Request(
+                  relationship_url + "?limit=200",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(
+                  relationship_request, timeout=30
+              ) as response:
+                  relationship_payload = json.load(response)
+              return {
+                  item.get("id")
+                  for item in relationship_payload.get("data", [])
+                  if item.get("type") == "builds" and item.get("id")
+              }
+
+          distribution_action = "alreadyPresent"
+          if build_id not in group_build_ids():
+              linkage = json.dumps(
+                  {"data": [{"type": "builds", "id": build_id}]}
+              ).encode("utf-8")
+              attach_request = urllib.request.Request(
+                  relationship_url,
+                  data=linkage,
+                  headers={
+                      **headers,
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(attach_request, timeout=30) as response:
+                  if response.status != 204:
+                      raise SystemExit(
+                          "Unexpected App Store Connect response while "
+                          f"adding build to beta group: {response.status}."
+                      )
+              distribution_action = "added"
+
+          if build_id not in group_build_ids():
+              raise SystemExit(
+                  f"VoiceBrief build {build_number} is not associated with "
+                  f"{internal_group_name!r} after the distribution request."
+              )
+
           prerelease_id = (
               build.get("relationships", {})
               .get("preReleaseVersion", {})
@@ -171,9 +268,12 @@ jobs:
           )
           report = {
               "appId": app_id,
-              "betaGroups": beta_group_names,
-              "buildId": build.get("id"),
+              "betaGroups": sorted(
+                  set(beta_group_names + [internal_group_name])
+              ),
+              "buildId": build_id,
               "buildNumber": attributes.get("version"),
+              "distributionAction": distribution_action,
               "appVersion": prerelease.get("version"),
               "platform": prerelease.get("platform"),
               "processingState": attributes.get("processingState"),
@@ -195,15 +295,14 @@ jobs:
               summary.write(
                   f"- Beta groups: `{', '.join(report['betaGroups']) or 'none'}`\n"
               )
+              summary.write(
+                  f"- Distribution action: `{report['distributionAction']}`\n"
+              )
               summary.write(f"- Uploaded: `{report['uploadedDate']}`\n")
               summary.write(f"- Expires: `{report['expirationDate']}`\n")
               summary.write(f"- Minimum OS: `{report['minOsVersion']}`\n")
 
           print(json.dumps(report, sort_keys=True))
-          if report["processingState"] != "VALID":
-              raise SystemExit(
-                  f"VoiceBrief build {build_number} is {report['processingState']}."
-              )
           PY
 
       - name: Upload the safe status report
