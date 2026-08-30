@@ -134,8 +134,8 @@ jobs:
           APP_DEEP_LINK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           GOOGLE_CALLBACK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
-          test "$APP_VERSION" = "4.3.1"
-          test "$APP_BUILD" = "19"
+          test "$APP_VERSION" = "4.3.2"
+          test "$APP_BUILD" = "20"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
