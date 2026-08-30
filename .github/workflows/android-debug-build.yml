@@ -4,7 +4,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.route.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve manual workflow mode
+        id: route
+        run: |
+          if [ -f store-assets/google-play/CLOSED_TEST_AUTHORIZED.json ]; then
+            mode=$(node -p "JSON.parse(require('fs').readFileSync('store-assets/google-play/CLOSED_TEST_AUTHORIZED.json')).operation")
+          else
+            mode=build
+          fi
+          case "$mode" in
+            build|inspect|publish) ;;
+            *) echo "Unsupported Android workflow mode: $mode" >&2; exit 1 ;;
+          esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
   build-android:
+    needs: route
+    if: ${{ needs.route.outputs.mode == 'build' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -253,3 +275,20 @@ jobs:
       - name: Remove restored signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/otlobli-upload.jks"
+
+  google-play-closed-testing:
+    needs: route
+    if: ${{ needs.route.outputs.mode == 'inspect' || needs.route.outputs.mode == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Inspect or publish exact closed-test App Bundle
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/google-play-closed-testing.mjs

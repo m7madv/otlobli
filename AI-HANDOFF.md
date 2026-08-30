@@ -131,6 +131,22 @@ deleted, no IPA/TestFlight build was created or uploaded, and Oracle/WhatsApp
 was neither inspected nor modified. Do not claim public availability until
 Apple approves it.
 
+Google Play closed testing is now explicitly authorized for the exact tracked
+AAB `artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, size 5,775,124,
+SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
+`CLOSED_TEST_AUTHORIZED.json` is currently `inspect`; the registered Android
+workflow routes to a service-account API inspection without rebuilding or
+publishing. After inspection, bind `track` exactly and change only operation to
+`publish`; the script reuses versionCode 1112 if the exact digest already exists
+or uploads the tracked AAB, updates only that closed track, and commits the edit.
+
+The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
+It currently lists 12 instances indexed 0..11. The legacy LDPlayer4 CLI lists
+none, and the connected Android Studio `Diagnostic_API_36` AVD is unrelated and
+must not be stopped. The owner expects 14 tester accounts; enumerate accounts
+inside the LDPlayer instances privately and never print email/password values.
+Control instance launch, ADB actions, and quit through terminal commands only.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS

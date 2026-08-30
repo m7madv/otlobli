@@ -1,0 +1,9 @@
+{
+  "operation": "inspect",
+  "packageName": "com.otlobli.app",
+  "appVersion": "86.244",
+  "versionCode": "1112",
+  "bundlePath": "artifacts/release-86.244/Otlobli-86.244-1112-release.aab",
+  "sha256": "CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6",
+  "expectedClosedTesterAccounts": 14
+}
