@@ -13,6 +13,8 @@ import { makeOrderId, today } from './domain/orders'
 import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName, sanitizeFullNameInput } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
+import { evaluateCheckoutEligibility } from './domain/checkout'
+import type { CheckoutBlocker } from './domain/checkout'
 import {
   canAdoptOpeningStandardStoreEvent,
   canReuseStandardStoreSession,
@@ -2644,11 +2646,6 @@ function App() {
     ? [...checkoutBreakdown, { label: `خصم المحفظة (${formatUsd(walletSpendUsd)})`, value: -walletDiscountSyp }]
     : checkoutBreakdown
   const checkoutTotal = Math.max(0, preWalletTotal - walletDiscountSyp)
-  const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalSyp >= groupMinimumSyp
-  const hasIncompleteCustom = cartItems.some(
-    (item) => (item.needsCustomText && !item.customText?.trim()) ||
-              (item.needsCustomPhoto && !item.customPhotoDataUrl)
-  )
   const hasIncompleteCheckoutCustom = activeCheckoutItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
               (item.needsCustomPhoto && !item.customPhotoDataUrl)
@@ -2661,6 +2658,35 @@ function App() {
   }
   const hasAvailabilityIssues = activeCheckoutItems.some((item) => !!getAvailabilityIssue(item))
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
+  const checkoutUsesGroupSnapshot = !!(cartGroup && groupCheckoutItems.length > 0)
+  const checkoutMinimumSyp = checkoutUsesGroupSnapshot ? groupMinimumSyp : MIN_ORDER_SYP
+  const checkoutEligibilityTotalSyp = checkoutUsesGroupSnapshot ? groupTotalSyp : subtotal
+  const checkoutEligibility = evaluateCheckoutEligibility({
+    itemCount: activeCheckoutItems.length,
+    totalSyp: checkoutEligibilityTotalSyp,
+    minimumSyp: checkoutMinimumSyp,
+    hasIncompleteCustomization: hasIncompleteCheckoutCustom,
+    hasAvailabilityIssues,
+  })
+  const checkoutBlockerMessage = (blocker: CheckoutBlocker) => {
+    if (blocker.code === 'empty') return 'أضف منتجًا واحدًا على الأقل إلى السلة.'
+    if (blocker.code === 'customization') return 'أكمل النص أو الصورة المطلوبة للمنتجات المخصصة.'
+    if (blocker.code === 'availability') return 'راجع المنتج الذي تغيّر توفره واختر بديلًا أو احذفه.'
+    return `أضف ${formatMoney(blocker.remainingSyp ?? 0)} للوصول إلى الحد الأدنى ${formatMoney(checkoutEligibility.minimumSyp)}.`
+  }
+  const checkoutPrimaryBlocker = checkoutEligibility.blockers[0]
+  const checkoutPrimaryBlockerMessage = checkoutPrimaryBlocker
+    ? checkoutBlockerMessage(checkoutPrimaryBlocker)
+    : ''
+
+  const openCheckoutFromCart = () => {
+    if (!checkoutEligibility.allowed) {
+      showNotice(checkoutPrimaryBlockerMessage)
+      return
+    }
+    if (cartGroup && selectedDeliveryMember) selectDeliveryMember(selectedDeliveryMember)
+    setScreen('checkout')
+  }
 
   const cartItemsRef = useRef(cartItems)
   cartItemsRef.current = cartItems
@@ -5812,6 +5838,11 @@ function App() {
       showNotice('السلة فارغة')
       return
     }
+    if (!checkoutEligibility.allowed) {
+      showNotice(checkoutPrimaryBlockerMessage)
+      setScreen('cart')
+      return
+    }
     if (getFullNameValidationError(normalizedRecipientName)) {
       showNotice(FULL_NAME_ERROR_MESSAGE)
       return
@@ -7349,14 +7380,14 @@ function App() {
             </section>
           </main>
           <div className="sticky-pay-bar">
-            {cartItems.length > 0 && !meetsMinimumOrder && (
-              <p className="min-order-notice">
-                الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} — أضف منتجات أكثر للمتابعة
-              </p>
-            )}
-            {hasIncompleteCustom && (
-              <p className="min-order-notice min-order-notice--warn">
-                أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
+            {checkoutPrimaryBlockerMessage && (
+              <p
+                id="checkout-blocker-summary"
+                className={`min-order-notice${checkoutPrimaryBlocker?.code === 'minimum' ? '' : ' min-order-notice--warn'}`}
+                role="status"
+                aria-live="polite"
+              >
+                {checkoutPrimaryBlockerMessage}
               </p>
             )}
             <div className="sticky-pay-total">
@@ -7365,13 +7396,14 @@ function App() {
             </div>
             <button
               className="primary-action"
-              disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues}
-              onClick={() => {
-                if (cartGroup && selectedDeliveryMember) selectDeliveryMember(selectedDeliveryMember)
-                setScreen('checkout')
-              }}
+              aria-describedby={checkoutPrimaryBlockerMessage ? 'checkout-blocker-summary' : undefined}
+              onClick={openCheckoutFromCart}
             >
-              المتابعة للدفع
+              {checkoutPrimaryBlocker?.code === 'minimum'
+                ? `أضف ${formatMoney(checkoutPrimaryBlocker.remainingSyp ?? 0)}`
+                : checkoutEligibility.allowed
+                  ? 'المتابعة للدفع'
+                  : 'راجع السلة للمتابعة'}
               <Icon name="arrow_back" />
             </button>
           </div>
@@ -9616,12 +9648,12 @@ function AvailabilityActionRequest({
         </div>
       </div>
       <div className="availability-request__actions">
-        <button type="button" disabled={!onChangeQuantity} onClick={onChangeQuantity}>Change to available quantity</button>
-        <button type="button" onClick={onSelectAlternative}>Select another size or color</button>
-        <button type="button" disabled={!onRemoveUnavailable} onClick={onRemoveUnavailable}>Remove unavailable quantity and refund its value</button>
-        <button type="button" onClick={onRemoveProduct}>Remove the full product and refund it</button>
-        <button type="button" onClick={onReplace}>Replace the product</button>
-        <button type="button" onClick={onSupport}>Contact support</button>
+        <button type="button" disabled={!onChangeQuantity} onClick={onChangeQuantity}>تعديل الكمية إلى المتاح</button>
+        <button type="button" onClick={onSelectAlternative}>اختيار مقاس أو لون بديل</button>
+        <button type="button" disabled={!onRemoveUnavailable} onClick={onRemoveUnavailable}>حذف الكمية غير المتاحة واسترداد قيمتها</button>
+        <button type="button" onClick={onRemoveProduct}>حذف المنتج كاملًا واسترداد قيمته</button>
+        <button type="button" onClick={onReplace}>استبدال المنتج</button>
+        <button type="button" onClick={onSupport}>التواصل مع الدعم</button>
       </div>
     </section>
   )

@@ -1,3 +1,51 @@
+# Active handoff — v86.244/1112 App Review rejection repair (2026-08-30)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.244`; native
+build is `1112` because Apple already has immutable build `1111`.
+
+Apple rejected only the old public `86.230 (1095)` record. The exact 2.3.3
+cause was the repository's two login-only screenshots. They are deleted and
+replaced by six sanitized product-flow screenshots: store, cart, checkout for
+`APP_IPHONE_65` at 1242x2688 and `APP_IPAD_PRO_3GEN_129` at 2048x2732.
+`verify:app-store-assets` validates dimensions, count, names, old rejected
+hashes, unlisted PNGs, and the mandatory `PREPARE_ONLY` marker. The submission
+script uploads all replacements to COMPLETE before deleting stale screenshots.
+
+The plausible 2.1(a) dead end is now explicit and enforced. Pure
+`evaluateCheckoutEligibility` returns ordered empty/customization/availability/
+minimum blockers. Cart UI shows the exact first Arabic reason and remaining
+amount in a live status; its action remains tappable to repeat that feedback.
+`confirmOrder` revalidates the same result before any order call. Group checkout
+uses its own displayed group total and minimum. Isolated browser tests proved a
+4300 SYP cart stays blocked with an exact 700 SYP remainder and a 6400 SYP cart
+reaches checkout with the ShamCash action. No production order/payment was
+created. Normal pending orders use the server's two-hour deadline; top-up and
+issue-payment flows retain their separate five-minute deadline.
+
+App Store version reuse now accepts exactly one `REJECTED` or
+`PREPARE_FOR_SUBMISSION` record, preserves metadata, and safely reassigns the
+build. `store-assets/app-store/PREPARE_ONLY` is present and build-enforced, so
+the script can prepare but cannot submit App Review. Do not remove it until the
+owner records clean physical iPhone+iPad checkout acceptance and the iPhone 16
+SHEIN/lifecycle matrix.
+
+Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
+sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
+AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS
+69989, shipped store scripts 320230, Temu Gecko 172513, store source 582416.
+Artifacts:
+
+- APK `artifacts/release-86.244/Otlobli-86.244-1112-release.apk`, 4,113,735
+  bytes, SHA-256 `B8FD9B8BA63D5F074DAC52EC3437587EC67D75AD31B692FDF22964CBFB9AC00D`.
+- AAB `artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, 5,775,124
+  bytes, SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
+
+No Android device was connected, so no weak-device acceptance is claimed.
+TestFlight upload and App Store preparation are pending. Never claim App Review
+submission: the physical checkout, genuine SHEIN, five resume cycles, and cold
+launch remain outstanding.
+
 # Active handoff — v86.244/1111 SHEIN verification commit barrier (2026-08-27)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

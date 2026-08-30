@@ -23,12 +23,18 @@ pass.
 - Account deletion: Profile → **حذف الحساب نهائياً**, then confirm twice.
 - Notifications are used for order/payment/wallet and service updates. They are
   optional; denied users can open system Settings from the notification screen.
+- The cart explains the exact remaining amount when the minimum order is not
+  met. Customization and availability blockers include an actionable Arabic
+  reason, and tapping the checkout action always returns visible feedback.
+- A normal pending order keeps the exact two-hour payment window returned by
+  the server. Wallet top-ups and payments created to resolve an order issue use
+  their separate five-minute window; the app displays the server deadline.
 - Supply a review/demo account only after confirming its login method works in
   the review environment. Never place a password in this repository.
 
 ## Submission checklist
 
-- Verify signed artifact contains `86.207/1069`, Bundle ID/package
+- Verify signed artifact contains `86.244/1112`, Bundle ID/package
   `com.otlobli.app`, correct production APNs entitlement, Sign in with Apple,
   and no diagnostic markers/source maps.
 - Verify public privacy policy, support URL, account-deletion page/instructions,

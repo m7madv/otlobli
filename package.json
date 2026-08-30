@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5174",
-    "prebuild": "npm run test:release-services && npm run test:group-orders && npm run test:phone-auth-config && npm run test:server-otp-security && npm run test:whatsapp-admin-security && npm run verify:no-secrets && npm run verify:production-release && npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:temu-size-gate && npm run verify:store-surface",
+    "prebuild": "npm run test:release-services && npm run test:group-orders && npm run test:phone-auth-config && npm run test:server-otp-security && npm run test:whatsapp-admin-security && npm run verify:no-secrets && npm run verify:production-release && npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:temu-size-gate && npm run verify:store-surface && npm run verify:app-store-assets",
     "build": "tsc -b && vite build",
     "build:temu-personal": "node scripts/build-temu-gecko-extension.mjs && npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:temu-size-gate && npm run verify:store-surface && tsc -b && vite build --mode temu-personal && npm run verify:performance-budget && npm run verify:release-hardening -- --dist",
     "postbuild": "npm run verify:performance-budget && npm run verify:release-hardening -- --dist",
@@ -24,6 +24,7 @@
     "verify:store-surface": "node scripts/verify-store-surface.mjs",
     "verify:temu-size-gate": "node scripts/verify-temu-size-gate.mjs",
     "verify:shein-freeze-guard": "node scripts/verify-shein-freeze-guard.mjs",
+    "verify:app-store-assets": "node scripts/verify-app-store-assets.mjs",
     "postinstall": "patch-package && node scripts/inject-relay-key.cjs"
   },
   "dependencies": {

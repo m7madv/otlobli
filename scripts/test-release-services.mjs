@@ -22,12 +22,48 @@ const loadTypeScriptModule = (relativePath) => {
 
 const { parseSafePushPayload } = loadTypeScriptModule('src/services/pushPayload.ts')
 const storeRouting = loadTypeScriptModule('src/domain/storeRouting.ts')
+const { evaluateCheckoutEligibility } = loadTypeScriptModule('src/domain/checkout.ts')
 const { TEMU_DOCUMENT_START_SCRIPT } = loadTypeScriptModule('src/services/temuDocumentStartScript.ts')
 const { TEMU_DOCUMENT_START_CSS } = loadTypeScriptModule('src/services/temuDocumentStartScript.ts')
 
 assert.doesNotThrow(
   () => new Function(TEMU_DOCUMENT_START_SCRIPT),
   'Temu document-start policy is not valid emitted JavaScript',
+)
+
+const eligibleCheckout = evaluateCheckoutEligibility({
+  itemCount: 2,
+  totalSyp: 6_400,
+  minimumSyp: 5_000,
+  hasIncompleteCustomization: false,
+  hasAvailabilityIssues: false,
+})
+assert.equal(eligibleCheckout.allowed, true, 'A valid cart was blocked before checkout')
+assert.deepEqual(JSON.parse(JSON.stringify(eligibleCheckout.blockers)), [])
+
+const belowMinimumCheckout = evaluateCheckoutEligibility({
+  itemCount: 1,
+  totalSyp: 4_850,
+  minimumSyp: 5_000,
+  hasIncompleteCustomization: false,
+  hasAvailabilityIssues: false,
+})
+assert.equal(belowMinimumCheckout.allowed, false, 'A below-minimum cart was allowed through checkout')
+assert.deepEqual(JSON.parse(JSON.stringify(belowMinimumCheckout.blockers)), [
+  { code: 'minimum', remainingSyp: 150 },
+])
+
+const actionableCheckout = evaluateCheckoutEligibility({
+  itemCount: 1,
+  totalSyp: 8_000,
+  minimumSyp: 5_000,
+  hasIncompleteCustomization: true,
+  hasAvailabilityIssues: true,
+})
+assert.deepEqual(
+  JSON.parse(JSON.stringify(actionableCheckout.blockers.map((blocker) => blocker.code))),
+  ['customization', 'availability'],
+  'Checkout blockers are not ordered by the action the customer must take',
 )
 for (const forbidden of [
   'MutationObserver', 'setInterval(', "querySelectorAll('*')", 'visualViewport', 'globalThis',

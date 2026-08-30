@@ -3,21 +3,16 @@ import { readFile, appendFile, stat } from 'node:fs/promises'
 import { createHash, createPrivateKey, sign } from 'node:crypto'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { screenshotManifest } from './app-store-screenshot-manifest.mjs'
 
 const API_ROOT = 'https://api.appstoreconnect.apple.com/v1'
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const storeAssetRoot = resolve(repositoryRoot, 'store-assets', 'app-store')
 const prepareOnlyMarker = resolve(storeAssetRoot, 'PREPARE_ONLY')
-const screenshotAssets = [
-  {
-    displayType: 'APP_IPHONE_65',
-    path: resolve(storeAssetRoot, 'otlobli-iphone-65-login.png'),
-  },
-  {
-    displayType: 'APP_IPAD_PRO_3GEN_129',
-    path: resolve(storeAssetRoot, 'otlobli-ipad-pro-129-login.png'),
-  },
-]
+const screenshotAssets = screenshotManifest.map((asset) => ({
+  ...asset,
+  path: resolve(storeAssetRoot, asset.fileName),
+}))
 const requiredEnvironment = [
   'ASC_API_KEY_ID',
   'ASC_ISSUER_ID',
@@ -194,8 +189,9 @@ async function findOrCreateVersion() {
   // App Store Connect permits only one editable version per platform. Reuse that
   // draft so its localized metadata, screenshots, review details, and phased
   // release settings survive; never delete or guess at customer-owned metadata.
+  const editableStates = new Set(['PREPARE_FOR_SUBMISSION', 'REJECTED'])
   const editableDrafts = iosVersions.filter((version) =>
-    version.attributes?.appStoreState === 'PREPARE_FOR_SUBMISSION')
+    editableStates.has(version.attributes?.appStoreState))
   if (editableDrafts.length > 1) {
     throw new Error('Multiple editable iOS App Store versions exist; refusing to choose one implicitly.')
   }
@@ -212,7 +208,10 @@ async function findOrCreateVersion() {
         },
       },
     })
-    console.log(`Reused editable App Store version ${previousVersion} as ${config.appVersion}; existing store metadata was preserved.`)
+    console.log(
+      `Reused editable App Store version ${previousVersion} (${draft.attributes?.appStoreState}) as ` +
+      `${config.appVersion}; existing store metadata was preserved.`,
+    )
     return updated.data
   }
 
@@ -239,7 +238,7 @@ async function findOrCreateVersion() {
   } catch (error) {
     if (error instanceof AppStoreConnectError && error.status === 409) {
       throw new Error(
-        `Apple will not create ${config.appVersion} and no PREPARE_FOR_SUBMISSION draft can be safely reused. ` +
+        `Apple will not create ${config.appVersion} and no PREPARE_FOR_SUBMISSION or REJECTED version can be safely reused. ` +
         `Current iOS versions: ${versionSummary || 'none'}. Original error: ${error.message}`,
         { cause: error },
       )
@@ -381,6 +380,7 @@ async function ensureScreenshot(screenshotSet, asset) {
   const completeMatch = existing.find((screenshot) =>
     screenshot.attributes?.fileName === fileName &&
     Number(screenshot.attributes?.fileSize) === fileInfo.size &&
+    String(screenshot.attributes?.sourceFileChecksum || '').toLowerCase() === checksum &&
     screenshotState(screenshot) === 'COMPLETE')
   if (completeMatch) {
     console.log(`Screenshot ${fileName} is already complete for ${asset.displayType}.`)
@@ -425,9 +425,27 @@ async function ensureScreenshot(screenshotSet, asset) {
 
 async function ensureStoreScreenshots(version) {
   const localization = await findStoreLocalization(version)
+  const preparedByDisplayType = new Map()
   for (const asset of screenshotAssets) {
     const screenshotSet = await findOrCreateScreenshotSet(localization, asset.displayType)
-    await ensureScreenshot(screenshotSet, asset)
+    const screenshot = await ensureScreenshot(screenshotSet, asset)
+    const prepared = preparedByDisplayType.get(asset.displayType) || { screenshotSet, screenshotIds: new Set() }
+    prepared.screenshotIds.add(screenshot.id)
+    preparedByDisplayType.set(asset.displayType, prepared)
+  }
+
+  // Remove stale screenshots only after every replacement is uploaded and
+  // COMPLETE. This prevents a transient upload failure from leaving the store
+  // listing without a usable screenshot set.
+  for (const [displayType, prepared] of preparedByDisplayType) {
+    const current = await listScreenshots(prepared.screenshotSet)
+    const stale = current.filter((screenshot) => !prepared.screenshotIds.has(screenshot.id))
+    for (const screenshot of stale) {
+      await apiRequest(`/appScreenshots/${encodeURIComponent(screenshot.id)}`, { method: 'DELETE' })
+      console.log(
+        `Removed stale screenshot ${screenshot.attributes?.fileName || screenshot.id} from ${displayType}.`,
+      )
+    }
   }
 }
 
