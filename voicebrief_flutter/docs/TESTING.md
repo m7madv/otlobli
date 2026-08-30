@@ -84,6 +84,8 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 - Root cause for the absent appointment was Free-plan post-processing that cleared `importantDates`. Free results now retain dates, and transcript recovery adds relative Arabic dates if structured generation omits them. Seven Deno tests cover the screenshot phrase and the two-date sample.
 - Result dates now expose reminder and calendar actions. The native reminder bridge is unit-tested, and a widget test proves an ambiguous `الساعة الخامسة` opens date confirmation even if the structured result contains a full datetime.
 - Local verification passes format across 73 files, analysis with no issues, 34 non-golden tests, all eleven goldens, Deno format, seven Deno tests, Deno check, and an Android debug build. The `177,609,821`-byte APK has SHA-256 `86EA9BF33CA6FC39C337A83EBE7879781EE21AE1080AC74CEBFAFDF85DA4ECE7`. The deployed version 11 smoke returned HTTP 200 in `17,153ms`, kept tomorrow separate from `2026-09-05`, and cleaned its temporary account, object, and entitlement.
+- CI run `33310667058` passed all four jobs. TestFlight run `33310667057` passed signing, app/extension/profile/entitlement verification, App Store validation, and upload. The `34,495,012`-byte IPA has SHA-256 `7AF8B0C14248BB40B1D5566362B56C271254385F383C20C0E116153970B6C4DF`; delivery UUID is `0625345c-86d1-495b-adba-430f117da4f7`.
+- App Store status run `33310667046` reports build `0.1.0 (13)` as `VALID`, unexpired, and attached to `VoiceBrief Internal`. Physical appointment-card, confirmation-picker, and reminder-delivery acceptance remains pending.
 
 ## Platform checklist
 
