@@ -82,6 +82,16 @@ const applyPrices = process.argv.includes('--apply-prices');
 const addSubscriptionsToReviewDraft = process.argv.includes(
   '--add-subscriptions-to-review-draft',
 );
+const addSubscriptionsOnlyToReviewDraft = process.argv.includes(
+  '--add-subscriptions-only-to-review-draft',
+);
+if (addSubscriptionsToReviewDraft && addSubscriptionsOnlyToReviewDraft) {
+  throw new Error(
+    'Choose either the full review draft mutation or the subscriptions-only mutation, not both',
+  );
+}
+const reviewDraftMutationRequested =
+  addSubscriptionsToReviewDraft || addSubscriptionsOnlyToReviewDraft;
 const outputIndex = process.argv.indexOf('--output');
 const outputPath = resolve(
   outputIndex >= 0 && process.argv[outputIndex + 1]
@@ -1583,9 +1593,14 @@ async function inspectReadyReviewDrafts(app, report) {
 async function inspectReviewDrafts(app, report) {
   const inspection = await inspectReadyReviewDrafts(app, report);
   report.reviewDraft = {
-    mutationRequested: addSubscriptionsToReviewDraft,
+    mutationRequested: reviewDraftMutationRequested,
+    mutationMode: addSubscriptionsOnlyToReviewDraft
+      ? 'subscriptions-only'
+      : addSubscriptionsToReviewDraft
+        ? 'app-version-and-subscriptions'
+        : 'none',
     mutationAttempted: false,
-    mutationState: addSubscriptionsToReviewDraft
+    mutationState: reviewDraftMutationRequested
       ? 'pending-validation'
       : 'not-requested',
     addedSubscriptionVersionIds: [],
@@ -1599,11 +1614,11 @@ async function inspectReviewDrafts(app, report) {
 }
 
 async function addReadySubscriptionsToReviewDraft(app, report) {
-  if (!addSubscriptionsToReviewDraft) return;
+  if (!reviewDraftMutationRequested) return;
   if (mode !== 'apply') {
     report.reviewDraft.mutationState = 'refused-requires-apply-mode';
     throw new Error(
-      '--add-subscriptions-to-review-draft requires --apply',
+      'Review draft mutation requires --apply',
     );
   }
 
@@ -1637,18 +1652,24 @@ async function addReadySubscriptionsToReviewDraft(app, report) {
       version.appStoreState,
     ),
   );
-  if (editableAppStoreVersions.length !== 1) {
+  if (
+    addSubscriptionsToReviewDraft &&
+    editableAppStoreVersions.length !== 1
+  ) {
     report.reviewDraft.mutationState =
       'refused-ambiguous-editable-app-store-version';
     throw new Error(
       `Expected exactly one editable iOS App Store version; found ${editableAppStoreVersions.length}`,
     );
   }
-  const appStoreVersion = editableAppStoreVersions[0];
+  const appStoreVersion = addSubscriptionsToReviewDraft
+    ? editableAppStoreVersions[0]
+    : null;
   const existingAppStoreVersionIds = new Set(
     reviewDraft.appStoreVersionIds,
   );
   if (
+    appStoreVersion &&
     existingAppStoreVersionIds.size > 0 &&
     !existingAppStoreVersionIds.has(appStoreVersion.id)
   ) {
@@ -1672,10 +1693,13 @@ async function addReadySubscriptionsToReviewDraft(app, report) {
   report.reviewDraft.selectedDraftId = reviewDraft.id;
   report.reviewDraft.missingSubscriptionVersionIds =
     missingSubscriptionVersionIds;
-  report.reviewDraft.targetAppStoreVersionId = appStoreVersion.id;
+  report.reviewDraft.targetAppStoreVersionId = appStoreVersion?.id ?? null;
 
   let mutationError = null;
-  if (!existingAppStoreVersionIds.has(appStoreVersion.id)) {
+  if (
+    appStoreVersion &&
+    !existingAppStoreVersionIds.has(appStoreVersion.id)
+  ) {
     try {
       await request('/v1/reviewSubmissionItems', {
         method: 'POST',
@@ -1869,6 +1893,8 @@ async function main() {
     planAvailabilityRequested: mode === 'apply' && applyPrices,
     addSubscriptionsToReviewDraftRequested:
       addSubscriptionsToReviewDraft,
+    addSubscriptionsOnlyToReviewDraftRequested:
+      addSubscriptionsOnlyToReviewDraft,
     planAvailabilityReady: false,
     planAvailabilityConfiguredProductCount: 0,
     catalogMetadataApiVersion: '4.4.1-version-based-v2',

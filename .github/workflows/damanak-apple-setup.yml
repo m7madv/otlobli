@@ -21,6 +21,11 @@ on:
         required: true
         type: boolean
         default: false
+      add_subscriptions_only_to_review_draft:
+        description: Add only the six subscription versions to the existing review draft without submitting it
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   app-store-connect:
@@ -83,6 +88,14 @@ jobs:
             echo "Adding subscriptions to a review draft requires mode=apply."
             exit 1
           fi
+          if [[ "${{ inputs.add_subscriptions_only_to_review_draft }}" == "true" && "${{ inputs.mode }}" != "apply" ]]; then
+            echo "Adding subscription versions to a review draft requires mode=apply."
+            exit 1
+          fi
+          if [[ "${{ inputs.add_subscriptions_to_review_draft }}" == "true" && "${{ inputs.add_subscriptions_only_to_review_draft }}" == "true" ]]; then
+            echo "Choose one review draft mutation mode only."
+            exit 1
+          fi
           MODE_FLAG=""
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
             MODE_FLAG="--apply"
@@ -94,6 +107,9 @@ jobs:
           REVIEW_DRAFT_FLAG=""
           if [[ "${{ inputs.add_subscriptions_to_review_draft }}" == "true" ]]; then
             REVIEW_DRAFT_FLAG="--add-subscriptions-to-review-draft"
+          fi
+          if [[ "${{ inputs.add_subscriptions_only_to_review_draft }}" == "true" ]]; then
+            REVIEW_DRAFT_FLAG="--add-subscriptions-only-to-review-draft"
           fi
           node scripts/app_store_setup.mjs \
             $MODE_FLAG \
