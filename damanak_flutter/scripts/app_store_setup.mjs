@@ -151,11 +151,20 @@ let token = createToken();
 function redactApiErrors(body, status) {
   const errors = Array.isArray(body?.errors) ? body.errors : [];
   if (errors.length === 0) return `App Store Connect request failed (${status})`;
+  const summarize = (error) => {
+    const code = error?.code ? ` [${error.code}]` : '';
+    const pointer = error?.source?.pointer
+      ? ` (${error.source.pointer})`
+      : '';
+    const detail = error?.detail || error?.title || 'Unknown error';
+    return `${detail}${code}${pointer}`;
+  };
   return errors
-    .map((error) => {
-      const code = error.code ? ` [${error.code}]` : '';
-      const detail = error.detail || error.title || 'Unknown error';
-      return `${detail}${code}`;
+    .flatMap((error) => {
+      const associated = Array.isArray(error?.meta?.associatedErrors)
+        ? error.meta.associatedErrors
+        : [];
+      return [summarize(error), ...associated.map(summarize)];
     })
     .join('; ');
 }
@@ -1498,11 +1507,12 @@ async function inspectReadyReviewDrafts(app, report) {
   const drafts = [];
   for (const submission of submissions) {
     const items = await listAll(
-      `/v1/reviewSubmissions/${submission.id}/items?fields[reviewSubmissionItems]=state,subscriptionVersion,subscriptionGroupVersion&include=subscriptionVersion,subscriptionGroupVersion&limit=200`,
+      `/v1/reviewSubmissions/${submission.id}/items?fields[reviewSubmissionItems]=state,appStoreVersion,subscriptionVersion,subscriptionGroupVersion&include=appStoreVersion,subscriptionVersion,subscriptionGroupVersion&limit=200`,
     );
     const summarizedItems = items.map((item) => ({
       id: item.id,
       state: item.attributes?.state ?? null,
+      appStoreVersionId: relatedResourceId(item, 'appStoreVersion'),
       subscriptionVersionId: relatedResourceId(item, 'subscriptionVersion'),
       subscriptionGroupVersionId: relatedResourceId(
         item,
@@ -1536,6 +1546,9 @@ async function inspectReadyReviewDrafts(app, report) {
       ).length,
       subscriptionVersionIds: summarizedItems
         .map((item) => item.subscriptionVersionId)
+        .filter(Boolean),
+      appStoreVersionIds: summarizedItems
+        .map((item) => item.appStoreVersionId)
         .filter(Boolean),
       subscriptionGroupVersionIds: summarizedItems
         .map((item) => item.subscriptionGroupVersionId)
@@ -1571,6 +1584,7 @@ async function inspectReviewDrafts(app, report) {
       ? 'pending-validation'
       : 'not-requested',
     addedSubscriptionVersionIds: [],
+    addedAppStoreVersionId: null,
     before: inspection,
     after: inspection,
     readySubmissionCount: inspection.readySubmissionCount,
@@ -1613,6 +1627,32 @@ async function addReadySubscriptionsToReviewDraft(app, report) {
   }
 
   const reviewDraft = matchingDrafts[0];
+  const editableAppStoreVersions = report.appStoreVersions.filter((version) =>
+    ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+      version.appStoreState,
+    ),
+  );
+  if (editableAppStoreVersions.length !== 1) {
+    report.reviewDraft.mutationState =
+      'refused-ambiguous-editable-app-store-version';
+    throw new Error(
+      `Expected exactly one editable iOS App Store version; found ${editableAppStoreVersions.length}`,
+    );
+  }
+  const appStoreVersion = editableAppStoreVersions[0];
+  const existingAppStoreVersionIds = new Set(
+    reviewDraft.appStoreVersionIds,
+  );
+  if (
+    existingAppStoreVersionIds.size > 0 &&
+    !existingAppStoreVersionIds.has(appStoreVersion.id)
+  ) {
+    report.reviewDraft.mutationState =
+      'refused-draft-contains-different-app-store-version';
+    throw new Error(
+      'The selected review draft already contains a different App Store version',
+    );
+  }
   const existingSubscriptionVersionIds = new Set(
     reviewDraft.subscriptionVersionIds,
   );
@@ -1627,9 +1667,39 @@ async function addReadySubscriptionsToReviewDraft(app, report) {
   report.reviewDraft.selectedDraftId = reviewDraft.id;
   report.reviewDraft.missingSubscriptionVersionIds =
     missingSubscriptionVersionIds;
+  report.reviewDraft.targetAppStoreVersionId = appStoreVersion.id;
 
   let mutationError = null;
-  for (const subscriptionVersionId of missingSubscriptionVersionIds) {
+  if (!existingAppStoreVersionIds.has(appStoreVersion.id)) {
+    try {
+      await request('/v1/reviewSubmissionItems', {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'reviewSubmissionItems',
+            relationships: {
+              reviewSubmission: {
+                data: { type: 'reviewSubmissions', id: reviewDraft.id },
+              },
+              appStoreVersion: {
+                data: {
+                  type: 'appStoreVersions',
+                  id: appStoreVersion.id,
+                },
+              },
+            },
+          },
+        },
+      });
+      report.reviewDraft.addedAppStoreVersionId = appStoreVersion.id;
+    } catch (error) {
+      mutationError = error;
+    }
+  }
+
+  for (const subscriptionVersionId of mutationError
+    ? []
+    : missingSubscriptionVersionIds) {
     try {
       await request('/v1/reviewSubmissionItems', {
         method: 'POST',

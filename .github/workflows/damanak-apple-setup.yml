@@ -17,7 +17,7 @@ on:
         type: boolean
         default: false
       add_subscriptions_to_review_draft:
-        description: Add six ready subscription versions to one existing review draft without submitting it
+        description: Add the editable app version and six subscriptions to one review draft without submitting it
         required: true
         type: boolean
         default: false
