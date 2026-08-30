@@ -432,7 +432,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setReminder => 'Set reminder';
 
   @override
-  String get reminderSet => 'Reminder set.';
+  String get reminderSet => 'VoiceBrief alarm set.';
 
   @override
   String get reminderUnavailable =>
@@ -440,6 +440,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reminderMustBeFuture => 'Choose a future time for the reminder.';
+
+  @override
+  String get chooseAlarmTone => 'Choose alarm tone';
+
+  @override
+  String get chooseAlarmToneDescription =>
+      'Preview each tone before setting the alarm.';
+
+  @override
+  String get alarmToneGentle => 'Gentle';
+
+  @override
+  String get alarmToneBright => 'Bright';
+
+  @override
+  String get alarmToneClassic => 'Classic';
+
+  @override
+  String get previewTone => 'Preview tone';
+
+  @override
+  String get confirmAlarm => 'Set alarm with this tone';
+
+  @override
+  String get alarmsAndReminders => 'Alarms and reminders';
+
+  @override
+  String get voiceBriefAlarms => 'VoiceBrief alarms';
+
+  @override
+  String get voiceBriefAlarmsDescription =>
+      'View scheduled alarms and their tones, or cancel them.';
+
+  @override
+  String get noScheduledAlarms => 'No scheduled alarms';
+
+  @override
+  String get noScheduledAlarmsMessage =>
+      'Alarms you set from detected dates will appear here.';
+
+  @override
+  String get alarmsUnavailable =>
+      'VoiceBrief alarms could not be loaded right now.';
+
+  @override
+  String get alarmScheduled => 'Scheduled';
+
+  @override
+  String alarmToneLabel(Object tone) {
+    return 'Tone: $tone';
+  }
+
+  @override
+  String get cancelAlarm => 'Cancel alarm';
+
+  @override
+  String get cancelAlarmTitle => 'Cancel this alarm?';
+
+  @override
+  String cancelAlarmMessage(Object title) {
+    return 'The alarm “$title” will not sound after it is canceled.';
+  }
+
+  @override
+  String get alarmCancelled => 'Alarm canceled.';
+
+  @override
+  String get alarmCancelFailed => 'The alarm could not be canceled. Try again.';
+
+  @override
+  String get refresh => 'Refresh';
 
   @override
   String reminderNotificationTitle(String title) {

@@ -108,6 +108,18 @@ class SettingsScreen extends ConsumerWidget {
           selected: state.themeMode,
           onSelectionChanged: controller.setThemeMode,
         ),
+        if (Platform.isIOS) ...[
+          const SizedBox(height: AppSpacing.xl),
+          AppSectionHeader(context.l10n.alarmsAndReminders),
+          const SizedBox(height: AppSpacing.xs),
+          AppListTile(
+            title: context.l10n.voiceBriefAlarms,
+            subtitle: context.l10n.voiceBriefAlarmsDescription,
+            leading: const Icon(Icons.alarm_outlined),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/alarms'),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xl),
         AppSectionHeader(context.l10n.privacyAndData),
         const SizedBox(height: AppSpacing.xs),

@@ -426,7 +426,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get setReminder => 'ضبط منبّه';
 
   @override
-  String get reminderSet => 'تم ضبط المنبّه.';
+  String get reminderSet => 'تم ضبط منبّه VoiceBrief.';
 
   @override
   String get reminderUnavailable =>
@@ -434,6 +434,76 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get reminderMustBeFuture => 'اختر وقتًا قادمًا للمنبّه.';
+
+  @override
+  String get chooseAlarmTone => 'اختر نغمة المنبّه';
+
+  @override
+  String get chooseAlarmToneDescription =>
+      'يمكنك سماع كل نغمة قبل ضبط المنبّه.';
+
+  @override
+  String get alarmToneGentle => 'هادئة';
+
+  @override
+  String get alarmToneBright => 'واضحة';
+
+  @override
+  String get alarmToneClassic => 'كلاسيكية';
+
+  @override
+  String get previewTone => 'تشغيل النغمة';
+
+  @override
+  String get confirmAlarm => 'ضبط المنبّه بهذه النغمة';
+
+  @override
+  String get alarmsAndReminders => 'المنبّهات والتذكيرات';
+
+  @override
+  String get voiceBriefAlarms => 'منبّهات VoiceBrief';
+
+  @override
+  String get voiceBriefAlarmsDescription =>
+      'عرض المنبّهات المضبوطة ونغماتها أو إلغاؤها.';
+
+  @override
+  String get noScheduledAlarms => 'لا توجد منبّهات مضبوطة';
+
+  @override
+  String get noScheduledAlarmsMessage =>
+      'عندما تضبط منبّهًا من أحد المواعيد سيظهر هنا.';
+
+  @override
+  String get alarmsUnavailable => 'تعذّر قراءة منبّهات VoiceBrief الآن.';
+
+  @override
+  String get alarmScheduled => 'مضبوط';
+
+  @override
+  String alarmToneLabel(Object tone) {
+    return 'النغمة: $tone';
+  }
+
+  @override
+  String get cancelAlarm => 'إلغاء المنبّه';
+
+  @override
+  String get cancelAlarmTitle => 'إلغاء هذا المنبّه؟';
+
+  @override
+  String cancelAlarmMessage(Object title) {
+    return 'لن يرن المنبّه «$title» بعد إلغائه.';
+  }
+
+  @override
+  String get alarmCancelled => 'أُلغي المنبّه.';
+
+  @override
+  String get alarmCancelFailed => 'تعذّر إلغاء المنبّه. حاول مجددًا.';
+
+  @override
+  String get refresh => 'تحديث';
 
   @override
   String reminderNotificationTitle(String title) {

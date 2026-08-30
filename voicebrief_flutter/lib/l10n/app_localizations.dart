@@ -875,7 +875,7 @@ abstract class AppLocalizations {
   /// No description provided for @reminderSet.
   ///
   /// In en, this message translates to:
-  /// **'Reminder set.'**
+  /// **'VoiceBrief alarm set.'**
   String get reminderSet;
 
   /// No description provided for @reminderUnavailable.
@@ -889,6 +889,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose a future time for the reminder.'**
   String get reminderMustBeFuture;
+
+  /// No description provided for @chooseAlarmTone.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose alarm tone'**
+  String get chooseAlarmTone;
+
+  /// No description provided for @chooseAlarmToneDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview each tone before setting the alarm.'**
+  String get chooseAlarmToneDescription;
+
+  /// No description provided for @alarmToneGentle.
+  ///
+  /// In en, this message translates to:
+  /// **'Gentle'**
+  String get alarmToneGentle;
+
+  /// No description provided for @alarmToneBright.
+  ///
+  /// In en, this message translates to:
+  /// **'Bright'**
+  String get alarmToneBright;
+
+  /// No description provided for @alarmToneClassic.
+  ///
+  /// In en, this message translates to:
+  /// **'Classic'**
+  String get alarmToneClassic;
+
+  /// No description provided for @previewTone.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview tone'**
+  String get previewTone;
+
+  /// No description provided for @confirmAlarm.
+  ///
+  /// In en, this message translates to:
+  /// **'Set alarm with this tone'**
+  String get confirmAlarm;
+
+  /// No description provided for @alarmsAndReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Alarms and reminders'**
+  String get alarmsAndReminders;
+
+  /// No description provided for @voiceBriefAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'VoiceBrief alarms'**
+  String get voiceBriefAlarms;
+
+  /// No description provided for @voiceBriefAlarmsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'View scheduled alarms and their tones, or cancel them.'**
+  String get voiceBriefAlarmsDescription;
+
+  /// No description provided for @noScheduledAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduled alarms'**
+  String get noScheduledAlarms;
+
+  /// No description provided for @noScheduledAlarmsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Alarms you set from detected dates will appear here.'**
+  String get noScheduledAlarmsMessage;
+
+  /// No description provided for @alarmsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'VoiceBrief alarms could not be loaded right now.'**
+  String get alarmsUnavailable;
+
+  /// No description provided for @alarmScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get alarmScheduled;
+
+  /// No description provided for @alarmToneLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tone: {tone}'**
+  String alarmToneLabel(Object tone);
+
+  /// No description provided for @cancelAlarm.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel alarm'**
+  String get cancelAlarm;
+
+  /// No description provided for @cancelAlarmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel this alarm?'**
+  String get cancelAlarmTitle;
+
+  /// No description provided for @cancelAlarmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The alarm “{title}” will not sound after it is canceled.'**
+  String cancelAlarmMessage(Object title);
+
+  /// No description provided for @alarmCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Alarm canceled.'**
+  String get alarmCancelled;
+
+  /// No description provided for @alarmCancelFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The alarm could not be canceled. Try again.'**
+  String get alarmCancelFailed;
+
+  /// No description provided for @refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refresh;
 
   /// No description provided for @reminderNotificationTitle.
   ///

@@ -6,6 +6,7 @@ import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/home/presentation/shell_screen.dart';
 import 'package:voicebrief/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:voicebrief/features/recorder/presentation/recorder_screen.dart';
+import 'package:voicebrief/features/reminders/presentation/scheduled_reminders_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/processing_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
@@ -34,6 +35,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const AudioPreparationScreen(),
       ),
       GoRoute(path: '/record', builder: (_, _) => const RecorderScreen()),
+      GoRoute(
+        path: '/alarms',
+        builder: (_, _) => const ScheduledRemindersScreen(),
+      ),
       GoRoute(path: '/processing', builder: (_, _) => const ProcessingScreen()),
       GoRoute(path: '/result', builder: (_, _) => const ResultScreen()),
       GoRoute(path: '/paywall', builder: (_, _) => const PaywallScreen()),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/history/presentation/history_screen.dart';
 import 'package:voicebrief/features/home/presentation/home_screen.dart';
+import 'package:voicebrief/features/reminders/presentation/scheduled_reminders_screen.dart';
 import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/domain/brief_result.dart';
@@ -14,6 +16,12 @@ import 'helpers/test_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const reminderChannel = MethodChannel('voicebrief/reminders');
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(reminderChannel, null);
+  });
 
   testWidgets('authentication exposes only Apple and Google paths', (
     tester,
@@ -53,6 +61,41 @@ void main() {
       Directionality.of(tester.element(find.byType(AuthScreen))),
       TextDirection.rtl,
     );
+  });
+
+  testWidgets('Arabic alarm list shows the scheduled time and tone', (
+    tester,
+  ) async {
+    final fireAt = DateTime.now().add(const Duration(days: 1));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(reminderChannel, (call) async {
+          if (call.method != 'list') return false;
+          return [
+            {
+              'id': 'alarm-1',
+              'title': 'تذكير: موعد التصوير',
+              'body': '',
+              'fireMillis': fireAt.millisecondsSinceEpoch,
+              'soundKey': 'bright',
+              'state': 'scheduled',
+            },
+          ];
+        });
+    final controller = createTestController();
+
+    await tester.pumpWidget(
+      testApp(
+        controller: controller,
+        home: const ScheduledRemindersScreen(),
+        locale: const Locale('ar'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('منبّهات VoiceBrief'), findsOneWidget);
+    expect(find.text('تذكير: موعد التصوير'), findsOneWidget);
+    expect(find.text('النغمة: واضحة'), findsOneWidget);
+    expect(find.text('إلغاء المنبّه'), findsOneWidget);
   });
 
   testWidgets('home presents direct sharing, import, record, and empty state', (

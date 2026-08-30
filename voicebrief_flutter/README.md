@@ -24,7 +24,7 @@ The sample configuration intentionally enables mocks and contains no private cre
 - Results created inside Runner are stored in Drift only when the user explicitly saves them. A completed iOS Share Extension result is persisted automatically so its ready notification can open the exact brief without reprocessing.
 - Server usage reservation and charging are atomic and idempotent by client job ID.
 - Android receives `audio/*` through native Kotlin. On iOS, Runner registers as a `public.audio` document opener where source apps support document-open. For apps such as WhatsApp that expose only a Share Extension, `VoiceBriefShare` securely copies, uploads, and processes while its window remains open, then persists the result and posts a local ready notification. Tapping that notification launches Runner directly into the full result, including dates and calendar actions.
-- Confirmed dates can be added through the platform calendar editor. On iOS 26.1 and newer, `Set alarm` requests AlarmKit authorization and creates a real one-shot system alarm; iOS 14–26.0 retain a local-notification fallback. Android delegates alarm creation to the system alarm app.
+- Confirmed dates can be added through the platform calendar editor. On iOS 26.1 and newer, `Set alarm` requests AlarmKit authorization and creates a real one-shot system alarm; iOS 14–26.0 retain a local-notification fallback. VoiceBrief offers three bundled tones with preview and an in-app list for viewing or cancelling its app-owned alarms because Apple does not place third-party AlarmKit alarms in the Clock app. Android delegates alarm creation to the system alarm app.
 
 ## Verification
 

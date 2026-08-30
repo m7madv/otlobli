@@ -6,6 +6,7 @@ import UIKit
 import UniformTypeIdentifiers
 import UserNotifications
 #if canImport(AlarmKit)
+import ActivityKit
 import AlarmKit
 import SwiftUI
 #endif
@@ -349,36 +350,57 @@ private struct VoiceBriefAlarmMetadata: AlarmMetadata {}
 final class VoiceBriefReminderBridge {
   static let shared = VoiceBriefReminderBridge()
 
+  private let recordsKey = "VoiceBriefScheduledAlarms"
+  private var previewPlayer: AVAudioPlayer?
+  private var previewGeneration = 0
+
   func configure(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "voicebrief/reminders", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
-      guard call.method == "schedule",
-            let values = call.arguments as? [String: Any],
-            let fireMillis = values["fireMillis"] as? NSNumber
-      else {
-        result(FlutterMethodNotImplemented)
-        return
-      }
-      let fireDate = Date(timeIntervalSince1970: fireMillis.doubleValue / 1000)
-      guard fireDate.timeIntervalSinceNow > 1 else {
-        result(FlutterError(code: "invalid_reminder", message: "Reminder must be in the future", details: nil))
-        return
-      }
+      let values = call.arguments as? [String: Any] ?? [:]
+      switch call.method {
+      case "schedule":
+        guard let fireMillis = values["fireMillis"] as? NSNumber else {
+          result(FlutterError(code: "invalid_reminder", message: "Missing reminder time", details: nil))
+          return
+        }
+        let fireDate = Date(timeIntervalSince1970: fireMillis.doubleValue / 1000)
+        guard fireDate.timeIntervalSinceNow > 1 else {
+          result(FlutterError(code: "invalid_reminder", message: "Reminder must be in the future", details: nil))
+          return
+        }
 
 #if canImport(AlarmKit)
-      if #available(iOS 26.1, *) {
-        self.scheduleAlarm(fireDate: fireDate, result: result)
-        return
-      }
+        if #available(iOS 26.1, *) {
+          self.scheduleAlarm(fireDate: fireDate, values: values, result: result)
+          return
+        }
 #endif
 
-      self.scheduleNotificationFallback(fireDate: fireDate, values: values, result: result)
+        self.scheduleNotificationFallback(fireDate: fireDate, values: values, result: result)
+      case "list":
+        self.listScheduled(result: result)
+      case "cancel":
+        guard let identifier = values["id"] as? String, !identifier.isEmpty else {
+          result(false)
+          return
+        }
+        self.cancel(identifier: identifier, result: result)
+      case "previewSound":
+        result(self.previewSound(key: values["soundKey"] as? String ?? "classic"))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
   }
 
 #if canImport(AlarmKit)
   @available(iOS 26.1, *)
-  private func scheduleAlarm(fireDate: Date, result: @escaping FlutterResult) {
+  private func scheduleAlarm(
+    fireDate: Date,
+    values: [String: Any],
+    result: @escaping FlutterResult
+  ) {
     Task { @MainActor in
       do {
         let manager = AlarmManager.shared
@@ -394,8 +416,10 @@ final class VoiceBriefReminderBridge {
           return
         }
 
+        let title = values["title"] as? String ?? "VoiceBrief"
+        let soundKey = values["soundKey"] as? String ?? "classic"
         let alert = AlarmPresentation.Alert(
-          title: "VoiceBrief",
+          title: LocalizedStringResource(stringLiteral: title),
           secondaryButton: nil,
           secondaryButtonBehavior: nil
         )
@@ -406,10 +430,19 @@ final class VoiceBriefReminderBridge {
         )
         let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>.alarm(
           schedule: .fixed(fireDate),
-          attributes: attributes
+          attributes: attributes,
+          sound: self.alarmSound(key: soundKey)
         )
-        _ = try await manager.schedule(id: UUID(), configuration: configuration)
-        result(true)
+        let identifier = UUID()
+        _ = try await manager.schedule(id: identifier, configuration: configuration)
+        let record = self.record(
+          identifier: identifier.uuidString.lowercased(),
+          fireDate: fireDate,
+          values: values,
+          backend: "alarmKit"
+        )
+        self.save(record: record)
+        result(record)
       } catch {
         result(
           FlutterError(
@@ -421,7 +454,113 @@ final class VoiceBriefReminderBridge {
       }
     }
   }
+
+  @available(iOS 26.1, *)
+  private func alarmSound(key: String) -> AlertConfiguration.AlertSound {
+    guard let fileName = soundFileName(key: key) else { return .default }
+    return .named(fileName)
+  }
+
+  @available(iOS 26.1, *)
+  private func listAlarmKitScheduled(result: @escaping FlutterResult) {
+    Task { @MainActor in
+      do {
+        let alarms = try AlarmManager.shared.alarms
+        let storedRecords = self.records().filter {
+          ($0["backend"] as? String) == "alarmKit"
+        }
+        var activeRecords: [[String: Any]] = []
+        for alarm in alarms {
+          let identifier = alarm.id.uuidString.lowercased()
+          if let stored = storedRecords.first(where: {
+            ($0["id"] as? String)?.lowercased() == identifier
+          }) {
+            activeRecords.append(stored)
+            continue
+          }
+          guard let schedule = alarm.schedule else { continue }
+          let fireDate: Date
+          switch schedule {
+          case .fixed(let date):
+            fireDate = date
+          case .relative:
+            continue
+          @unknown default:
+            continue
+          }
+          activeRecords.append(
+            self.record(
+              identifier: identifier,
+              fireDate: fireDate,
+              values: [
+                "title": "VoiceBrief",
+                "body": "",
+                "soundKey": "classic",
+              ],
+              backend: "alarmKit"
+            )
+          )
+        }
+        self.replaceAlarmKitRecords(with: activeRecords)
+        result(activeRecords)
+      } catch {
+        result(
+          FlutterError(
+            code: "alarm_list_failed",
+            message: "The scheduled alarms could not be loaded",
+            details: nil
+          )
+        )
+      }
+    }
+  }
 #endif
+
+  private func listScheduled(result: @escaping FlutterResult) {
+#if canImport(AlarmKit)
+    if #available(iOS 26.1, *) {
+      listAlarmKitScheduled(result: result)
+      return
+    }
+#endif
+
+    UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+      let activeIdentifiers = Set(requests.map { $0.identifier })
+      let activeRecords = self.records().filter { record in
+        guard record["backend"] as? String == "notification",
+              let requestIdentifier = record["requestIdentifier"] as? String
+        else { return false }
+        return activeIdentifiers.contains(requestIdentifier)
+      }
+      self.replaceNotificationRecords(with: activeRecords)
+      DispatchQueue.main.async { result(activeRecords) }
+    }
+  }
+
+  private func cancel(identifier: String, result: @escaping FlutterResult) {
+    let record = records().first { ($0["id"] as? String) == identifier }
+    let backend = record?["backend"] as? String
+
+#if canImport(AlarmKit)
+    if backend == "alarmKit", #available(iOS 26.1, *), let uuid = UUID(uuidString: identifier) {
+      do {
+        try AlarmManager.shared.cancel(id: uuid)
+        removeRecord(identifier: identifier)
+        result(true)
+      } catch {
+        result(false)
+      }
+      return
+    }
+#endif
+
+    let requestIdentifier = record?["requestIdentifier"] as? String ?? identifier
+    UNUserNotificationCenter.current().removePendingNotificationRequests(
+      withIdentifiers: [requestIdentifier]
+    )
+    removeRecord(identifier: identifier)
+    result(true)
+  }
 
   private func scheduleNotificationFallback(
     fireDate: Date,
@@ -437,23 +576,123 @@ final class VoiceBriefReminderBridge {
       let content = UNMutableNotificationContent()
       content.title = values["title"] as? String ?? "VoiceBrief"
       content.body = values["body"] as? String ?? ""
-      content.sound = .default
+      let soundKey = values["soundKey"] as? String ?? "classic"
+      if let fileName = self.soundFileName(key: soundKey) {
+        content.sound = UNNotificationSound(
+          named: UNNotificationSoundName(rawValue: fileName)
+        )
+      } else {
+        content.sound = .default
+      }
       content.threadIdentifier = "voicebrief-reminders"
       content.userInfo = ["voicebriefTarget": "reminder"]
-      let identifier = values["identifier"] as? String ?? UUID().uuidString.lowercased()
+      let identifier = UUID().uuidString.lowercased()
+      let requestIdentifier = "voicebrief-reminder-\(identifier)"
       let trigger = UNTimeIntervalNotificationTrigger(
         timeInterval: max(fireDate.timeIntervalSinceNow, 1),
         repeats: false
       )
       center.add(
         UNNotificationRequest(
-          identifier: "voicebrief-reminder-\(identifier)",
+          identifier: requestIdentifier,
           content: content,
           trigger: trigger
         )
       ) { addError in
-        DispatchQueue.main.async { result(addError == nil) }
+        DispatchQueue.main.async {
+          guard addError == nil else {
+            result(false)
+            return
+          }
+          var record = self.record(
+            identifier: identifier,
+            fireDate: fireDate,
+            values: values,
+            backend: "notification"
+          )
+          record["requestIdentifier"] = requestIdentifier
+          self.save(record: record)
+          result(record)
+        }
       }
+    }
+  }
+
+  private func record(
+    identifier: String,
+    fireDate: Date,
+    values: [String: Any],
+    backend: String
+  ) -> [String: Any] {
+    [
+      "id": identifier,
+      "title": values["title"] as? String ?? "VoiceBrief",
+      "body": values["body"] as? String ?? "",
+      "fireMillis": NSNumber(value: Int64(fireDate.timeIntervalSince1970 * 1000)),
+      "soundKey": values["soundKey"] as? String ?? "classic",
+      "state": "scheduled",
+      "backend": backend,
+    ]
+  }
+
+  private func records() -> [[String: Any]] {
+    UserDefaults.standard.array(forKey: recordsKey) as? [[String: Any]] ?? []
+  }
+
+  private func save(record: [String: Any]) {
+    var next = records()
+    if let identifier = record["id"] as? String {
+      next.removeAll { ($0["id"] as? String) == identifier }
+    }
+    next.append(record)
+    UserDefaults.standard.set(next, forKey: recordsKey)
+  }
+
+  private func removeRecord(identifier: String) {
+    let next = records().filter { ($0["id"] as? String) != identifier }
+    UserDefaults.standard.set(next, forKey: recordsKey)
+  }
+
+  private func replaceAlarmKitRecords(with activeRecords: [[String: Any]]) {
+    let fallback = records().filter { ($0["backend"] as? String) != "alarmKit" }
+    UserDefaults.standard.set(fallback + activeRecords, forKey: recordsKey)
+  }
+
+  private func replaceNotificationRecords(with activeRecords: [[String: Any]]) {
+    let alarmKit = records().filter { ($0["backend"] as? String) != "notification" }
+    UserDefaults.standard.set(alarmKit + activeRecords, forKey: recordsKey)
+  }
+
+  private func soundFileName(key: String) -> String? {
+    switch key {
+    case "gentle": "voicebrief_gentle.wav"
+    case "bright": "voicebrief_bright.wav"
+    case "classic": "voicebrief_classic.wav"
+    default: nil
+    }
+  }
+
+  private func previewSound(key: String) -> Bool {
+    guard let fileName = soundFileName(key: key),
+          let url = Bundle.main.url(forResource: fileName, withExtension: nil)
+    else { return false }
+    do {
+      let audioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
+      try audioSession.setActive(true)
+      previewPlayer?.stop()
+      previewPlayer = try AVAudioPlayer(contentsOf: url)
+      previewPlayer?.prepareToPlay()
+      let played = previewPlayer?.play() == true
+      previewGeneration += 1
+      let generation = previewGeneration
+      DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+        guard self?.previewGeneration == generation else { return }
+        try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
+      }
+      return played
+    } catch {
+      return false
     }
   }
 }
