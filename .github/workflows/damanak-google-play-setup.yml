@@ -99,7 +99,7 @@ jobs:
           DAMANAK_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAMANAK_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
-          grep -qx 'version: 4.3.1+19' pubspec.yaml
+          grep -qx 'version: 4.3.2+20' pubspec.yaml
           test -n "$DAMANAK_KEYSTORE_PASSWORD"
           test -n "$DAMANAK_KEY_ALIAS"
           test -n "$DAMANAK_SUPABASE_URL"
@@ -129,7 +129,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-android-internal-build-19-run-${{ github.run_number }}
+          name: damanak-android-internal-build-20-run-${{ github.run_number }}
           path: |
             damanak_flutter/build/app/outputs/bundle/release/app-release.aab
             damanak_flutter/build/google-play-upload/report.json
