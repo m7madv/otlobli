@@ -11,11 +11,32 @@ final class ShareViewController: UIViewController {
     case writeFailed
   }
 
+  private enum ProcessingFailure: Error {
+    case authentication
+    case invalidAudio
+    case noInternet
+    case quotaExhausted
+    case serviceUnavailable
+    case invalidResponse
+  }
+
+  private struct ShareSession {
+    let supabaseURL: String
+    let anonKey: String
+    let accessToken: String
+    let refreshToken: String
+    let userId: String
+    let expiresAt: TimeInterval
+  }
+
   private let appGroup = "group.app.voicebrief.mobile"
   private let legacyPayloadKey = "VoiceBriefPendingShare"
+  private let shareSessionKey = "VoiceBriefShareSession"
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private var importStarted = false
+  private var pendingProcessedResult: [String: Any]?
+  private var pendingProcessedManifest: URL?
 
   private let symbolView: UIImageView = {
     let view = UIImageView(image: UIImage(systemName: "waveform.circle.fill"))
@@ -217,7 +238,14 @@ final class ShareViewController: UIViewController {
         try? FileManager.default.removeItem(at: target)
         throw ImportFailure.writeFailed
       }
-      showSuccess()
+      process(
+        target: target,
+        manifest: manifest,
+        displayName: originalName,
+        mimeType: canonicalMimeType(for: target.pathExtension),
+        sizeBytes: size,
+        durationSeconds: duration.isFinite && duration > 0 ? Int(ceil(duration)) : 0
+      )
     } catch let failure as ImportFailure {
       showFailure(failure)
     } catch {
@@ -292,24 +320,392 @@ final class ShareViewController: UIViewController {
     return "\(stem.isEmpty ? "shared-audio" : stem).\(canonicalExtension)"
   }
 
-  private func showSuccess() {
+  private func process(
+    target: URL,
+    manifest: URL,
+    displayName: String,
+    mimeType: String,
+    sizeBytes: Int64,
+    durationSeconds: Int
+  ) {
+    guard durationSeconds > 0 else {
+      showProcessingFailure(.invalidAudio)
+      return
+    }
+    guard let session = loadShareSession() else {
+      showProcessingFailure(.authentication)
+      return
+    }
+    showProcessing()
+    refreshSessionIfNeeded(session) { [weak self] refreshed in
+      guard let self else { return }
+      switch refreshed {
+      case .failure(let failure):
+        self.showProcessingFailure(failure)
+      case .success(let current):
+        self.upload(
+          target: target,
+          session: current,
+          displayName: displayName,
+          mimeType: mimeType,
+          sizeBytes: sizeBytes,
+          durationSeconds: durationSeconds
+        ) { [weak self] uploaded in
+          guard let self else { return }
+          switch uploaded {
+          case .failure(let failure):
+            self.showProcessingFailure(failure)
+          case .success(let result):
+            try? FileManager.default.removeItem(at: manifest)
+            try? FileManager.default.removeItem(at: target)
+            self.pendingProcessedResult = result
+            self.pendingProcessedManifest = manifest
+            self.showProcessed(result)
+          }
+        }
+      }
+    }
+  }
+
+  private func loadShareSession() -> ShareSession? {
+    guard let values = UserDefaults(suiteName: appGroup)?.dictionary(
+      forKey: shareSessionKey
+    ),
+      let supabaseURL = values["supabaseUrl"] as? String,
+      let anonKey = values["anonKey"] as? String,
+      let accessToken = values["accessToken"] as? String,
+      let refreshToken = values["refreshToken"] as? String,
+      let userId = values["userId"] as? String,
+      let expiresAt = values["expiresAt"] as? NSNumber,
+      supabaseURL.hasPrefix("https://"),
+      !anonKey.isEmpty,
+      !accessToken.isEmpty,
+      !refreshToken.isEmpty,
+      !userId.isEmpty
+    else { return nil }
+    return ShareSession(
+      supabaseURL: supabaseURL,
+      anonKey: anonKey,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      userId: userId,
+      expiresAt: expiresAt.doubleValue
+    )
+  }
+
+  private func refreshSessionIfNeeded(
+    _ session: ShareSession,
+    completion: @escaping (Result<ShareSession, ProcessingFailure>) -> Void
+  ) {
+    if session.expiresAt > Date().timeIntervalSince1970 + 300 {
+      completion(.success(session))
+      return
+    }
+    guard let url = URL(
+      string: "\(session.supabaseURL)/auth/v1/token?grant_type=refresh_token"
+    ) else {
+      completion(.failure(.authentication))
+      return
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue(session.anonKey, forHTTPHeaderField: "apikey")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try? JSONSerialization.data(
+      withJSONObject: ["refresh_token": session.refreshToken]
+    )
+    jsonRequest(request) { [weak self] response in
+      guard let self else { return }
+      switch response {
+      case .failure(let failure):
+        completion(.failure(failure))
+      case .success(let value):
+        guard (200..<300).contains(value.status),
+              let accessToken = value.body["access_token"] as? String,
+              let refreshToken = value.body["refresh_token"] as? String,
+              let expiresIn = value.body["expires_in"] as? NSNumber,
+              !accessToken.isEmpty,
+              !refreshToken.isEmpty
+        else {
+          completion(.failure(.authentication))
+          return
+        }
+        let refreshed = ShareSession(
+          supabaseURL: session.supabaseURL,
+          anonKey: session.anonKey,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          userId: session.userId,
+          expiresAt: Date().timeIntervalSince1970 + expiresIn.doubleValue
+        )
+        self.saveShareSession(refreshed)
+        completion(.success(refreshed))
+      }
+    }
+  }
+
+  private func saveShareSession(_ session: ShareSession) {
+    UserDefaults(suiteName: appGroup)?.set(
+      [
+        "supabaseUrl": session.supabaseURL,
+        "anonKey": session.anonKey,
+        "accessToken": session.accessToken,
+        "refreshToken": session.refreshToken,
+        "userId": session.userId,
+        "expiresAt": session.expiresAt,
+      ],
+      forKey: shareSessionKey
+    )
+  }
+
+  private func upload(
+    target: URL,
+    session: ShareSession,
+    displayName: String,
+    mimeType: String,
+    sizeBytes: Int64,
+    durationSeconds: Int,
+    completion: @escaping (Result<[String: Any], ProcessingFailure>) -> Void
+  ) {
+    let jobId = UUID().uuidString.lowercased()
+    let fileExtension = target.pathExtension.lowercased()
+    let storagePath = "\(session.userId)/\(jobId)/input.\(fileExtension)"
+    let encodedPath = storagePath
+      .split(separator: "/")
+      .map { String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "" }
+      .joined(separator: "/")
+    guard let uploadURL = URL(
+      string: "\(session.supabaseURL)/storage/v1/object/audio-temp/\(encodedPath)"
+    ) else {
+      completion(.failure(.serviceUnavailable))
+      return
+    }
+    var uploadRequest = URLRequest(url: uploadURL)
+    uploadRequest.httpMethod = "POST"
+    uploadRequest.setValue(session.anonKey, forHTTPHeaderField: "apikey")
+    uploadRequest.setValue(
+      "Bearer \(session.accessToken)",
+      forHTTPHeaderField: "Authorization"
+    )
+    uploadRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+    uploadRequest.setValue("false", forHTTPHeaderField: "x-upsert")
+    URLSession.shared.uploadTask(with: uploadRequest, fromFile: target) {
+      [weak self] _, response, error in
+      guard let self else { return }
+      guard error == nil, let http = response as? HTTPURLResponse else {
+        completion(.failure(.noInternet))
+        return
+      }
+      guard (200..<300).contains(http.statusCode) else {
+        completion(.failure(http.statusCode == 401 ? .authentication : .serviceUnavailable))
+        return
+      }
+      self.invokeProcessing(
+        session: session,
+        jobId: jobId,
+        storagePath: storagePath,
+        displayName: displayName,
+        mimeType: mimeType,
+        sizeBytes: sizeBytes,
+        durationSeconds: durationSeconds,
+        completion: completion
+      )
+    }.resume()
+  }
+
+  private func invokeProcessing(
+    session: ShareSession,
+    jobId: String,
+    storagePath: String,
+    displayName: String,
+    mimeType: String,
+    sizeBytes: Int64,
+    durationSeconds: Int,
+    completion: @escaping (Result<[String: Any], ProcessingFailure>) -> Void
+  ) {
+    guard let url = URL(string: "\(session.supabaseURL)/functions/v1/process-audio") else {
+      completion(.failure(.serviceUnavailable))
+      return
+    }
+    var body: [String: Any] = [
+      "jobId": jobId,
+      "storagePath": storagePath,
+      "displayName": displayName,
+      "mimeType": mimeType,
+      "sizeBytes": sizeBytes,
+      "durationSeconds": durationSeconds,
+      "timeZoneOffsetMinutes": TimeZone.current.secondsFromGMT() / 60,
+      "options": [
+        "transcript": true,
+        "summary": true,
+        "actionItems": true,
+        "suggestedReplies": true,
+        "translation": false,
+      ],
+    ]
+    let language = Locale.preferredLanguages.first?.lowercased() ?? ""
+    if language.hasPrefix("ar") {
+      body["languageHint"] = "ar"
+    } else if language.hasPrefix("en") {
+      body["languageHint"] = "en"
+    }
+    guard let requestBody = try? JSONSerialization.data(withJSONObject: body) else {
+      completion(.failure(.invalidResponse))
+      return
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue(session.anonKey, forHTTPHeaderField: "apikey")
+    request.setValue(
+      "Bearer \(session.accessToken)",
+      forHTTPHeaderField: "Authorization"
+    )
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = requestBody
+    jsonRequest(request) { response in
+      switch response {
+      case .failure(let failure):
+        completion(.failure(failure))
+      case .success(let value):
+        if value.status == 401 {
+          completion(.failure(.authentication))
+        } else if value.status == 402 {
+          completion(.failure(.quotaExhausted))
+        } else if !(200..<300).contains(value.status) {
+          completion(.failure(.serviceUnavailable))
+        } else if let result = value.body["result"] as? [String: Any] {
+          completion(.success(result))
+        } else {
+          completion(.failure(.invalidResponse))
+        }
+      }
+    }
+  }
+
+  private func jsonRequest(
+    _ request: URLRequest,
+    completion: @escaping (Result<(body: [String: Any], status: Int), ProcessingFailure>) -> Void
+  ) {
+    URLSession.shared.dataTask(with: request) { data, response, error in
+      guard error == nil, let http = response as? HTTPURLResponse else {
+        completion(.failure(.noInternet))
+        return
+      }
+      let body = data
+        .flatMap { try? JSONSerialization.jsonObject(with: $0) }
+        .flatMap { $0 as? [String: Any] } ?? [:]
+      completion(.success((body: body, status: http.statusCode)))
+    }.resume()
+  }
+
+  private func persistProcessedResult(
+    _ result: [String: Any],
+    manifest: URL
+  ) throws {
+    let payload: [String: Any] = ["kind": "processed", "result": result]
+    let data = try JSONSerialization.data(withJSONObject: payload)
+    try data.write(to: manifest, options: .atomic)
+  }
+
+  private func canonicalMimeType(for fileExtension: String) -> String {
+    switch fileExtension.lowercased() {
+    case "flac": return "audio/flac"
+    case "mp3", "mpeg", "mpga": return "audio/mpeg"
+    case "mp4", "m4a": return "audio/mp4"
+    case "ogg", "opus": return "audio/ogg"
+    case "wav": return "audio/wav"
+    case "webm": return "audio/webm"
+    default: return "audio/mp4"
+    }
+  }
+
+  private func showProcessing() {
     DispatchQueue.main.async {
+      self.preferredContentSize = CGSize(width: 0, height: 360)
+      self.titleLabel.text = self.localized(
+        arabic: "جارٍ تحويل التسجيل",
+        english: "Processing voice note"
+      )
+      self.messageLabel.text = self.localized(
+        arabic: "يحوّل VoiceBrief الصوت إلى نص ويجهّز الملخص الآن. أبقِ هذه النافذة مفتوحة…",
+        english: "VoiceBrief is transcribing and summarizing now. Keep this window open…"
+      )
+      self.actionButton.isHidden = true
+      self.progressView.startAnimating()
+    }
+  }
+
+  private func showProcessed(_ result: [String: Any]) {
+    DispatchQueue.main.async {
+      self.preferredContentSize = CGSize(width: 0, height: 520)
       self.progressView.stopAnimating()
       self.symbolView.image = UIImage(systemName: "checkmark.circle.fill")
       self.symbolView.tintColor = .systemGreen
+      let title = (result["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let summary = (result["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+      self.titleLabel.text = title?.isEmpty == false
+        ? title
+        : self.localized(arabic: "اكتمل الملخص", english: "Brief ready")
+      self.messageLabel.text = summary?.isEmpty == false
+        ? summary
+        : self.localized(
+          arabic: "اكتملت معالجة التسجيل وحُفظت النتيجة في VoiceBrief.",
+          english: "The voice note is processed and saved in VoiceBrief."
+        )
+      self.configureActionButton(
+        title: self.localized(arabic: "حفظ في VoiceBrief", english: "Save in VoiceBrief"),
+        action: #selector(self.saveProcessedAndClose)
+      )
+      UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
+    }
+  }
+
+  private func showProcessingFailure(_ failure: ProcessingFailure) {
+    DispatchQueue.main.async {
+      self.preferredContentSize = CGSize(width: 0, height: 400)
+      self.progressView.stopAnimating()
+      self.symbolView.image = UIImage(systemName: "exclamationmark.triangle.fill")
+      self.symbolView.tintColor = .systemOrange
       self.titleLabel.text = self.localized(
-        arabic: "تم استيراد التسجيل",
-        english: "Voice note imported"
+        arabic: "حُفظ التسجيل",
+        english: "Voice note saved"
       )
-      self.messageLabel.text = self.localized(
-        arabic: "حُفظ التسجيل. اضغط «تم» ثم افتح VoiceBrief. للانتقال مباشرة في المرة القادمة اختر VoiceBrief نفسه من خيارات فتح الملف.",
-        english: "Your voice note is saved. Tap Done, then open VoiceBrief. Next time, choose VoiceBrief itself from the file-opening options for a direct transition."
-      )
+      self.messageLabel.text = self.processingFailureMessage(failure)
       self.configureActionButton(
         title: self.localized(arabic: "تم", english: "Done"),
         action: #selector(self.closeExtension)
       )
-      UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
+      UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
+    }
+  }
+
+  private func processingFailureMessage(_ failure: ProcessingFailure) -> String {
+    switch failure {
+    case .authentication:
+      return localized(
+        arabic: "افتح VoiceBrief مرة واحدة بعد التحديث لتجهيز حسابك للمشاركة، ثم أعد إرسال التسجيل.",
+        english: "Open VoiceBrief once after updating to prepare your account for sharing, then share the voice note again."
+      )
+    case .invalidAudio:
+      return localized(
+        arabic: "حُفظ الملف، لكن تعذر قراءة مدة التسجيل لمعالجته داخل نافذة المشاركة.",
+        english: "The file was saved, but its duration could not be read for in-share processing."
+      )
+    case .noInternet:
+      return localized(
+        arabic: "حُفظ التسجيل، لكن لا يوجد اتصال بالإنترنت لإكمال الملخص الآن.",
+        english: "The voice note was saved, but an internet connection is required to finish the brief."
+      )
+    case .quotaExhausted:
+      return localized(
+        arabic: "حُفظ التسجيل، لكن دقائق حسابك المتاحة لا تكفي لمعالجته.",
+        english: "The voice note was saved, but your available minutes are not enough to process it."
+      )
+    case .serviceUnavailable, .invalidResponse:
+      return localized(
+        arabic: "حُفظ التسجيل، لكن تعذرت المعالجة الآن. يمكنك إعادة المشاركة بعد قليل.",
+        english: "The voice note was saved, but processing is unavailable right now. Try sharing again shortly."
+      )
     }
   }
 
@@ -374,6 +770,23 @@ final class ShareViewController: UIViewController {
 
   @objc private func closeExtension() {
     extensionContext?.completeRequest(returningItems: nil)
+  }
+
+  @objc private func saveProcessedAndClose() {
+    guard let result = pendingProcessedResult,
+          let manifest = pendingProcessedManifest
+    else {
+      showProcessingFailure(.invalidResponse)
+      return
+    }
+    do {
+      try persistProcessedResult(result, manifest: manifest)
+      pendingProcessedResult = nil
+      pendingProcessedManifest = nil
+      closeExtension()
+    } catch {
+      showProcessingFailure(.invalidResponse)
+    }
   }
 
   private static let supportedExtensions: Set<String> = [

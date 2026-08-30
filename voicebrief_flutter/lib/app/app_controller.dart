@@ -42,6 +42,14 @@ class AppController extends StateNotifier<AppState> {
         );
       },
     );
+    _sharedResultSubscription = _sharedInbox.processed.listen(
+      (result) => unawaited(_importSharedResult(result)),
+      onError: (Object error, StackTrace stackTrace) {
+        state = state.copyWith(
+          errorMessage: const AppFailure(AppFailureCode.shareHandoff).message,
+        );
+      },
+    );
     _authStateSubscription = _auth.authStateChanges.listen(
       (user) {
         if (user == null || state.user?.id == user.id) return;
@@ -74,6 +82,7 @@ class AppController extends StateNotifier<AppState> {
   static const _uuid = Uuid();
   StreamSubscription<List<BriefResult>>? _historySubscription;
   StreamSubscription<SharedAudioPayload>? _sharedAudioSubscription;
+  StreamSubscription<BriefResult>? _sharedResultSubscription;
   StreamSubscription<AuthUser?>? _authStateSubscription;
   AuthUser? _deferredAuthUser;
   String? _activeJobId;
@@ -263,6 +272,40 @@ class AppController extends StateNotifier<AppState> {
       return false;
     } finally {
       if (!adopted) await _audioImport.discardSourcePath(pending.path);
+    }
+  }
+
+  Future<void> _importSharedResult(BriefResult result) async {
+    final accountId = state.user?.id;
+    if (accountId == null) {
+      state = state.copyWith(
+        errorMessage: const AppFailure(AppFailureCode.authentication).message,
+      );
+      return;
+    }
+    final saved = result.copyWith(savedLocally: true);
+    try {
+      await _history.save(accountId, saved);
+      final subscription = await _subscriptions.load();
+      if (!mounted || state.user?.id != accountId) return;
+      state = state.copyWith(
+        activeResult: saved,
+        selectedAudio: null,
+        subscription: subscription,
+        errorMessage: null,
+      );
+    } on AppFailure catch (failure) {
+      if (mounted && state.user?.id == accountId) {
+        state = state.copyWith(errorMessage: failure.message);
+      }
+    } on Object {
+      if (mounted && state.user?.id == accountId) {
+        state = state.copyWith(
+          errorMessage: const AppFailure(
+            AppFailureCode.invalidResponse,
+          ).message,
+        );
+      }
     }
   }
 
@@ -491,6 +534,7 @@ class AppController extends StateNotifier<AppState> {
   void dispose() {
     unawaited(_historySubscription?.cancel());
     unawaited(_sharedAudioSubscription?.cancel());
+    unawaited(_sharedResultSubscription?.cancel());
     unawaited(_authStateSubscription?.cancel());
     super.dispose();
   }

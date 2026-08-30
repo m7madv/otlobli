@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/core/utils/audio_file_validator.dart';
 import 'package:voicebrief/features/audio_import/domain/audio_input.dart';
+import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 
 class AudioImportService {
   const AudioImportService();
@@ -306,6 +307,13 @@ class SharedAudioInbox {
         _received.addError(const AppFailure(AppFailureCode.shareHandoff));
         return;
       }
+      if (call.method == 'shareProcessed' && call.arguments is Map) {
+        final result = _parseProcessed(
+          Map<Object?, Object?>.from(call.arguments as Map),
+        );
+        if (result != null) _processed.add(result);
+        return;
+      }
       if (call.method != 'shareReceived' || call.arguments is! Map) return;
       final payload = _parse(Map<Object?, Object?>.from(call.arguments as Map));
       if (payload != null) _received.add(payload);
@@ -314,8 +322,10 @@ class SharedAudioInbox {
 
   static const _channel = MethodChannel('voicebrief/share');
   final _received = StreamController<SharedAudioPayload>.broadcast();
+  final _processed = StreamController<BriefResult>.broadcast();
 
   Stream<SharedAudioPayload> get received => _received.stream;
+  Stream<BriefResult> get processed => _processed.stream;
 
   Future<SharedAudioPayload?> takePending() async {
     final value = await _channel.invokeMapMethod<String, Object?>(
@@ -324,7 +334,34 @@ class SharedAudioInbox {
     if (value?['error'] != null) {
       throw const AppFailure(AppFailureCode.shareHandoff);
     }
+    if (value?['kind'] == 'processed' && value?['result'] is Map) {
+      final result = _parseProcessed(
+        Map<Object?, Object?>.from(value!['result']! as Map),
+      );
+      if (result != null) _processed.add(result);
+      return null;
+    }
     return value == null ? null : _parse(value);
+  }
+
+  BriefResult? _parseProcessed(Map<Object?, Object?> value) {
+    try {
+      return BriefResult.fromJson(_normalizeMap(value));
+    } on Object {
+      _processed.addError(const AppFailure(AppFailureCode.invalidResponse));
+      return null;
+    }
+  }
+
+  Map<String, Object?> _normalizeMap(Map<Object?, Object?> value) =>
+      value.map((key, item) => MapEntry(key.toString(), _normalizeValue(item)));
+
+  Object? _normalizeValue(Object? value) {
+    if (value is Map) {
+      return _normalizeMap(Map<Object?, Object?>.from(value));
+    }
+    if (value is List) return value.map(_normalizeValue).toList();
+    return value;
   }
 
   SharedAudioPayload? _parse(Map<Object?, Object?> value) {
@@ -343,6 +380,7 @@ class SharedAudioInbox {
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
     await _received.close();
+    await _processed.close();
   }
 }
 

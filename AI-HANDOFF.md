@@ -2,12 +2,12 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 10
+## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 11
 
 - اعمل فقط داخل `voicebrief_flutter/` وملفات workflow الخاصة به على الفرع `codex/voicebrief-ios`. مشروع Supabase الصحيح `jyehqpdbayslhzebdycj`؛ لا تستخدم Damanak أو `talabieh`.
-- أثبت iPhone الحقيقي أن البناء 9 يحفظ الملف لكن `NSExtensionContext.open` يفشل تلقائياً وعند الضغط على الزر. Apple لا تدعم هذا API في Share Extension؛ لا تعِد الطلب ولا تضف `UIApplication.shared` أو responder-chain hacks.
-- البناء 10 يستخدم مسارين عامين: Runner يعلن `CFBundleDocumentTypes` للصوت العام وMP3/MPEG-4/WAV، ويتلقى `file://` في `SceneDelegate` و`AppDelegate`، ثم `VoiceBriefShareBridge.importDocument` ينسخه على queue محدودة إلى App Group ويبلّغ Flutter في التشغيل البارد أو الدافئ. `VoiceBrief Save` يبقى Share Extension احتياطياً لأي تطبيق يقدّم ملفاً/مرفقاً صوتياً، ويحفظ فقط مع زر `Done`.
-- لا تعد بفتح مباشر من كل تطبيق: التطبيق المصدر وiOS يحددان إن كان الملف يُعرض لوجهة document-open أو للامتداد. حافظ على المسارين؛ لا توسّع Runner إلى `public.data` لأنه سيظهر للملفات غير الصوتية.
+- أثبت iPhone الحقيقي أن البناء 9 يحفظ الملف لكن `NSExtensionContext.open` يفشل، وأن البناء 10 لا يعرض Runner كوجهة document-open من WhatsApp. Apple لا تدعم فتح التطبيق من Share Extension؛ لا تعِد الطلب ولا تضف `UIApplication.shared` أو responder-chain hacks.
+- البناء 11 يعالج التسجيل داخل Share Extension: ينسخ الملف إلى App Group، يستخدم جلسة Supabase المزامنة من Runner، يجددها عند الحاجة، يرفع إلى `audio-temp`، يستدعي `process-audio`، ويعرض العنوان والملخص في النافذة نفسها. بعد ضغط `حفظ في VoiceBrief` يكتب نتيجة معالجة ذرية يستهلكها Flutter لاحقاً ويحفظها محلياً بلا إعادة معالجة.
+- Runner يستعيد refresh token الأحدث من App Group قبل مزامنة جلسته مجدداً. لا تسجل الرموز أو المحتوى، ولا توسّع Runner إلى `public.data`. عند فشل الشبكة/الجلسة/الرصيد يبقى manifest الصوت القديم للاستيراد اليدوي.
 - `process-audio/date_normalization.ts` يصحح فقط العبارات ذات علامة تاريخ صريحة (`يوم`/`بتاريخ`/`تاريخ`) كي لا تتحول أوقات الساعة إلى تواريخ. `يوم خمسة تسعة` ينتج 5 سبتمبر القادم، ويظل الوقت غير المذكور بحاجة إلى تأكيد.
 - الخادم يرسل `languageHint` مضبوطاً على `ar/en`، ويستخدم `gpt-4o-mini-transcribe` للنسخ و`gpt-5.6-luna` للتلخيص. طلب التلخيص يثبت `reasoning.effort=low` و`text.verbosity=low` مع JSON Schema الصارم. لا تسجل transcript أو اسم ملف أو هوية المستخدم.
 - `process-audio` منشور حصراً إلى `jyehqpdbayslhzebdycj`: `ACTIVE` version `9`، id `e4a26c2e-b9f2-43d3-9a6b-61467b8c8747`، hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. `OPENAI_TRANSCRIPTION_MODEL` الحي هو `gpt-4o-mini-transcribe`؛ لا تمس بقية الأسرار.
@@ -16,7 +16,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - TestFlight run `33031418401` نجح ورفع build 9؛ Delivery UUID `d3788d62-0ca7-423f-b234-425a325012f7`. IPA SHA-256 `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`، وZIP SHA-256 `DF4BFA9674C7F86C88BFBF0446B0BD1DBCC88941195D5E6AAD0F69FF937AC333`.
 - workflow القراءة فقط `.github/workflows/voicebrief-appstore-status.yml` نجح في run `33281554578`: App Store Connect يعرض `0.1.0 (9)` بحالة `VALID` وغير منتهٍ ومرتبطاً بمجموعة `VoiceBrief Internal`، build ID نفسه `d3788d62-0ca7-423f-b234-425a325012f7`، والحد الأدنى iOS 14. تقرير artifact رقم `9723131680` وبصمته `15DF660E61DAA9F05FC42A3696CB071A4F7FEF5ED772892131A8717C0EB71C1F`.
 - TestFlight run `33283233779` نجح للبناء 10؛ Delivery UUID/build ID `d8a16f4a-74ad-4d7f-8368-220ca5ab9152`. IPA حجمه `34,432,164` وبصمته `81763F19AEE9476F255CA6D117459CD99B29DB07D289E9257D567836FB5FF1FA`. artifact رقم `9723733688` وبصمة ZIP `A80931E213B74DE63EBAC49C411AB94DF70E0D333DCE617D9D716550F4EE49E1`.
-- App Store status run `33283233781` يؤكد أن `0.1.0 (10)` هو `VALID` وغير منتهٍ ومضاف إلى `VoiceBrief Internal`. تقرير الحالة artifact رقم `9723780941`. البناء 9 مرفوض جهازياً لمسار الفتح؛ اختبر البناء 10 من WhatsApp وتطبيقات أخرى عبر خيار VoiceBrief المباشر، التشغيل البارد والدافئ، وظهور التسجيل داخل التطبيق. وجود التطبيق كعارض للصوت يعتمد على اختيار iOS في قائمة فتح الملف، فلا تدّع قبول الجهاز قبل الاختبار. iOS 14 مقبول الآن، لكن Apple تطلب iOS 15 للرفع بدءاً من ربيع 2027.
+- App Store status run `33283233781` يؤكد أن `0.1.0 (10)` هو `VALID` وغير منتهٍ ومضاف إلى `VoiceBrief Internal`، وتقرير الحالة artifact رقم `9723780941`. هذه سلامة متجر لا قبول جهاز؛ المستخدم أكد أن WhatsApp لا يفتح Runner في البناء 10. iOS 14 مقبول الآن، لكن Apple تطلب iOS 15 للرفع بدءاً من ربيع 2027.
+- البناء 10 مرفوض جهازياً لمسار WhatsApp المباشر رغم نجاح التوقيع والرفع. التحقق المحلي للبناء 11 نجح: 71 ملف format، analyze، 31 non-golden، 11 golden، وAPK debug بصمة `CF8F63D8CBC22A9AC681A2F51FAED8F7C86CB0B6DA88D6856A84B24657D84E30`. انتظر CI/TestFlight ثم اختبر: افتح Runner مرة واحدة بعد التحديث لمزامنة الجلسة، شارك من WhatsApp، أبقِ النافذة مفتوحة حتى يظهر الملخص، اضغط `حفظ في VoiceBrief`، ثم تحقق لاحقاً من السجل وعدم تكرار الخصم.
 
 
 ## مشروع مستقل (2026-08-25) — ضمانك 4.1.0+7

@@ -18,6 +18,7 @@ final class VoiceBriefShareBridge {
 
   private let appGroup = "group.app.voicebrief.mobile"
   private let legacyPayloadKey = "VoiceBriefPendingShare"
+  private let shareSessionKey = "VoiceBriefShareSession"
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private let importQueue = DispatchQueue(
@@ -30,12 +31,22 @@ final class VoiceBriefShareBridge {
   func configure(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "voicebrief/share", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
-      guard call.method == "takePendingShare" else {
-        result(FlutterMethodNotImplemented)
+      guard let self else {
+        result(FlutterError(code: "share_bridge_unavailable", message: nil, details: nil))
         return
       }
-      self?.dartReady = true
-      result(self?.takePayload())
+      switch call.method {
+      case "takePendingShare":
+        self.dartReady = true
+        result(self.takePayload())
+      case "syncShareSession":
+        self.syncShareSession(call.arguments)
+        result(nil)
+      case "getShareSession":
+        result(UserDefaults(suiteName: self.appGroup)?.dictionary(forKey: self.shareSessionKey))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
     self.channel = channel
   }
@@ -44,6 +55,9 @@ final class VoiceBriefShareBridge {
     guard dartReady, let payload = takePayload() else { return }
     if payload["error"] != nil {
       channel?.invokeMethod("shareError", arguments: nil)
+    } else if payload["kind"] as? String == "processed",
+              let result = payload["result"] as? [String: Any] {
+      channel?.invokeMethod("shareProcessed", arguments: result)
     } else {
       channel?.invokeMethod("shareReceived", arguments: payload)
     }
@@ -90,6 +104,37 @@ final class VoiceBriefShareBridge {
     else { return nil }
     defaults.removeObject(forKey: legacyPayloadKey)
     return payload
+  }
+
+  private func syncShareSession(_ arguments: Any?) {
+    guard let defaults = UserDefaults(suiteName: appGroup) else { return }
+    guard let values = arguments as? [String: Any],
+          let supabaseURL = values["supabaseUrl"] as? String,
+          let anonKey = values["anonKey"] as? String,
+          let accessToken = values["accessToken"] as? String,
+          let refreshToken = values["refreshToken"] as? String,
+          let userId = values["userId"] as? String,
+          let expiresAt = values["expiresAt"] as? NSNumber,
+          supabaseURL.hasPrefix("https://"),
+          !anonKey.isEmpty,
+          !accessToken.isEmpty,
+          !refreshToken.isEmpty,
+          !userId.isEmpty
+    else {
+      defaults.removeObject(forKey: shareSessionKey)
+      return
+    }
+    defaults.set(
+      [
+        "supabaseUrl": supabaseURL,
+        "anonKey": anonKey,
+        "accessToken": accessToken,
+        "refreshToken": refreshToken,
+        "userId": userId,
+        "expiresAt": expiresAt,
+      ],
+      forKey: shareSessionKey
+    )
   }
 
   private func persistDocument(_ source: URL) throws {
