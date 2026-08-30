@@ -2,6 +2,7 @@ import {
   estimateProviderCost,
   extractGeminiText,
   extractOutputText,
+  geminiProductImportSchema,
   productImportSchema,
   sanitizeProducts,
 } from "./index.ts";
@@ -9,6 +10,9 @@ import {
 Deno.test("AI import schema is strict and sanitizes review-only rows", () => {
   if (productImportSchema.additionalProperties !== false) {
     throw new Error("schema must reject unknown root fields");
+  }
+  if (!geminiProductImportSchema.required.includes("products")) {
+    throw new Error("Gemini schema must always return the product collection");
   }
   const text = extractOutputText({
     output: [{ content: [{ type: "output_text", text: '{"products":[]}' }] }],
@@ -43,6 +47,10 @@ Deno.test("AI router extracts Gemini JSON and keeps the free tier at zero", () =
   if (text !== '{"products":[]}') throw new Error("Gemini output missing");
   if (estimateProviderCost("gemini", "free", 100000, 10000) !== 0) {
     throw new Error("Gemini free-tier imports must estimate zero provider cost");
+  }
+  const geminiPaidCost = estimateProviderCost("gemini", "paid", 100000, 10000);
+  if (geminiPaidCost === null || Math.abs(geminiPaidCost - 0.055) > 0.000001) {
+    throw new Error("Gemini 3.5 Flash-Lite paid fallback cost changed unexpectedly");
   }
   const openAiCost = estimateProviderCost("openai", "paid", 100000, 10000);
   if (openAiCost === null || Math.abs(openAiCost - 0.032) > 0.000001) {

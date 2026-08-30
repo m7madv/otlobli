@@ -271,7 +271,7 @@ void main() {
     for (final token in [
       'OPENAI_API_KEY',
       'GEMINI_API_KEY',
-      'gemini-2.5-flash-lite',
+      'gemini-3.5-flash-lite',
       'gpt-5.6-luna',
       'json_schema',
       'store: false',
