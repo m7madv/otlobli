@@ -42,9 +42,35 @@ Artifacts:
   bytes, SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
 
 No Android device was connected, so no weak-device acceptance is claimed.
-TestFlight upload and App Store preparation are pending. Never claim App Review
-submission: the physical checkout, genuine SHEIN, five resume cycles, and cold
-launch remain outstanding.
+GitHub Actions run `33303524932` succeeded from exact head
+`f3327247bde550e4e7c426774bd2b2a44030dbee`. Apple validation and upload both
+completed without errors; Delivery UUID is
+`e4afe608-6bc5-4753-a123-c39b8d66d973`. App Store Connect verified
+`86.244 (1112)` as `VALID` and `IN_BETA_TESTING` in all-builds group
+`Otlobli Internal`, with expected tester state `INSTALLED`. The App Review step
+was explicitly skipped and `PREPARE_ONLY` remains in place.
+
+The signed GitHub artifact is
+`otlobli-ios-v86.244-build-1112-testflight`, artifact ID `9729795372`, size
+`25,409,917` bytes, GitHub archive SHA-256
+`094339D4223FCE87EC8C2F5CB6E73DB11FFCD31745CF88E116DD1B2F06CADFBA`, expiring
+`2026-09-29T09:20:48Z`; Apple transferred IPA size `10,601,779` bytes.
+
+The production WhatsApp number/session is intentionally shared by two apps.
+After one graceful Oracle instance reboot, the owner requested a real OTP from
+one app and confirmed receipt. Release preflight then reported
+`whatsappConnected=true`, `whatsappSenderReady=true`, credentials present,
+session store ready, `customer-session-v1`, and OTP security ready. Oracle Run
+Command stayed `Accepted` without execution, and Cloud Shell had no SSH private
+key. No session deletion, number/config change, QR replacement, or tool-originated
+test OTP occurred.
+
+Never claim physical acceptance from CI. The owner must update TestFlight on
+iPhone 16 Pro Max, enter SHEIN as guest and open the first product, prove the
+full login page does not remain and Google/Facebook do not open Safari, then run
+five background/resume cycles and one separate force-quit/cold-launch. Before
+App Review, clean iPhone+iPad cart/checkout acceptance through the ShamCash code
+screen without pressing the paid confirmation also remains required.
 
 # Active handoff — v86.244/1111 SHEIN verification commit barrier (2026-08-27)
 

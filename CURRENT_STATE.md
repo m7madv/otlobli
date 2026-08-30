@@ -43,11 +43,32 @@ startup `674,276/720,000`، JS gzip `301,491/370,000`، CSS
   `5,775,124` بايت — SHA-256
   `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
 
-لم يكن أي Android متصلًا، فلا يُدّعى قبول هاتف ضعيف. رفع TestFlight وتحضير
-سجل App Store ما زالا قيد التنفيذ، ولن يُرسل App Review. القبول المتبقي:
-تثبيت نظيف واختبار سلة ودفع حتى رمز ShamCash بلا ضغط «لقد دفعت» على iPhone
-وiPad، ثم مسار SHEIN الحقيقي على iPhone 16 Pro Max وخمس دورات
-background/resume واختبار force-quit/cold-launch مستقل.
+لم يكن أي Android متصلًا، فلا يُدّعى قبول هاتف ضعيف. نجح تشغيل GitHub Actions
+رقم `33303524932` من الالتزام
+`f3327247bde550e4e7c426774bd2b2a44030dbee`: نجح تحقق Apple ورفع IPA بلا
+أخطاء، ورقم التسليم `e4afe608-6bc5-4753-a123-c39b8d66d973`. صار البناء
+`86.244 (1112)` بحالة `VALID` و`IN_BETA_TESTING` داخل مجموعة
+`Otlobli Internal` ذات وصول all-builds، وحالة المختبر المتوقعة `INSTALLED`.
+خطوة App Review كانت متخطاة صراحة، وما زالت علامة `PREPARE_ONLY` تمنع
+الإرسال العام.
+
+ملف GitHub الموقّع اسمه `otlobli-ios-v86.244-build-1112-testflight`، ورقمه
+`9729795372`، وحجمه `25,409,917` بايت، وبصمة أرشيف GitHub SHA-256 هي
+`094339D4223FCE87EC8C2F5CB6E73DB11FFCD31745CF88E116DD1B2F06CADFBA`،
+وتنتهي صلاحيته في `2026-09-29T09:20:48Z`. حجم IPA المرفوعة كما سجله مسار
+Apple هو `10,601,779` بايت.
+
+قبل الإطلاق عاد مرسل WhatsApp المشترك الذي يخدم تطبيقين على الرقم الأمريكي
+نفسه إلى `whatsappConnected=true` و`whatsappSenderReady=true`، وأثبت المستخدم
+ذلك بطلب رمز OTP حقيقي ووصوله. حدثت إعادة تشغيل graceful لخادم Oracle، لكن
+`Run command` بقي `Accepted` بلا تنفيذ، ولم يتوفر مفتاح SSH في Cloud Shell.
+لم تُحذف الجلسة ولم يتغير الرقم أو الإعداد، ولم نرسل رمزًا تجريبيًا من أدواتنا.
+
+القبول المتبقي: تحديث TestFlight على iPhone 16 Pro Max، فتح SHEIN كزائر ثم
+أول منتج والتأكد أن صفحة الدخول الكاملة لا تبقى وأن Google/Facebook لا يفتحان
+Safari، ثم خمس دورات background/resume واختبار force-quit/cold-launch مستقل.
+وقبل App Review يلزم أيضًا قبول مسار السلة والدفع حتى رمز ShamCash بلا ضغط
+«لقد دفعت» على iPhone وiPad. لا يُدّعى أي قبول جهاز حقيقي من نجاح CI.
 
 # v86.244/1111 — انتظار التزام تحقق SHEIN قبل استئناف Otlobli (2026-08-27)
 
