@@ -350,7 +350,22 @@ private struct VoiceBriefAlarmMetadata: AlarmMetadata {}
 final class VoiceBriefReminderBridge {
   static let shared = VoiceBriefReminderBridge()
 
+  private enum SoundImportFailure: Error {
+    case unreadableSource
+    case noAudio
+    case exportFailed
+    case conversionFailed
+  }
+
   private let recordsKey = "VoiceBriefScheduledAlarms"
+  private let preferredToneKey = "VoiceBriefPreferredAlarmTone"
+  private let customSoundPrefix = "voicebrief_custom_"
+  private let maximumImportedSoundDuration: Double = 29
+  private let maximumImportedSourceBytes: Int64 = 500 * 1024 * 1024
+  private let soundImportQueue = DispatchQueue(
+    label: "app.voicebrief.mobile.alarm-sound-import",
+    qos: .userInitiated
+  )
   private var previewPlayer: AVAudioPlayer?
   private var previewGeneration = 0
 
@@ -387,7 +402,21 @@ final class VoiceBriefReminderBridge {
         }
         self.cancel(identifier: identifier, result: result)
       case "previewSound":
-        result(self.previewSound(key: values["soundKey"] as? String ?? "classic"))
+        result(self.previewSound(values: values))
+      case "getPreferredTone":
+        result(self.preferredTone())
+      case "setPreferredTone":
+        result(self.setPreferredTone(values: values))
+      case "importSound":
+        guard let sourcePath = values["sourcePath"] as? String,
+              let displayName = values["displayName"] as? String,
+              !sourcePath.isEmpty,
+              !displayName.isEmpty
+        else {
+          result(FlutterError(code: "invalid_alarm_sound", message: nil, details: nil))
+          return
+        }
+        self.importSound(sourcePath: sourcePath, displayName: displayName, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -417,7 +446,6 @@ final class VoiceBriefReminderBridge {
         }
 
         let title = values["title"] as? String ?? "VoiceBrief"
-        let soundKey = values["soundKey"] as? String ?? "classic"
         let alert = AlarmPresentation.Alert(
           title: LocalizedStringResource(stringLiteral: title),
           secondaryButton: nil,
@@ -431,7 +459,7 @@ final class VoiceBriefReminderBridge {
         let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>.alarm(
           schedule: .fixed(fireDate),
           attributes: attributes,
-          sound: self.alarmSound(key: soundKey)
+          sound: self.alarmSound(values: values)
         )
         let identifier = UUID()
         _ = try await manager.schedule(id: identifier, configuration: configuration)
@@ -456,8 +484,8 @@ final class VoiceBriefReminderBridge {
   }
 
   @available(iOS 26.1, *)
-  private func alarmSound(key: String) -> AlertConfiguration.AlertSound {
-    guard let fileName = soundFileName(key: key) else { return .default }
+  private func alarmSound(values: [String: Any]) -> AlertConfiguration.AlertSound {
+    guard let fileName = customSoundFileName(values: values) else { return .default }
     return .named(fileName)
   }
 
@@ -495,7 +523,7 @@ final class VoiceBriefReminderBridge {
               values: [
                 "title": "VoiceBrief",
                 "body": "",
-                "soundKey": "classic",
+                "soundKey": "system",
               ],
               backend: "alarmKit"
             )
@@ -576,8 +604,7 @@ final class VoiceBriefReminderBridge {
       let content = UNMutableNotificationContent()
       content.title = values["title"] as? String ?? "VoiceBrief"
       content.body = values["body"] as? String ?? ""
-      let soundKey = values["soundKey"] as? String ?? "classic"
-      if let fileName = self.soundFileName(key: soundKey) {
+      if let fileName = self.customSoundFileName(values: values) {
         content.sound = UNNotificationSound(
           named: UNNotificationSoundName(rawValue: fileName)
         )
@@ -624,15 +651,20 @@ final class VoiceBriefReminderBridge {
     values: [String: Any],
     backend: String
   ) -> [String: Any] {
-    [
+    var record: [String: Any] = [
       "id": identifier,
       "title": values["title"] as? String ?? "VoiceBrief",
       "body": values["body"] as? String ?? "",
       "fireMillis": NSNumber(value: Int64(fireDate.timeIntervalSince1970 * 1000)),
-      "soundKey": values["soundKey"] as? String ?? "classic",
+      "soundKey": customSoundFileName(values: values) == nil ? "system" : "custom",
       "state": "scheduled",
       "backend": backend,
     ]
+    if let fileName = customSoundFileName(values: values) {
+      record["soundFileName"] = fileName
+      record["soundDisplayName"] = values["soundDisplayName"] as? String ?? "Custom sound"
+    }
+    return record
   }
 
   private func records() -> [[String: Any]] {
@@ -651,30 +683,266 @@ final class VoiceBriefReminderBridge {
   private func removeRecord(identifier: String) {
     let next = records().filter { ($0["id"] as? String) != identifier }
     UserDefaults.standard.set(next, forKey: recordsKey)
+    cleanupUnusedCustomSounds()
   }
 
   private func replaceAlarmKitRecords(with activeRecords: [[String: Any]]) {
     let fallback = records().filter { ($0["backend"] as? String) != "alarmKit" }
     UserDefaults.standard.set(fallback + activeRecords, forKey: recordsKey)
+    cleanupUnusedCustomSounds()
   }
 
   private func replaceNotificationRecords(with activeRecords: [[String: Any]]) {
     let alarmKit = records().filter { ($0["backend"] as? String) != "notification" }
     UserDefaults.standard.set(alarmKit + activeRecords, forKey: recordsKey)
+    cleanupUnusedCustomSounds()
   }
 
-  private func soundFileName(key: String) -> String? {
-    switch key {
-    case "gentle": "voicebrief_gentle.wav"
-    case "bright": "voicebrief_bright.wav"
-    case "classic": "voicebrief_classic.wav"
-    default: nil
+  private func preferredTone() -> [String: Any] {
+    guard let stored = UserDefaults.standard.dictionary(forKey: preferredToneKey),
+          let fileName = customSoundFileName(values: stored)
+    else {
+      return ["soundKey": "system"]
+    }
+    return [
+      "soundKey": "custom",
+      "soundFileName": fileName,
+      "soundDisplayName": stored["soundDisplayName"] as? String ?? "Custom sound",
+    ]
+  }
+
+  private func setPreferredTone(values: [String: Any]) -> Bool {
+    if values["soundKey"] as? String == "custom" {
+      guard let fileName = customSoundFileName(values: values) else { return false }
+      UserDefaults.standard.set(
+        [
+          "soundKey": "custom",
+          "soundFileName": fileName,
+          "soundDisplayName": values["soundDisplayName"] as? String ?? "Custom sound",
+        ],
+        forKey: preferredToneKey
+      )
+    } else {
+      UserDefaults.standard.set(["soundKey": "system"], forKey: preferredToneKey)
+    }
+    cleanupUnusedCustomSounds()
+    return true
+  }
+
+  private func customSoundFileName(values: [String: Any]) -> String? {
+    guard values["soundKey"] as? String == "custom",
+          let fileName = values["soundFileName"] as? String,
+          fileName == URL(fileURLWithPath: fileName).lastPathComponent,
+          fileName.hasPrefix(customSoundPrefix),
+          fileName.hasSuffix(".caf"),
+          let url = try? soundsDirectory().appendingPathComponent(fileName),
+          FileManager.default.fileExists(atPath: url.path)
+    else { return nil }
+    return fileName
+  }
+
+  private func soundsDirectory() throws -> URL {
+    let library = try FileManager.default.url(
+      for: .libraryDirectory,
+      in: .userDomainMask,
+      appropriateFor: nil,
+      create: true
+    )
+    let directory = library.appendingPathComponent("Sounds", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true
+    )
+    return directory
+  }
+
+  private func importSound(
+    sourcePath: String,
+    displayName: String,
+    result: @escaping FlutterResult
+  ) {
+    let sourceURL = URL(fileURLWithPath: sourcePath)
+    guard sourceURL.isFileURL,
+          FileManager.default.fileExists(atPath: sourceURL.path),
+          let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+          let sourceSize = attributes[.size] as? NSNumber,
+          sourceSize.int64Value > 0,
+          sourceSize.int64Value <= maximumImportedSourceBytes
+    else {
+      result(FlutterError(code: "invalid_alarm_sound", message: nil, details: nil))
+      return
+    }
+
+    let asset = AVURLAsset(url: sourceURL)
+    guard asset.isPlayable, !asset.tracks(withMediaType: .audio).isEmpty else {
+      result(FlutterError(code: "alarm_sound_has_no_audio", message: nil, details: nil))
+      return
+    }
+
+    let temporaryURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("voicebrief_alarm_\(UUID().uuidString.lowercased())")
+      .appendingPathExtension("m4a")
+    let outputFileName = "\(customSoundPrefix)\(UUID().uuidString.lowercased()).caf"
+    let outputURL: URL
+    do {
+      outputURL = try soundsDirectory().appendingPathComponent(outputFileName)
+    } catch {
+      result(FlutterError(code: "alarm_sound_storage_failed", message: nil, details: nil))
+      return
+    }
+
+    guard let export = AVAssetExportSession(
+      asset: asset,
+      presetName: AVAssetExportPresetAppleM4A
+    ) else {
+      result(FlutterError(code: "alarm_sound_export_failed", message: nil, details: nil))
+      return
+    }
+    export.outputURL = temporaryURL
+    export.outputFileType = .m4a
+    export.shouldOptimizeForNetworkUse = false
+    let sourceDuration = CMTimeGetSeconds(asset.duration)
+    let clippedDuration = sourceDuration.isFinite && sourceDuration > 0
+      ? min(sourceDuration, maximumImportedSoundDuration)
+      : maximumImportedSoundDuration
+    export.timeRange = CMTimeRange(
+      start: .zero,
+      duration: CMTime(seconds: clippedDuration, preferredTimescale: 600)
+    )
+    export.exportAsynchronously { [weak self, export] in
+      guard let self else { return }
+      guard export.status == .completed else {
+        try? FileManager.default.removeItem(at: temporaryURL)
+        DispatchQueue.main.async {
+          result(FlutterError(code: "alarm_sound_export_failed", message: nil, details: nil))
+        }
+        return
+      }
+      self.soundImportQueue.async {
+        do {
+          try self.convertAlarmSound(inputURL: temporaryURL, outputURL: outputURL)
+          let player = try AVAudioPlayer(contentsOf: outputURL)
+          guard player.duration > 0.1,
+                player.duration <= self.maximumImportedSoundDuration + 0.5
+          else { throw SoundImportFailure.conversionFailed }
+          try? FileManager.default.removeItem(at: temporaryURL)
+          let safeDisplayName = String(
+            URL(fileURLWithPath: displayName).lastPathComponent.prefix(100)
+          )
+          let tone: [String: Any] = [
+            "soundKey": "custom",
+            "soundFileName": outputFileName,
+            "soundDisplayName": safeDisplayName.isEmpty ? "Custom sound" : safeDisplayName,
+          ]
+          DispatchQueue.main.async { result(tone) }
+        } catch {
+          try? FileManager.default.removeItem(at: temporaryURL)
+          try? FileManager.default.removeItem(at: outputURL)
+          DispatchQueue.main.async {
+            result(FlutterError(code: "alarm_sound_conversion_failed", message: nil, details: nil))
+          }
+        }
+      }
     }
   }
 
-  private func previewSound(key: String) -> Bool {
-    guard let fileName = soundFileName(key: key),
-          let url = Bundle.main.url(forResource: fileName, withExtension: nil)
+  private func convertAlarmSound(inputURL: URL, outputURL: URL) throws {
+    let inputFile = try AVAudioFile(forReading: inputURL)
+    let inputFormat = inputFile.processingFormat
+    let sampleRate = min(max(inputFormat.sampleRate, 8_000), 44_100)
+    guard inputFormat.channelCount > 0,
+          let outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false
+          ),
+          let converter = AVAudioConverter(from: inputFormat, to: outputFormat)
+    else { throw SoundImportFailure.conversionFailed }
+
+    let outputFile = try AVAudioFile(
+      forWriting: outputURL,
+      settings: outputFormat.settings,
+      commonFormat: .pcmFormatInt16,
+      interleaved: false
+    )
+    let inputCapacity: AVAudioFrameCount = 4_096
+    let ratio = outputFormat.sampleRate / inputFormat.sampleRate
+    let outputCapacity = AVAudioFrameCount(ceil(Double(inputCapacity) * ratio)) + 32
+    var reachedEnd = false
+
+    while !reachedEnd {
+      guard let outputBuffer = AVAudioPCMBuffer(
+        pcmFormat: outputFormat,
+        frameCapacity: outputCapacity
+      ) else { throw SoundImportFailure.conversionFailed }
+      var suppliedInput = false
+      var readError: Error?
+      var conversionError: NSError?
+      let status = converter.convert(to: outputBuffer, error: &conversionError) {
+        _, inputStatus in
+        if suppliedInput {
+          inputStatus.pointee = .noDataNow
+          return nil
+        }
+        guard let inputBuffer = AVAudioPCMBuffer(
+          pcmFormat: inputFormat,
+          frameCapacity: inputCapacity
+        ) else {
+          inputStatus.pointee = .endOfStream
+          readError = SoundImportFailure.conversionFailed
+          return nil
+        }
+        do {
+          try inputFile.read(into: inputBuffer)
+        } catch {
+          inputStatus.pointee = .endOfStream
+          readError = error
+          return nil
+        }
+        guard inputBuffer.frameLength > 0 else {
+          inputStatus.pointee = .endOfStream
+          reachedEnd = true
+          return nil
+        }
+        suppliedInput = true
+        inputStatus.pointee = .haveData
+        return inputBuffer
+      }
+      if let readError { throw readError }
+      if let conversionError { throw conversionError }
+      if outputBuffer.frameLength > 0 {
+        try outputFile.write(from: outputBuffer)
+      }
+      if status == .error { throw SoundImportFailure.conversionFailed }
+      if status == .endOfStream { reachedEnd = true }
+    }
+  }
+
+  private func cleanupUnusedCustomSounds() {
+    guard let directory = try? soundsDirectory(),
+          let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+          )
+    else { return }
+    var retained = Set(
+      records().compactMap { $0["soundFileName"] as? String }
+    )
+    if let preferred = UserDefaults.standard.dictionary(forKey: preferredToneKey),
+       let fileName = preferred["soundFileName"] as? String {
+      retained.insert(fileName)
+    }
+    for file in files where file.lastPathComponent.hasPrefix(customSoundPrefix) {
+      if !retained.contains(file.lastPathComponent) {
+        try? FileManager.default.removeItem(at: file)
+      }
+    }
+  }
+
+  private func previewSound(values: [String: Any]) -> Bool {
+    guard let fileName = customSoundFileName(values: values),
+          let url = try? soundsDirectory().appendingPathComponent(fileName)
     else { return false }
     do {
       let audioSession = AVAudioSession.sharedInstance()
@@ -686,7 +954,8 @@ final class VoiceBriefReminderBridge {
       let played = previewPlayer?.play() == true
       previewGeneration += 1
       let generation = previewGeneration
-      DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+      let previewDuration = min(previewPlayer?.duration ?? 5, 8)
+      DispatchQueue.main.asyncAfter(deadline: .now() + previewDuration + 0.25) { [weak self] in
         guard self?.previewGeneration == generation else { return }
         try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
       }

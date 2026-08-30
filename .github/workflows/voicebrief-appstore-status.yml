@@ -13,12 +13,12 @@ permissions:
 
 jobs:
   inspect-build:
-    name: Inspect VoiceBrief build 15
+    name: Inspect VoiceBrief build 16
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       VOICEBRIEF_APP_ID: "6805194629"
-      VOICEBRIEF_BUILD_NUMBER: "15"
+      VOICEBRIEF_BUILD_NUMBER: "16"
       VOICEBRIEF_INTERNAL_GROUP_NAME: "VoiceBrief Internal"
 
     steps:
@@ -30,7 +30,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          REPORT_PATH: ${{ runner.temp }}/voicebrief-appstore-build15.json
+          REPORT_PATH: ${{ runner.temp }}/voicebrief-appstore-build16.json
         shell: bash
         run: |
           set -euo pipefail
@@ -308,7 +308,7 @@ jobs:
       - name: Upload the safe status report
         uses: actions/upload-artifact@v4
         with:
-          name: voicebrief-appstore-build15-status
-          path: ${{ runner.temp }}/voicebrief-appstore-build15.json
+          name: voicebrief-appstore-build16-status
+          path: ${{ runner.temp }}/voicebrief-appstore-build16.json
           if-no-files-found: error
           retention-days: 30

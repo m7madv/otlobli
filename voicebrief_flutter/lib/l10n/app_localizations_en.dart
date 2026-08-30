@@ -442,43 +442,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reminderMustBeFuture => 'Choose a future time for the reminder.';
 
   @override
-  String get chooseAlarmTone => 'Choose alarm tone';
+  String get chooseAlarmTone => 'Alarm sound';
 
   @override
   String get chooseAlarmToneDescription =>
-      'Preview each tone before setting the alarm.';
-
-  @override
-  String get alarmToneGentle => 'Gentle';
-
-  @override
-  String get alarmToneBright => 'Bright';
-
-  @override
-  String get alarmToneClassic => 'Classic';
+      'Use the original iPhone sound or choose your own.';
 
   @override
   String get previewTone => 'Preview tone';
 
   @override
-  String get confirmAlarm => 'Set alarm with this tone';
+  String get confirmAlarm => 'Use this sound';
 
   @override
   String get alarmsAndReminders => 'Alarms and reminders';
 
   @override
-  String get voiceBriefAlarms => 'VoiceBrief alarms';
+  String get voiceBriefAlarms => 'Alarms';
 
   @override
   String get voiceBriefAlarmsDescription =>
-      'View scheduled alarms and their tones, or cancel them.';
+      'View or cancel your scheduled alarms.';
 
   @override
-  String get noScheduledAlarms => 'No scheduled alarms';
+  String get noScheduledAlarms => 'No upcoming alarms';
 
   @override
   String get noScheduledAlarmsMessage =>
-      'Alarms you set from detected dates will appear here.';
+      'Set an alarm from any date in a brief and it will appear here.';
 
   @override
   String get alarmsUnavailable =>
@@ -491,6 +482,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String alarmToneLabel(Object tone) {
     return 'Tone: $tone';
   }
+
+  @override
+  String get alarmSoundTitle => 'Alarm sound';
+
+  @override
+  String get systemAlarmSound => 'Default iPhone sound';
+
+  @override
+  String get systemAlarmSoundDescription =>
+      'The original sound provided by the system.';
+
+  @override
+  String get customAlarmSound => 'Custom sound';
+
+  @override
+  String get changeAlarmSound => 'Change';
+
+  @override
+  String get addCustomAlarmSound => 'Add your sound';
+
+  @override
+  String get importAudioSound => 'Choose an audio file';
+
+  @override
+  String get importVideoSound => 'Extract sound from a video';
+
+  @override
+  String get soundLimitNotice =>
+      'The first 29 seconds are saved in an alarm-ready format.';
+
+  @override
+  String get preparingAlarmSound => 'Preparing sound…';
+
+  @override
+  String get soundImportFailed =>
+      'This file could not be used. Choose a file that contains audio.';
+
+  @override
+  String get importedSoundReady => 'Sound is ready.';
+
+  @override
+  String get useThisSound => 'Use this sound';
+
+  @override
+  String get upcomingAlarms => 'Upcoming alarms';
+
+  @override
+  String get loadingAlarms => 'Loading alarms…';
 
   @override
   String get cancelAlarm => 'Cancel alarm';

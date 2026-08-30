@@ -69,17 +69,22 @@ void main() {
     final fireAt = DateTime.now().add(const Duration(days: 1));
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(reminderChannel, (call) async {
-          if (call.method != 'list') return false;
-          return [
-            {
-              'id': 'alarm-1',
-              'title': 'تذكير: موعد التصوير',
-              'body': '',
-              'fireMillis': fireAt.millisecondsSinceEpoch,
-              'soundKey': 'bright',
-              'state': 'scheduled',
-            },
-          ];
+          if (call.method == 'getPreferredTone') {
+            return {'soundKey': 'system'};
+          }
+          if (call.method == 'list') {
+            return [
+              {
+                'id': 'alarm-1',
+                'title': 'تذكير: موعد التصوير',
+                'body': '',
+                'fireMillis': fireAt.millisecondsSinceEpoch,
+                'soundKey': 'system',
+                'state': 'scheduled',
+              },
+            ];
+          }
+          return false;
         });
     final controller = createTestController();
 
@@ -92,9 +97,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('منبّهات VoiceBrief'), findsOneWidget);
+    expect(find.text('المنبّهات'), findsOneWidget);
     expect(find.text('تذكير: موعد التصوير'), findsOneWidget);
-    expect(find.text('النغمة: واضحة'), findsOneWidget);
+    expect(find.text('صوت iPhone الافتراضي'), findsWidgets);
     expect(find.text('إلغاء المنبّه'), findsOneWidget);
   });
 

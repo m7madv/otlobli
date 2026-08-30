@@ -436,43 +436,34 @@ class AppLocalizationsAr extends AppLocalizations {
   String get reminderMustBeFuture => 'اختر وقتًا قادمًا للمنبّه.';
 
   @override
-  String get chooseAlarmTone => 'اختر نغمة المنبّه';
+  String get chooseAlarmTone => 'صوت المنبّه';
 
   @override
   String get chooseAlarmToneDescription =>
-      'يمكنك سماع كل نغمة قبل ضبط المنبّه.';
-
-  @override
-  String get alarmToneGentle => 'هادئة';
-
-  @override
-  String get alarmToneBright => 'واضحة';
-
-  @override
-  String get alarmToneClassic => 'كلاسيكية';
+      'استخدم صوت iPhone الأصلي، أو اختر صوتًا خاصًا بك.';
 
   @override
   String get previewTone => 'تشغيل النغمة';
 
   @override
-  String get confirmAlarm => 'ضبط المنبّه بهذه النغمة';
+  String get confirmAlarm => 'استخدام هذا الصوت';
 
   @override
   String get alarmsAndReminders => 'المنبّهات والتذكيرات';
 
   @override
-  String get voiceBriefAlarms => 'منبّهات VoiceBrief';
+  String get voiceBriefAlarms => 'المنبّهات';
 
   @override
   String get voiceBriefAlarmsDescription =>
-      'عرض المنبّهات المضبوطة ونغماتها أو إلغاؤها.';
+      'عرض المنبّهات المضبوطة أو إلغاؤها.';
 
   @override
-  String get noScheduledAlarms => 'لا توجد منبّهات مضبوطة';
+  String get noScheduledAlarms => 'لا توجد منبّهات قادمة';
 
   @override
   String get noScheduledAlarmsMessage =>
-      'عندما تضبط منبّهًا من أحد المواعيد سيظهر هنا.';
+      'اضبط منبّهًا من أي موعد يظهر في ملخصك، وسيظهر هنا.';
 
   @override
   String get alarmsUnavailable => 'تعذّر قراءة منبّهات VoiceBrief الآن.';
@@ -484,6 +475,52 @@ class AppLocalizationsAr extends AppLocalizations {
   String alarmToneLabel(Object tone) {
     return 'النغمة: $tone';
   }
+
+  @override
+  String get alarmSoundTitle => 'صوت المنبّه';
+
+  @override
+  String get systemAlarmSound => 'صوت iPhone الافتراضي';
+
+  @override
+  String get systemAlarmSoundDescription => 'الصوت الأصلي الذي يستخدمه النظام.';
+
+  @override
+  String get customAlarmSound => 'صوت مخصّص';
+
+  @override
+  String get changeAlarmSound => 'تغيير';
+
+  @override
+  String get addCustomAlarmSound => 'إضافة صوتك';
+
+  @override
+  String get importAudioSound => 'اختيار ملف صوتي';
+
+  @override
+  String get importVideoSound => 'استخراج الصوت من فيديو';
+
+  @override
+  String get soundLimitNotice => 'يُحفظ أول 29 ثانية بصيغة مناسبة للمنبّه.';
+
+  @override
+  String get preparingAlarmSound => 'جاري تجهيز الصوت…';
+
+  @override
+  String get soundImportFailed =>
+      'تعذّر استخدام هذا الملف. اختر ملفًا يحتوي على صوت.';
+
+  @override
+  String get importedSoundReady => 'تم تجهيز الصوت.';
+
+  @override
+  String get useThisSound => 'استخدام هذا الصوت';
+
+  @override
+  String get upcomingAlarms => 'المنبّهات القادمة';
+
+  @override
+  String get loadingAlarms => 'جاري تحميل المنبّهات…';
 
   @override
   String get cancelAlarm => 'إلغاء المنبّه';

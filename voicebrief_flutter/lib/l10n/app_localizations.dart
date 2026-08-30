@@ -893,32 +893,14 @@ abstract class AppLocalizations {
   /// No description provided for @chooseAlarmTone.
   ///
   /// In en, this message translates to:
-  /// **'Choose alarm tone'**
+  /// **'Alarm sound'**
   String get chooseAlarmTone;
 
   /// No description provided for @chooseAlarmToneDescription.
   ///
   /// In en, this message translates to:
-  /// **'Preview each tone before setting the alarm.'**
+  /// **'Use the original iPhone sound or choose your own.'**
   String get chooseAlarmToneDescription;
-
-  /// No description provided for @alarmToneGentle.
-  ///
-  /// In en, this message translates to:
-  /// **'Gentle'**
-  String get alarmToneGentle;
-
-  /// No description provided for @alarmToneBright.
-  ///
-  /// In en, this message translates to:
-  /// **'Bright'**
-  String get alarmToneBright;
-
-  /// No description provided for @alarmToneClassic.
-  ///
-  /// In en, this message translates to:
-  /// **'Classic'**
-  String get alarmToneClassic;
 
   /// No description provided for @previewTone.
   ///
@@ -929,7 +911,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmAlarm.
   ///
   /// In en, this message translates to:
-  /// **'Set alarm with this tone'**
+  /// **'Use this sound'**
   String get confirmAlarm;
 
   /// No description provided for @alarmsAndReminders.
@@ -941,25 +923,25 @@ abstract class AppLocalizations {
   /// No description provided for @voiceBriefAlarms.
   ///
   /// In en, this message translates to:
-  /// **'VoiceBrief alarms'**
+  /// **'Alarms'**
   String get voiceBriefAlarms;
 
   /// No description provided for @voiceBriefAlarmsDescription.
   ///
   /// In en, this message translates to:
-  /// **'View scheduled alarms and their tones, or cancel them.'**
+  /// **'View or cancel your scheduled alarms.'**
   String get voiceBriefAlarmsDescription;
 
   /// No description provided for @noScheduledAlarms.
   ///
   /// In en, this message translates to:
-  /// **'No scheduled alarms'**
+  /// **'No upcoming alarms'**
   String get noScheduledAlarms;
 
   /// No description provided for @noScheduledAlarmsMessage.
   ///
   /// In en, this message translates to:
-  /// **'Alarms you set from detected dates will appear here.'**
+  /// **'Set an alarm from any date in a brief and it will appear here.'**
   String get noScheduledAlarmsMessage;
 
   /// No description provided for @alarmsUnavailable.
@@ -979,6 +961,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tone: {tone}'**
   String alarmToneLabel(Object tone);
+
+  /// No description provided for @alarmSoundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Alarm sound'**
+  String get alarmSoundTitle;
+
+  /// No description provided for @systemAlarmSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Default iPhone sound'**
+  String get systemAlarmSound;
+
+  /// No description provided for @systemAlarmSoundDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The original sound provided by the system.'**
+  String get systemAlarmSoundDescription;
+
+  /// No description provided for @customAlarmSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom sound'**
+  String get customAlarmSound;
+
+  /// No description provided for @changeAlarmSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get changeAlarmSound;
+
+  /// No description provided for @addCustomAlarmSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your sound'**
+  String get addCustomAlarmSound;
+
+  /// No description provided for @importAudioSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an audio file'**
+  String get importAudioSound;
+
+  /// No description provided for @importVideoSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract sound from a video'**
+  String get importVideoSound;
+
+  /// No description provided for @soundLimitNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'The first 29 seconds are saved in an alarm-ready format.'**
+  String get soundLimitNotice;
+
+  /// No description provided for @preparingAlarmSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing sound…'**
+  String get preparingAlarmSound;
+
+  /// No description provided for @soundImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'This file could not be used. Choose a file that contains audio.'**
+  String get soundImportFailed;
+
+  /// No description provided for @importedSoundReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound is ready.'**
+  String get importedSoundReady;
+
+  /// No description provided for @useThisSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this sound'**
+  String get useThisSound;
+
+  /// No description provided for @upcomingAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming alarms'**
+  String get upcomingAlarms;
+
+  /// No description provided for @loadingAlarms.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading alarms…'**
+  String get loadingAlarms;
 
   /// No description provided for @cancelAlarm.
   ///

@@ -150,7 +150,7 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "15"
+          test "$app_build_version" = "16"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$app/Info.plist")" = "public.audio"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:1' "$app/Info.plist")" = "public.mp3"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:2' "$app/Info.plist")" = "public.mpeg-4-audio"
@@ -162,11 +162,11 @@ jobs:
           cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
           (
             cd build/ios/unsigned-ipa
-            zip -qry ../VoiceBrief-0.1.0-build15-live-unsigned.ipa Payload
+            zip -qry ../VoiceBrief-0.1.0-build16-live-unsigned.ipa Payload
           )
-          shasum -a 256 build/ios/VoiceBrief-0.1.0-build15-live-unsigned.ipa
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build16-live-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-ios-live-unsigned-${{ github.run_number }}
-          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build15-live-unsigned.ipa
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build16-live-unsigned.ipa
           if-no-files-found: error

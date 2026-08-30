@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:voicebrief/app/providers.dart';
 import 'package:voicebrief/core/platform/calendar_launcher.dart';
 import 'package:voicebrief/core/platform/reminder_launcher.dart';
+import 'package:voicebrief/features/reminders/presentation/alarm_tone_sheet.dart';
 import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/l10n/l10n.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
@@ -479,15 +480,17 @@ class ResultScreen extends ConsumerWidget {
       }
       return;
     }
-    final sound = Platform.isIOS
-        ? await showModalBottomSheet<ReminderSound>(
-            context: context,
-            isScrollControlled: true,
-            showDragHandle: true,
-            builder: (_) => const _AlarmToneSheet(),
-          )
-        : ReminderSound.classic;
-    if (sound == null || !context.mounted) return;
+    var tone = const ReminderTone.system();
+    if (Platform.isIOS) {
+      final preferredTone = await ReminderLauncher.preferredTone();
+      if (!context.mounted) return;
+      final selectedTone = await showAlarmToneSheet(
+        context: context,
+        initialTone: preferredTone,
+      );
+      if (selectedTone == null || !context.mounted) return;
+      tone = selectedTone;
+    }
     try {
       final scheduled = await ReminderLauncher.schedule(
         identifier:
@@ -495,7 +498,7 @@ class ResultScreen extends ConsumerWidget {
         title: context.l10n.reminderNotificationTitle(title),
         body: context.l10n.reminderNotificationBody(originalPhrase),
         fireAt: fireAt,
-        sound: sound,
+        tone: tone,
       );
       if (context.mounted) {
         if (scheduled == null) {
@@ -613,134 +616,6 @@ class ResultScreen extends ConsumerWidget {
         .replaceAll(RegExp('[إأآٱ]'), 'ا')
         .replaceAll('ى', 'ي')
         .replaceAll('ة', 'ه');
-  }
-}
-
-class _AlarmToneSheet extends StatefulWidget {
-  const _AlarmToneSheet();
-
-  @override
-  State<_AlarmToneSheet> createState() => _AlarmToneSheetState();
-}
-
-class _AlarmToneSheetState extends State<_AlarmToneSheet> {
-  ReminderSound _selected = ReminderSound.classic;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.page,
-          0,
-          AppSpacing.page,
-          AppSpacing.page + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              context.l10n.chooseAlarmTone,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              context.l10n.chooseAlarmToneDescription,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.palette.secondaryText,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            for (final sound in ReminderSound.values)
-              _AlarmToneOption(
-                sound: sound,
-                selected: sound == _selected,
-                onSelected: () {
-                  setState(() => _selected = sound);
-                  ReminderLauncher.preview(sound);
-                },
-              ),
-            const SizedBox(height: AppSpacing.md),
-            AppPrimaryButton(
-              label: context.l10n.confirmAlarm,
-              icon: Icons.alarm_add_outlined,
-              onPressed: () => Navigator.of(context).pop(_selected),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AlarmToneOption extends StatelessWidget {
-  const _AlarmToneOption({
-    required this.sound,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ReminderSound sound;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (sound) {
-      ReminderSound.gentle => context.l10n.alarmToneGentle,
-      ReminderSound.bright => context.l10n.alarmToneBright,
-      ReminderSound.classic => context.l10n.alarmToneClassic,
-    };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      child: Material(
-        color: selected
-            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.10)
-            : context.palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.control),
-          side: BorderSide(
-            color: selected
-                ? Theme.of(context).colorScheme.primary
-                : context.palette.border,
-          ),
-        ),
-        child: InkWell(
-          onTap: onSelected,
-          borderRadius: BorderRadius.circular(AppRadii.control),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Row(
-              children: [
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: selected
-                      ? Theme.of(context).colorScheme.primary
-                      : context.palette.secondaryText,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: context.l10n.previewTone,
-                  onPressed: () => ReminderLauncher.preview(sound),
-                  icon: const Icon(Icons.volume_up_outlined),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/app/app_controller.dart';
@@ -9,6 +10,7 @@ import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/home/presentation/shell_screen.dart';
 import 'package:voicebrief/features/recorder/presentation/recorder_screen.dart';
+import 'package:voicebrief/features/reminders/presentation/scheduled_reminders_screen.dart';
 import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
@@ -170,6 +172,31 @@ void main() {
       name: 'recorder_ar',
       screen: const RecorderScreen(),
       locale: const Locale('ar'),
+      controllerFactory: signedInController,
+    );
+  });
+
+  testWidgets('Arabic alarms empty state', (tester) async {
+    const channel = MethodChannel('voicebrief/reminders');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'list') return <Object>[];
+          if (call.method == 'getPreferredTone') {
+            return {'soundKey': 'system'};
+          }
+          return false;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+
+    await golden(
+      tester,
+      name: 'alarms_ar',
+      screen: const ScheduledRemindersScreen(),
+      locale: const Locale('ar'),
+      themeMode: ThemeMode.dark,
       controllerFactory: signedInController,
     );
   });

@@ -21,29 +21,37 @@ void main() {
             'title': 'تذكير: موعد التصوير',
             'body': 'من VoiceBrief: «يوم خمسة تسعة»',
             'fireMillis': DateTime(2026, 9, 5, 17).millisecondsSinceEpoch,
-            'soundKey': 'bright',
+            'soundKey': 'custom',
+            'soundFileName': 'voicebrief_custom_sample.caf',
+            'soundDisplayName': 'موعد التصوير.caf',
             'state': 'scheduled',
           };
         });
     final fireAt = DateTime(2026, 9, 5, 17);
+    const tone = ReminderTone.custom(
+      fileName: 'voicebrief_custom_sample.caf',
+      displayName: 'موعد التصوير.caf',
+    );
 
     final scheduled = await ReminderLauncher.schedule(
       identifier: 'brief-1',
       title: 'تذكير: موعد التصوير',
       body: 'من VoiceBrief: «يوم خمسة تسعة»',
       fireAt: fireAt,
-      sound: ReminderSound.bright,
+      tone: tone,
     );
 
     expect(scheduled?.id, 'alarm-1');
-    expect(scheduled?.sound, ReminderSound.bright);
+    expect(scheduled?.tone, tone);
     expect(received?.method, 'schedule');
     expect(received?.arguments, {
       'identifier': 'brief-1',
       'title': 'تذكير: موعد التصوير',
       'body': 'من VoiceBrief: «يوم خمسة تسعة»',
       'fireMillis': fireAt.millisecondsSinceEpoch,
-      'soundKey': 'bright',
+      'soundKey': 'custom',
+      'soundFileName': 'voicebrief_custom_sample.caf',
+      'soundDisplayName': 'موعد التصوير.caf',
     });
   });
 
@@ -73,8 +81,42 @@ void main() {
     final cancelled = await ReminderLauncher.cancel('alarm-2');
 
     expect(reminders.single.fireAt, fireAt);
-    expect(reminders.single.sound, ReminderSound.gentle);
+    expect(reminders.single.tone, const ReminderTone.system());
     expect(cancelled, isTrue);
     expect(calls.map((call) => call.method), ['list', 'cancel']);
+  });
+
+  test('imports and persists a custom alarm sound', () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'getPreferredTone') {
+            return {'soundKey': 'system'};
+          }
+          if (call.method == 'importSound') {
+            return {
+              'soundKey': 'custom',
+              'soundFileName': 'voicebrief_custom_imported.caf',
+              'soundDisplayName': 'من فيديو.mov',
+            };
+          }
+          if (call.method == 'setPreferredTone') return true;
+          return false;
+        });
+
+    expect(await ReminderLauncher.preferredTone(), const ReminderTone.system());
+    final imported = await ReminderLauncher.importTone(
+      sourcePath: '/tmp/source.mov',
+      displayName: 'من فيديو.mov',
+    );
+    expect(imported?.isCustom, isTrue);
+    expect(imported?.displayName, 'من فيديو.mov');
+    expect(await ReminderLauncher.setPreferredTone(imported!), isTrue);
+    expect(calls.map((call) => call.method), [
+      'getPreferredTone',
+      'importSound',
+      'setPreferredTone',
+    ]);
   });
 }
