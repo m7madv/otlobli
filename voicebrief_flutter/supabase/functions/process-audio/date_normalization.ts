@@ -209,19 +209,51 @@ function importantDateRecords(generated: JsonRecord): JsonRecord[] {
   return generated.importantDates as JsonRecord[];
 }
 
+function calendarDate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1] ?? null;
+}
+
 function containsEquivalentDate(
   dates: JsonRecord[],
   dateIso: string,
   phrase: string,
 ): boolean {
   const normalizedPhrase = normalizedArabic(phrase);
+  const expectedDate = calendarDate(dateIso);
   return dates.some((date) => {
     if (typeof date.originalPhrase !== "string") return false;
     const existingPhrase = normalizedArabic(date.originalPhrase);
     const samePhrase = existingPhrase.includes(normalizedPhrase) ||
       normalizedPhrase.includes(existingPhrase);
-    return date.dateIso === dateIso && samePhrase;
+    return calendarDate(date.dateIso) === expectedDate && samePhrase;
   });
+}
+
+function repeatedCalendarDates(
+  transcript: string,
+  referenceInstant: string,
+  timeZoneOffsetMinutes: number,
+): Set<string> {
+  const repeated = new Set<string>();
+  for (const clause of transcriptClauses(transcript)) {
+    const normalized = normalizedArabic(clause);
+    if (
+      !/(?:^|[^\p{L}])(?:اكرر|نكرر|كرر|للتاكيد|تاكيد)(?:$|[^\p{L}])/u
+        .test(normalized)
+    ) continue;
+    const resolved = resolveExplicitDayMonth(
+      clause,
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    ) ?? resolveRelativeArabicDate(
+      clause,
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    );
+    if (resolved) repeated.add(resolved);
+  }
+  return repeated;
 }
 
 function ensureTranscriptDates(
@@ -231,6 +263,11 @@ function ensureTranscriptDates(
   timeZoneOffsetMinutes: number,
 ): void {
   const dates = importantDateRecords(generated);
+  const repeatedDates = repeatedCalendarDates(
+    transcript,
+    referenceInstant,
+    timeZoneOffsetMinutes,
+  );
   const fallbackLabel = typeof generated.title === "string" &&
       generated.title.trim().length > 0
     ? generated.title.trim().slice(0, 240)
@@ -248,6 +285,10 @@ function ensureTranscriptDates(
       timeZoneOffsetMinutes,
     );
     if (!resolved || containsEquivalentDate(dates, resolved, clause)) continue;
+    if (
+      repeatedDates.has(resolved) &&
+      dates.some((date) => calendarDate(date.dateIso) === resolved)
+    ) continue;
     dates.push({
       label: fallbackLabel,
       dateIso: resolved,

@@ -114,3 +114,77 @@ Deno.test("recovers separate tomorrow and explicit day month appointments", () =
   assertEquals(dates[0].requiresConfirmation, true);
   assertEquals(dates[1].requiresConfirmation, true);
 });
+
+Deno.test("does not duplicate a generated relative date with a full timestamp", () => {
+  const generated: Record<string, unknown> = {
+    title: "موعد الغد",
+    actionItems: [],
+    importantDates: [{
+      label: "موعد الغد",
+      dateIso: "2026-08-27T17:00:00+03:00",
+      originalPhrase: "بكرة على الساعة خمسة",
+      confidence: 0.9,
+      requiresConfirmation: true,
+    }],
+  };
+
+  normalizeSpokenDates(
+    generated,
+    reference,
+    180,
+    "موعدنا بكرة على الساعة خمسة.",
+  );
+
+  const dates = generated.importantDates as Record<string, unknown>[];
+  assertEquals(dates.length, 1);
+});
+
+Deno.test("does not add a repeated explicit date as another event", () => {
+  const generated: Record<string, unknown> = {
+    title: "مواعيد قادمة",
+    actionItems: [],
+    importantDates: [{
+      label: "حصة التصوير",
+      dateIso: "2026-09-05",
+      originalPhrase: "يوم خمسة من شهر تسعة لحصة التصوير",
+      confidence: 0.9,
+      requiresConfirmation: true,
+    }],
+  };
+
+  normalizeSpokenDates(
+    generated,
+    reference,
+    180,
+    "وكمان عندنا موعد تاني مستقل يوم خمسة من شهر تسعة. " +
+      "أكرر الموعد الثاني: يوم خمسة من شهر تسعة لحصة التصوير.",
+  );
+
+  const dates = generated.importantDates as Record<string, unknown>[];
+  assertEquals(dates.length, 1);
+  assertEquals(dates[0].label, "حصة التصوير");
+});
+
+Deno.test("keeps distinct same-day events when the speaker did not repeat", () => {
+  const generated: Record<string, unknown> = {
+    title: "مواعيد اليوم",
+    actionItems: [],
+    importantDates: [{
+      label: "موعد الطبيب",
+      dateIso: "2026-08-27T09:00:00+03:00",
+      originalPhrase: "موعد الطبيب بكرة الصبح",
+      confidence: 0.9,
+      requiresConfirmation: true,
+    }],
+  };
+
+  normalizeSpokenDates(
+    generated,
+    reference,
+    180,
+    "موعد الطبيب بكرة الصبح. وعندي تدريب بكرة بالمساء.",
+  );
+
+  const dates = generated.importantDates as Record<string, unknown>[];
+  assertEquals(dates.length, 2);
+});

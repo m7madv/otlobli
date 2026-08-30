@@ -3,7 +3,7 @@
 ## Source and local QA
 
 - [x] Feature-first Flutter application, mocks, themes, localization foundation, design components.
-- [x] Independent live Supabase project, three migrations, RLS probes, and four Edge Functions deployed.
+- [x] Independent live Supabase project, four migrations, RLS probes, and five Edge Functions deployed.
 - [x] Server-only usage mutation and conservative 500-audio-minute monthly launch budget implemented for the initial `$10` OpenAI balance.
 - [x] Android receiver and iOS `VoiceBriefShare` source/target, including WhatsApp Opus normalization.
 - [x] Icons and native splash generated.
@@ -115,7 +115,7 @@
 - Source version is `0.1.0+17`. Theme and last server-confirmed quota persist across process death; the repository refreshes quota from RLS-protected usage tables. App Group share data is account/generation bound. Signed upload reservations replace direct authenticated Storage INSERT, and server-parsed audio metadata controls billing.
 - Codex Security scan `a3c7b83e-9d4b-4870-a335-4e3a784b1b50` found six reportable issues in `9f228c1`; canonical report artifacts are in `docs/security/build17/`. Source remediations exist, but live backend deployment, macOS Swift build, scheduled-cleanup readback, and physical-iPhone account-switch/share acceptance are not yet complete.
 - Local checks passed: format 78 files, analyzer, 42 non-golden, 12 golden, 16 Deno tests, Edge lint/check, and Android debug. APK SHA-256 is `DF67F60678B42A38A0FAC415FC79ECA224F3BDA772123726C153D1FA0C6AE64E`.
-- Do not upload TestFlight 17 until migration `20260830190000_security_hardening.sql` and the updated Edge Functions are deployed to `jyehqpdbayslhzebdycj` only. Do not publicly publish Apple or Google releases until the owner accepts the TestFlight build.
+- Migration `20260830190000_security_hardening.sql` and the updated Edge Functions are confirmed live only on `jyehqpdbayslhzebdycj`; TestFlight 17 may now be uploaded to the internal group. Do not publicly publish Apple or Google releases until the owner accepts the TestFlight build.
 - Four 13-inch iPad PNG screenshots are ready under `store_assets/app_store_ipad/`, each `2048x2732` and 24-bit RGB. They were derived from the actual Android screens without added features; they are not uploaded yet.
 
 ## Owner/external configuration

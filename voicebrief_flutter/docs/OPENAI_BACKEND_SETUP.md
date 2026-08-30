@@ -4,7 +4,7 @@
 
 Only `supabase/functions/process-audio/index.ts` calls OpenAI. The Flutter client has no OpenAI dependency, model name, endpoint, or key.
 
-Build 17 adds `create-audio-upload` before `process-audio`. It issues an exact signed Storage upload after an atomic per-user reservation, while `process-audio` verifies the reservation and derives the trusted duration from media metadata. Deploy migration `20260830190000_security_hardening.sql` before deploying the functions. As of 2026-08-30 these build 17 changes are local and must be deployed only to `jyehqpdbayslhzebdycj`; active version 11 below remains the live pre-build-17 backend.
+Build 17 adds `create-audio-upload` before `process-audio`. It issues an exact signed Storage upload after an atomic per-user reservation, while `process-audio` verifies the reservation and derives the trusted duration from media metadata. Migration `20260830190000_security_hardening.sql` and the updated functions were deployed on 2026-08-30 only to `jyehqpdbayslhzebdycj`.
 
 Default server configuration:
 
@@ -26,9 +26,9 @@ The mobile request supplies a validated Arabic/English system-language hint. The
 
 ## Production deployment — 2026-08-30
 
-`process-audio` is deployed only to project `jyehqpdbayslhzebdycj` as active version `11` with bundle SHA-256 `cd2724f53c9acfe07e007db786a632a9a64ee797e3062345060a5cef17bc1bd8`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
+The build 17 functions are deployed only to project `jyehqpdbayslhzebdycj`: `create-audio-upload` version 2, `process-audio` version 14, `legal` version 8, and `delete-account` version 9, all `ACTIVE`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
 
-The post-deploy Arabic smoke returned HTTP 200 in `17,153ms`, retained the tomorrow event and the independent `2026-09-05` date, and removed the temporary Auth user, Storage object, and entitlement event. The mobile layer still asks the user to confirm an ambiguous spoken hour before scheduling a reminder.
+The final post-deploy Arabic smoke used the user's exact example converted to `29.208s` synthetic speech. It returned HTTP 200 in `16,141ms`, retained exactly two dates—tomorrow at five and the independent `2026-09-05` date without inventing a time—and required confirmation for both. A separate repeated-date smoke also returned only two events after version 14's deterministic de-duplication. Every temporary Auth user, Storage object, and entitlement event was removed.
 
 The summary request keeps `gpt-5.6-luna` and strict JSON Schema, but explicitly uses `reasoning.effort=low` and `text.verbosity=low`. On the same representative Arabic smoke sample, this reduced function processing from `19,717ms` to `11,282ms` while preserving the two required dates and confirmation flags. The final safe stage timings were download `1,330ms`, transcription `1,460ms`, summary `7,177ms`, total `11,282ms`; client-observed latency was `14,431ms`.
 
