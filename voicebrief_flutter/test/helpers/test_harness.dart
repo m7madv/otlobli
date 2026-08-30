@@ -92,6 +92,7 @@ AppController createTestController({
   bool pro = false,
   HistoryRepository? historyRepository,
   AuthRepository? authRepository,
+  SharedAudioInbox? sharedAudioInbox,
 }) {
   return AppController(
     authRepository: authRepository ?? TestAuthRepository(),
@@ -99,7 +100,7 @@ AppController createTestController({
     transcriptionRepository: FakeTranscriptionRepository(),
     historyRepository: historyRepository ?? MemoryHistoryRepository(),
     audioImportService: const AudioImportService(),
-    sharedAudioInbox: TestSharedAudioInbox(),
+    sharedAudioInbox: sharedAudioInbox ?? TestSharedAudioInbox(),
   );
 }
 

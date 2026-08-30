@@ -4,6 +4,7 @@ import EventKit
 import EventKitUI
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 final class VoiceBriefShareBridge {
   static let shared = VoiceBriefShareBridge()
@@ -27,6 +28,7 @@ final class VoiceBriefShareBridge {
   )
   private var channel: FlutterMethodChannel?
   private var dartReady = false
+  private var openProcessedResultRequested = false
 
   func configure(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "voicebrief/share", binaryMessenger: messenger)
@@ -38,12 +40,20 @@ final class VoiceBriefShareBridge {
       switch call.method {
       case "takePendingShare":
         self.dartReady = true
-        result(self.takePayload())
+        result(self.takePayloadForDart())
       case "syncShareSession":
         self.syncShareSession(call.arguments)
         result(nil)
       case "getShareSession":
         result(UserDefaults(suiteName: self.appGroup)?.dictionary(forKey: self.shareSessionKey))
+      case "requestShareReadyNotifications":
+        UNUserNotificationCenter.current().requestAuthorization(
+          options: [.alert, .sound, .badge]
+        ) { granted, error in
+          DispatchQueue.main.async {
+            result(granted && error == nil)
+          }
+        }
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -52,15 +62,45 @@ final class VoiceBriefShareBridge {
   }
 
   func notifyIfReady() {
-    guard dartReady, let payload = takePayload() else { return }
+    guard dartReady, let payload = takePayloadForDart() else { return }
+    deliver(payload)
+  }
+
+  func requestOpenProcessedResult() {
+    openProcessedResultRequested = true
+    guard dartReady else { return }
+    if let payload = takePayloadForDart() {
+      deliver(payload)
+    } else {
+      openProcessedResultRequested = false
+      channel?.invokeMethod("openSharedResult", arguments: nil)
+    }
+  }
+
+  private func deliver(_ payload: [String: Any]) {
     if payload["error"] != nil {
       channel?.invokeMethod("shareError", arguments: nil)
     } else if payload["kind"] as? String == "processed",
               let result = payload["result"] as? [String: Any] {
-      channel?.invokeMethod("shareProcessed", arguments: result)
+      channel?.invokeMethod(
+        "shareProcessed",
+        arguments: [
+          "result": result,
+          "openResult": payload["openResult"] as? Bool ?? false,
+        ]
+      )
     } else {
       channel?.invokeMethod("shareReceived", arguments: payload)
     }
+  }
+
+  private func takePayloadForDart() -> [String: Any]? {
+    guard var payload = takePayload() else { return nil }
+    if payload["kind"] as? String == "processed", openProcessedResultRequested {
+      payload["openResult"] = true
+      openProcessedResultRequested = false
+    }
+    return payload
   }
 
   func importDocument(at source: URL) {
@@ -385,7 +425,42 @@ final class VoiceBriefAudioEditorBridge {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if notification.request.content.userInfo["voicebriefTarget"] as? String == "sharedResult" {
+      completionHandler([.banner, .sound])
+      return
+    }
+    super.userNotificationCenter(
+      center,
+      willPresent: notification,
+      withCompletionHandler: completionHandler
+    )
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    if response.notification.request.content.userInfo["voicebriefTarget"] as? String == "sharedResult" {
+      VoiceBriefShareBridge.shared.requestOpenProcessedResult()
+      UIApplication.shared.applicationIconBadgeNumber = 0
+      completionHandler()
+      return
+    }
+    super.userNotificationCenter(
+      center,
+      didReceive: response,
+      withCompletionHandler: completionHandler
+    )
   }
 
   override func application(

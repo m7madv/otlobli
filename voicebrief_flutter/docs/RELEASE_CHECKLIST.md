@@ -92,6 +92,12 @@
 - CI run [33304112117](https://github.com/m7madv/otlobli/actions/runs/33304112117) passed Deno, Android, golden, and iOS no-codesign. TestFlight run [33304112113](https://github.com/m7madv/otlobli/actions/runs/33304112113) signed, verified, validated, and uploaded build 11. IPA size is 34,462,676 bytes; SHA-256 `AACAFA2BADBCA2026B1AF8080B66D0F455E79724E825BF15A8F0F352F04C577D`; delivery UUID `4fdd86e6-da1e-41d6-820e-48290839548a`; GitHub artifact `9730071886` with ZIP SHA-256 `9F3724194F38BD15F3B612F20B035D2D99E3CBBA608B546893D6601C9F9647BF`.
 - App Store status run [33304112131](https://github.com/m7madv/otlobli/actions/runs/33304112131) confirms build `0.1.0 (11)` is `VALID`, unexpired, and attached to `VoiceBrief Internal`. Status artifact `9730121859` is 417 bytes with ZIP SHA-256 `66FAF74DDB4D12EA5B9359B00D917498AC1D9DB00D89BF54E93A4BEDE9100660`. Real WhatsApp in-extension acceptance remains pending.
 
+## Ready-notification candidate — 2026-08-30
+
+- Source version is `0.1.0+12`. Share success now automatically persists the processed result, schedules a local ready notification, removes local audio, and closes. The signed-in Runner requests notification authorization; notification selection opens the matching full result through an App Group/platform-channel handoff without a second upload or charge.
+- Full result routing exposes action-item deadlines, important dates, confirmation, and native calendar-editor actions that were absent from the build 11 extension preview. Local format, analysis, 32 non-golden tests, eleven golden tests, and APK debug pass. The APK is 177,599,813 bytes with SHA-256 `37729DAFEECC45CE66DF870AA167D4E660A7F3167C62E3352C003C3818029FE5`.
+- macOS Swift compilation, signed archive/TestFlight upload, App Store processing, and physical WhatsApp notification/date acceptance remain pending.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
@@ -122,7 +128,7 @@
 - [ ] Duplicate-suppression timing and hostile/oversize provider acceptance on a physical Android device.
 - [x] macOS `pod install`, device-target no-codesign build, bundle-ID validation, Share Extension embedding, and unsigned IPA packaging through GitHub Actions.
 - [x] Signed App Store archive/export, embedded provisioning and entitlement verification, App Store validation, and TestFlight upload through GitHub Actions.
-- [ ] Signed physical-iPhone build 11 Share Extension session sync, live processing, result display/save, App Group handoff, and playback/seek/trim acceptance. App Store archive/validation/upload passed; builds 9/10 direct-open behavior is rejected.
+- [ ] Signed physical-iPhone build 12 Share Extension session sync, live processing, automatic result save, ready notification, cold/warm/terminated tap routing, dated-result/calendar actions, App Group handoff, and playback/seek/trim acceptance. Build 11 App Store archive/validation/upload passed; builds 9/10 direct-open behavior is rejected.
 - [ ] VoiceOver, all accessibility text sizes, recording interruptions, Apple sign-in, and full Google token exchange. Google picker/cancel passed on API 35 and physical Android 9; Note 8 currently has `mhm1981d@gmail.com`, not the configured test account `mhm1981x@gmail.com`.
 - [ ] Monthly/annual purchase, renewal/cancellation, restore, reinstall/device change.
 - [ ] Account deletion removes Auth/database/Storage/local data while explaining store cancellation.

@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import UniformTypeIdentifiers
+import UserNotifications
 
 final class ShareViewController: UIViewController {
   private enum ImportFailure: Error {
@@ -35,8 +36,6 @@ final class ShareViewController: UIViewController {
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private var importStarted = false
-  private var pendingProcessedResult: [String: Any]?
-  private var pendingProcessedManifest: URL?
 
   private let symbolView: UIImageView = {
     let view = UIImageView(image: UIImage(systemName: "waveform.circle.fill"))
@@ -356,11 +355,11 @@ final class ShareViewController: UIViewController {
           case .failure(let failure):
             self.showProcessingFailure(failure)
           case .success(let result):
-            try? FileManager.default.removeItem(at: manifest)
-            try? FileManager.default.removeItem(at: target)
-            self.pendingProcessedResult = result
-            self.pendingProcessedManifest = manifest
-            self.showProcessed(result)
+            self.finishProcessed(
+              result,
+              target: target,
+              manifest: manifest
+            )
           }
         }
       }
@@ -607,6 +606,95 @@ final class ShareViewController: UIViewController {
     try data.write(to: manifest, options: .atomic)
   }
 
+  private func finishProcessed(
+    _ result: [String: Any],
+    target: URL,
+    manifest: URL
+  ) {
+    do {
+      try persistProcessedResult(result, manifest: manifest)
+      try? FileManager.default.removeItem(at: target)
+    } catch {
+      showProcessingFailure(.invalidResponse)
+      return
+    }
+    scheduleReadyNotification(for: result) { [weak self] scheduled in
+      guard let self else { return }
+      DispatchQueue.main.async {
+        if scheduled {
+          self.closeExtension()
+        } else {
+          self.showReadyWithoutNotification()
+        }
+      }
+    }
+  }
+
+  private func scheduleReadyNotification(
+    for result: [String: Any],
+    completion: @escaping (Bool) -> Void
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationSettings { [weak self] settings in
+      guard let self else {
+        completion(false)
+        return
+      }
+      let allowed: Bool
+      switch settings.authorizationStatus {
+      case .authorized, .provisional, .ephemeral:
+        allowed = true
+      case .denied, .notDetermined:
+        allowed = false
+      @unknown default:
+        allowed = false
+      }
+      guard allowed else {
+        completion(false)
+        return
+      }
+
+      let dates = result["importantDates"] as? [[String: Any]] ?? []
+      let actions = result["actionItems"] as? [[String: Any]] ?? []
+      let datedActions = actions.filter { action in
+        let date = action["dueDateIso"] as? String
+        let phrase = action["originalDatePhrase"] as? String
+        return date?.isEmpty == false || phrase?.isEmpty == false
+      }
+      let dateCount = dates.count + datedActions.count
+      let content = UNMutableNotificationContent()
+      content.title = self.localized(
+        arabic: "الملخص جاهز",
+        english: "Your brief is ready"
+      )
+      if dateCount > 0 {
+        content.body = self.localized(
+          arabic: "تم العثور على \(dateCount) موعد. اضغط لعرض الملخص وضبط المواعيد.",
+          english: "\(dateCount) date item(s) found. Tap to review the brief and add dates."
+        )
+      } else {
+        content.body = self.localized(
+          arabic: "اكتملت معالجة التسجيل. اضغط لعرض الملخص.",
+          english: "Processing is complete. Tap to view the brief."
+        )
+      }
+      content.sound = .default
+      content.badge = 1
+      content.threadIdentifier = "voicebrief-ready"
+      content.userInfo = ["voicebriefTarget": "sharedResult"]
+      let resultId = result["id"] as? String ?? UUID().uuidString.lowercased()
+      let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+      let request = UNNotificationRequest(
+        identifier: "voicebrief-ready-\(resultId)",
+        content: content,
+        trigger: trigger
+      )
+      center.add(request) { error in
+        completion(error == nil)
+      }
+    }
+  }
+
   private func canonicalMimeType(for fileExtension: String) -> String {
     switch fileExtension.lowercased() {
     case "flac": return "audio/flac"
@@ -623,38 +711,35 @@ final class ShareViewController: UIViewController {
     DispatchQueue.main.async {
       self.preferredContentSize = CGSize(width: 0, height: 360)
       self.titleLabel.text = self.localized(
-        arabic: "جارٍ تحويل التسجيل",
-        english: "Processing voice note"
+        arabic: "جارٍ تجهيز الملخص",
+        english: "Preparing your brief"
       )
       self.messageLabel.text = self.localized(
-        arabic: "يحوّل VoiceBrief الصوت إلى نص ويجهّز الملخص الآن. أبقِ هذه النافذة مفتوحة…",
-        english: "VoiceBrief is transcribing and summarizing now. Keep this window open…"
+        arabic: "بدأت المعالجة. أبقِ هذه النافذة مفتوحة؛ ستُغلق تلقائيًا ويصلك إشعار عند الجاهزية.",
+        english: "Processing has started. Keep this window open; it will close automatically and notify you when ready."
       )
       self.actionButton.isHidden = true
       self.progressView.startAnimating()
     }
   }
 
-  private func showProcessed(_ result: [String: Any]) {
+  private func showReadyWithoutNotification() {
     DispatchQueue.main.async {
-      self.preferredContentSize = CGSize(width: 0, height: 520)
+      self.preferredContentSize = CGSize(width: 0, height: 420)
       self.progressView.stopAnimating()
       self.symbolView.image = UIImage(systemName: "checkmark.circle.fill")
       self.symbolView.tintColor = .systemGreen
-      let title = (result["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-      let summary = (result["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-      self.titleLabel.text = title?.isEmpty == false
-        ? title
-        : self.localized(arabic: "اكتمل الملخص", english: "Brief ready")
-      self.messageLabel.text = summary?.isEmpty == false
-        ? summary
-        : self.localized(
-          arabic: "اكتملت معالجة التسجيل وحُفظت النتيجة في VoiceBrief.",
-          english: "The voice note is processed and saved in VoiceBrief."
-        )
+      self.titleLabel.text = self.localized(
+        arabic: "الملخص جاهز",
+        english: "Your brief is ready"
+      )
+      self.messageLabel.text = self.localized(
+        arabic: "حُفظت النتيجة، لكن إشعارات VoiceBrief غير مفعلة. فعّلها من إعدادات iPhone كي يفتح الإشعار الملخص مباشرة.",
+        english: "The result was saved, but VoiceBrief notifications are disabled. Enable them in iPhone Settings so the ready alert can open the brief directly."
+      )
       self.configureActionButton(
-        title: self.localized(arabic: "حفظ في VoiceBrief", english: "Save in VoiceBrief"),
-        action: #selector(self.saveProcessedAndClose)
+        title: self.localized(arabic: "تم", english: "Done"),
+        action: #selector(self.closeExtension)
       )
       UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
     }
@@ -770,23 +855,6 @@ final class ShareViewController: UIViewController {
 
   @objc private func closeExtension() {
     extensionContext?.completeRequest(returningItems: nil)
-  }
-
-  @objc private func saveProcessedAndClose() {
-    guard let result = pendingProcessedResult,
-          let manifest = pendingProcessedManifest
-    else {
-      showProcessingFailure(.invalidResponse)
-      return
-    }
-    do {
-      try persistProcessedResult(result, manifest: manifest)
-      pendingProcessedResult = nil
-      pendingProcessedManifest = nil
-      closeExtension()
-    } catch {
-      showProcessingFailure(.invalidResponse)
-    }
   }
 
   private static let supportedExtensions: Set<String> = [

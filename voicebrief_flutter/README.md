@@ -21,9 +21,9 @@ The sample configuration intentionally enables mocks and contains no private cre
 - Original audio is copied to private temporary storage and deleted locally and remotely after processing.
 - Android shared audio is adopted into the app's private handoff file without a second copy; waveform extraction stays asynchronous so playback and navigation remain responsive.
 - Trimming exports a real private AAC/M4A on Android and iOS before upload. The transcript is automatic and displayed as an optional collapsed word-for-word reference, not as a second summary choice.
-- Results are stored in Drift only when the user explicitly saves them.
+- Results created inside Runner are stored in Drift only when the user explicitly saves them. A completed iOS Share Extension result is persisted automatically so its ready notification can open the exact brief without reprocessing.
 - Server usage reservation and charging are atomic and idempotent by client job ID.
-- Android receives `audio/*` through native Kotlin. On iOS, Runner registers as a `public.audio` document opener where source apps support document-open. For apps such as WhatsApp that expose only a Share Extension, `VoiceBriefShare` securely copies, uploads, processes, and displays the brief inside the share window because iOS does not permit launching the containing app.
+- Android receives `audio/*` through native Kotlin. On iOS, Runner registers as a `public.audio` document opener where source apps support document-open. For apps such as WhatsApp that expose only a Share Extension, `VoiceBriefShare` securely copies, uploads, and processes while its window remains open, then persists the result and posts a local ready notification. Tapping that notification launches Runner directly into the full result, including dates and calendar actions.
 
 ## Verification
 

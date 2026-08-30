@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voicebrief/features/audio_import/data/audio_import_service.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/history/data/history_repository.dart';
 
@@ -67,6 +68,46 @@ void main() {
 
     expect(await clearing, isTrue);
   });
+
+  test('notification share result opens the full dated brief', () async {
+    final inbox = _ControllableSharedAudioInbox();
+    addTearDown(inbox.dispose);
+    final controller = createTestController(sharedAudioInbox: inbox);
+    addTearDown(controller.dispose);
+    await controller.signInWithProvider(IdentityProvider.google);
+
+    inbox.emit((result: sampleResult(), openResult: true));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(controller.state.activeResult?.importantDates, isNotEmpty);
+    expect(controller.state.activeResult?.actionItems, isNotEmpty);
+    expect(controller.state.resultNavigationRequest, 1);
+    expect(controller.state.activeResult?.savedLocally, isTrue);
+  });
+}
+
+class _ControllableSharedAudioInbox extends SharedAudioInbox {
+  final _processed = StreamController<SharedProcessedResult>.broadcast();
+
+  void emit(SharedProcessedResult event) => _processed.add(event);
+
+  @override
+  Stream<SharedAudioPayload> get received => const Stream.empty();
+
+  @override
+  Stream<SharedProcessedResult> get processed => _processed.stream;
+
+  @override
+  Stream<void> get openProcessed => const Stream.empty();
+
+  @override
+  Future<SharedAudioPayload?> takePending() async => null;
+
+  @override
+  Future<void> dispose() async {
+    await _processed.close();
+    await super.dispose();
+  }
 }
 
 class _DelayedDeleteHistoryRepository extends MemoryHistoryRepository {

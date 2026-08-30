@@ -43,12 +43,17 @@ class AppController extends StateNotifier<AppState> {
       },
     );
     _sharedResultSubscription = _sharedInbox.processed.listen(
-      (result) => unawaited(_importSharedResult(result)),
+      (event) => unawaited(
+        _importSharedResult(event.result, openResult: event.openResult),
+      ),
       onError: (Object error, StackTrace stackTrace) {
         state = state.copyWith(
           errorMessage: const AppFailure(AppFailureCode.shareHandoff).message,
         );
       },
+    );
+    _sharedResultOpenSubscription = _sharedInbox.openProcessed.listen(
+      (_) => _openLatestSharedResult(),
     );
     _authStateSubscription = _auth.authStateChanges.listen(
       (user) {
@@ -82,7 +87,8 @@ class AppController extends StateNotifier<AppState> {
   static const _uuid = Uuid();
   StreamSubscription<List<BriefResult>>? _historySubscription;
   StreamSubscription<SharedAudioPayload>? _sharedAudioSubscription;
-  StreamSubscription<BriefResult>? _sharedResultSubscription;
+  StreamSubscription<SharedProcessedResult>? _sharedResultSubscription;
+  StreamSubscription<void>? _sharedResultOpenSubscription;
   StreamSubscription<AuthUser?>? _authStateSubscription;
   AuthUser? _deferredAuthUser;
   String? _activeJobId;
@@ -275,7 +281,10 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
-  Future<void> _importSharedResult(BriefResult result) async {
+  Future<void> _importSharedResult(
+    BriefResult result, {
+    required bool openResult,
+  }) async {
     final accountId = state.user?.id;
     if (accountId == null) {
       state = state.copyWith(
@@ -292,6 +301,8 @@ class AppController extends StateNotifier<AppState> {
         activeResult: saved,
         selectedAudio: null,
         subscription: subscription,
+        resultNavigationRequest:
+            state.resultNavigationRequest + (openResult ? 1 : 0),
         errorMessage: null,
       );
     } on AppFailure catch (failure) {
@@ -307,6 +318,15 @@ class AppController extends StateNotifier<AppState> {
         );
       }
     }
+  }
+
+  void _openLatestSharedResult() {
+    final result = state.activeResult ?? state.history.firstOrNull;
+    if (result == null) return;
+    state = state.copyWith(
+      activeResult: result,
+      resultNavigationRequest: state.resultNavigationRequest + 1,
+    );
   }
 
   Future<void> selectRecording(String filePath, int durationSeconds) async {
@@ -535,6 +555,7 @@ class AppController extends StateNotifier<AppState> {
     unawaited(_historySubscription?.cancel());
     unawaited(_sharedAudioSubscription?.cancel());
     unawaited(_sharedResultSubscription?.cancel());
+    unawaited(_sharedResultOpenSubscription?.cancel());
     unawaited(_authStateSubscription?.cancel());
     super.dispose();
   }

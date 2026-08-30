@@ -30,6 +30,7 @@ sealed class AppState with _$AppState {
     @Default(ProcessingStep.preparing) ProcessingStep processingStep,
     @Default(false) bool processing,
     BriefResult? activeResult,
+    @Default(0) int resultNavigationRequest,
     @Default([]) List<BriefResult> history,
     String? errorMessage,
   }) = _AppState;

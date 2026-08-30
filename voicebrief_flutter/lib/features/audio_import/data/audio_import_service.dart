@@ -308,10 +308,21 @@ class SharedAudioInbox {
         return;
       }
       if (call.method == 'shareProcessed' && call.arguments is Map) {
+        final envelope = Map<Object?, Object?>.from(call.arguments as Map);
+        final rawResult = envelope['result'];
         final result = _parseProcessed(
-          Map<Object?, Object?>.from(call.arguments as Map),
+          rawResult is Map ? Map<Object?, Object?>.from(rawResult) : envelope,
         );
-        if (result != null) _processed.add(result);
+        if (result != null) {
+          _processed.add((
+            result: result,
+            openResult: envelope['openResult'] == true,
+          ));
+        }
+        return;
+      }
+      if (call.method == 'openSharedResult') {
+        _openProcessed.add(null);
         return;
       }
       if (call.method != 'shareReceived' || call.arguments is! Map) return;
@@ -322,10 +333,12 @@ class SharedAudioInbox {
 
   static const _channel = MethodChannel('voicebrief/share');
   final _received = StreamController<SharedAudioPayload>.broadcast();
-  final _processed = StreamController<BriefResult>.broadcast();
+  final _processed = StreamController<SharedProcessedResult>.broadcast();
+  final _openProcessed = StreamController<void>.broadcast();
 
   Stream<SharedAudioPayload> get received => _received.stream;
-  Stream<BriefResult> get processed => _processed.stream;
+  Stream<SharedProcessedResult> get processed => _processed.stream;
+  Stream<void> get openProcessed => _openProcessed.stream;
 
   Future<SharedAudioPayload?> takePending() async {
     final value = await _channel.invokeMapMethod<String, Object?>(
@@ -338,7 +351,12 @@ class SharedAudioInbox {
       final result = _parseProcessed(
         Map<Object?, Object?>.from(value!['result']! as Map),
       );
-      if (result != null) _processed.add(result);
+      if (result != null) {
+        _processed.add((
+          result: result,
+          openResult: value['openResult'] == true,
+        ));
+      }
       return null;
     }
     return value == null ? null : _parse(value);
@@ -381,8 +399,11 @@ class SharedAudioInbox {
     _channel.setMethodCallHandler(null);
     await _received.close();
     await _processed.close();
+    await _openProcessed.close();
   }
 }
+
+typedef SharedProcessedResult = ({BriefResult result, bool openResult});
 
 typedef SharedAudioPayload = ({
   String path,

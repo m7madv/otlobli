@@ -14,6 +14,7 @@ import 'package:voicebrief/core/security/safe_log.dart';
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final config = AppConfig.fromEnvironment();
+  var appStarted = false;
 
   FlutterError.onError = (details) {
     SafeLog.event(
@@ -45,6 +46,9 @@ Future<void> bootstrap() async {
       );
       Supabase.instance.client.auth.onAuthStateChange.listen((event) {
         unawaited(_syncIosShareSession(config, event.session));
+        if (appStarted && event.session != null) {
+          unawaited(_requestIosShareReadyNotifications());
+        }
       });
     }
   }
@@ -56,6 +60,15 @@ Future<void> bootstrap() async {
       child: const VoiceBriefApp(),
     ),
   );
+  appStarted = true;
+  if (Platform.isIOS &&
+      !config.useMocks &&
+      config.hasSupabase &&
+      Supabase.instance.client.auth.currentSession != null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_requestIosShareReadyNotifications());
+    });
+  }
 }
 
 const _iosShareChannel = MethodChannel('voicebrief/share');
@@ -96,5 +109,15 @@ Future<void> _syncIosShareSession(AppConfig config, Session? session) async {
     // The iOS bridge is unavailable in unit tests and non-device builds.
   } on PlatformException {
     // Authentication remains usable even if the optional share sync fails.
+  }
+}
+
+Future<void> _requestIosShareReadyNotifications() async {
+  try {
+    await _iosShareChannel.invokeMethod<bool>('requestShareReadyNotifications');
+  } on MissingPluginException {
+    // The bridge is absent in unit tests and non-device builds.
+  } on PlatformException {
+    // Sharing remains available if notification permission is unavailable.
   }
 }

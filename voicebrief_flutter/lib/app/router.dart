@@ -13,9 +13,18 @@ import 'package:voicebrief/l10n/l10n.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final hasRestoredSession = ref.read(appControllerProvider).user != null;
+  final appState = ref.read(appControllerProvider);
+  final hasRestoredSession = appState.user != null;
+  final shouldOpenSharedResult =
+      hasRestoredSession &&
+      appState.activeResult != null &&
+      appState.resultNavigationRequest > 0;
   final router = GoRouter(
-    initialLocation: hasRestoredSession ? '/app' : '/onboarding',
+    initialLocation: shouldOpenSharedResult
+        ? '/result'
+        : hasRestoredSession
+        ? '/app'
+        : '/onboarding',
     routes: [
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
       GoRoute(path: '/auth', builder: (_, _) => const AuthScreen()),

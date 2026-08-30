@@ -12,6 +12,14 @@ class VoiceBriefApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    ref.listen<int>(
+      appControllerProvider.select((value) => value.resultNavigationRequest),
+      (previous, next) {
+        if (next <= (previous ?? 0)) return;
+        if (ref.read(appControllerProvider).activeResult == null) return;
+        router.go('/result');
+      },
+    );
     final themeMode = ref.watch(
       appControllerProvider.select((value) => value.themeMode),
     );

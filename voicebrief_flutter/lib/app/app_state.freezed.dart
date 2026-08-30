@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AppState {
 
- AuthUser? get user; bool get authBusy; ThemeMode get themeMode; int get navigationIndex; SubscriptionStatus get subscription; bool get audioImporting; AudioInput? get selectedAudio; ProcessingOptions get processingOptions; ProcessingStep get processingStep; bool get processing; BriefResult? get activeResult; List<BriefResult> get history; String? get errorMessage;
+ AuthUser? get user; bool get authBusy; ThemeMode get themeMode; int get navigationIndex; SubscriptionStatus get subscription; bool get audioImporting; AudioInput? get selectedAudio; ProcessingOptions get processingOptions; ProcessingStep get processingStep; bool get processing; BriefResult? get activeResult; int get resultNavigationRequest; List<BriefResult> get history; String? get errorMessage;
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $AppStateCopyWith<AppState> get copyWith => _$AppStateCopyWithImpl<AppState>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppState&&(identical(other.user, user) || other.user == user)&&(identical(other.authBusy, authBusy) || other.authBusy == authBusy)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.navigationIndex, navigationIndex) || other.navigationIndex == navigationIndex)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.audioImporting, audioImporting) || other.audioImporting == audioImporting)&&(identical(other.selectedAudio, selectedAudio) || other.selectedAudio == selectedAudio)&&(identical(other.processingOptions, processingOptions) || other.processingOptions == processingOptions)&&(identical(other.processingStep, processingStep) || other.processingStep == processingStep)&&(identical(other.processing, processing) || other.processing == processing)&&(identical(other.activeResult, activeResult) || other.activeResult == activeResult)&&const DeepCollectionEquality().equals(other.history, history)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppState&&(identical(other.user, user) || other.user == user)&&(identical(other.authBusy, authBusy) || other.authBusy == authBusy)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.navigationIndex, navigationIndex) || other.navigationIndex == navigationIndex)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.audioImporting, audioImporting) || other.audioImporting == audioImporting)&&(identical(other.selectedAudio, selectedAudio) || other.selectedAudio == selectedAudio)&&(identical(other.processingOptions, processingOptions) || other.processingOptions == processingOptions)&&(identical(other.processingStep, processingStep) || other.processingStep == processingStep)&&(identical(other.processing, processing) || other.processing == processing)&&(identical(other.activeResult, activeResult) || other.activeResult == activeResult)&&(identical(other.resultNavigationRequest, resultNavigationRequest) || other.resultNavigationRequest == resultNavigationRequest)&&const DeepCollectionEquality().equals(other.history, history)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,user,authBusy,themeMode,navigationIndex,subscription,audioImporting,selectedAudio,processingOptions,processingStep,processing,activeResult,const DeepCollectionEquality().hash(history),errorMessage);
+int get hashCode => Object.hash(runtimeType,user,authBusy,themeMode,navigationIndex,subscription,audioImporting,selectedAudio,processingOptions,processingStep,processing,activeResult,resultNavigationRequest,const DeepCollectionEquality().hash(history),errorMessage);
 
 @override
 String toString() {
-  return 'AppState(user: $user, authBusy: $authBusy, themeMode: $themeMode, navigationIndex: $navigationIndex, subscription: $subscription, audioImporting: $audioImporting, selectedAudio: $selectedAudio, processingOptions: $processingOptions, processingStep: $processingStep, processing: $processing, activeResult: $activeResult, history: $history, errorMessage: $errorMessage)';
+  return 'AppState(user: $user, authBusy: $authBusy, themeMode: $themeMode, navigationIndex: $navigationIndex, subscription: $subscription, audioImporting: $audioImporting, selectedAudio: $selectedAudio, processingOptions: $processingOptions, processingStep: $processingStep, processing: $processing, activeResult: $activeResult, resultNavigationRequest: $resultNavigationRequest, history: $history, errorMessage: $errorMessage)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $AppStateCopyWith<$Res>  {
   factory $AppStateCopyWith(AppState value, $Res Function(AppState) _then) = _$AppStateCopyWithImpl;
 @useResult
 $Res call({
- AuthUser? user, bool authBusy, ThemeMode themeMode, int navigationIndex, SubscriptionStatus subscription, bool audioImporting, AudioInput? selectedAudio, ProcessingOptions processingOptions, ProcessingStep processingStep, bool processing, BriefResult? activeResult, List<BriefResult> history, String? errorMessage
+ AuthUser? user, bool authBusy, ThemeMode themeMode, int navigationIndex, SubscriptionStatus subscription, bool audioImporting, AudioInput? selectedAudio, ProcessingOptions processingOptions, ProcessingStep processingStep, bool processing, BriefResult? activeResult, int resultNavigationRequest, List<BriefResult> history, String? errorMessage
 });
 
 
@@ -62,7 +62,7 @@ class _$AppStateCopyWithImpl<$Res>
 
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? user = freezed,Object? authBusy = null,Object? themeMode = null,Object? navigationIndex = null,Object? subscription = null,Object? audioImporting = null,Object? selectedAudio = freezed,Object? processingOptions = null,Object? processingStep = null,Object? processing = null,Object? activeResult = freezed,Object? history = null,Object? errorMessage = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? user = freezed,Object? authBusy = null,Object? themeMode = null,Object? navigationIndex = null,Object? subscription = null,Object? audioImporting = null,Object? selectedAudio = freezed,Object? processingOptions = null,Object? processingStep = null,Object? processing = null,Object? activeResult = freezed,Object? resultNavigationRequest = null,Object? history = null,Object? errorMessage = freezed,}) {
   return _then(_self.copyWith(
 user: freezed == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
 as AuthUser?,authBusy: null == authBusy ? _self.authBusy : authBusy // ignore: cast_nullable_to_non_nullable
@@ -75,7 +75,8 @@ as AudioInput?,processingOptions: null == processingOptions ? _self.processingOp
 as ProcessingOptions,processingStep: null == processingStep ? _self.processingStep : processingStep // ignore: cast_nullable_to_non_nullable
 as ProcessingStep,processing: null == processing ? _self.processing : processing // ignore: cast_nullable_to_non_nullable
 as bool,activeResult: freezed == activeResult ? _self.activeResult : activeResult // ignore: cast_nullable_to_non_nullable
-as BriefResult?,history: null == history ? _self.history : history // ignore: cast_nullable_to_non_nullable
+as BriefResult?,resultNavigationRequest: null == resultNavigationRequest ? _self.resultNavigationRequest : resultNavigationRequest // ignore: cast_nullable_to_non_nullable
+as int,history: null == history ? _self.history : history // ignore: cast_nullable_to_non_nullable
 as List<BriefResult>,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
@@ -213,10 +214,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  List<BriefResult> history,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  int resultNavigationRequest,  List<BriefResult> history,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppState() when $default != null:
-return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.history,_that.errorMessage);case _:
+return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.resultNavigationRequest,_that.history,_that.errorMessage);case _:
   return orElse();
 
 }
@@ -234,10 +235,10 @@ return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  List<BriefResult> history,  String? errorMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  int resultNavigationRequest,  List<BriefResult> history,  String? errorMessage)  $default,) {final _that = this;
 switch (_that) {
 case _AppState():
-return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.history,_that.errorMessage);}
+return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.resultNavigationRequest,_that.history,_that.errorMessage);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -251,10 +252,10 @@ return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  List<BriefResult> history,  String? errorMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AuthUser? user,  bool authBusy,  ThemeMode themeMode,  int navigationIndex,  SubscriptionStatus subscription,  bool audioImporting,  AudioInput? selectedAudio,  ProcessingOptions processingOptions,  ProcessingStep processingStep,  bool processing,  BriefResult? activeResult,  int resultNavigationRequest,  List<BriefResult> history,  String? errorMessage)?  $default,) {final _that = this;
 switch (_that) {
 case _AppState() when $default != null:
-return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.history,_that.errorMessage);case _:
+return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,_that.subscription,_that.audioImporting,_that.selectedAudio,_that.processingOptions,_that.processingStep,_that.processing,_that.activeResult,_that.resultNavigationRequest,_that.history,_that.errorMessage);case _:
   return null;
 
 }
@@ -266,7 +267,7 @@ return $default(_that.user,_that.authBusy,_that.themeMode,_that.navigationIndex,
 
 
 class _AppState implements AppState {
-  const _AppState({this.user, this.authBusy = false, this.themeMode = ThemeMode.system, this.navigationIndex = 0, this.subscription = const SubscriptionStatus(tier: SubscriptionTier.free, remainingMinutes: 10, totalMinutes: 10), this.audioImporting = false, this.selectedAudio, this.processingOptions = const ProcessingOptions(), this.processingStep = ProcessingStep.preparing, this.processing = false, this.activeResult, final  List<BriefResult> history = const [], this.errorMessage}): _history = history;
+  const _AppState({this.user, this.authBusy = false, this.themeMode = ThemeMode.system, this.navigationIndex = 0, this.subscription = const SubscriptionStatus(tier: SubscriptionTier.free, remainingMinutes: 10, totalMinutes: 10), this.audioImporting = false, this.selectedAudio, this.processingOptions = const ProcessingOptions(), this.processingStep = ProcessingStep.preparing, this.processing = false, this.activeResult, this.resultNavigationRequest = 0, final  List<BriefResult> history = const [], this.errorMessage}): _history = history;
 
 
 @override final  AuthUser? user;
@@ -280,6 +281,7 @@ class _AppState implements AppState {
 @override@JsonKey() final  ProcessingStep processingStep;
 @override@JsonKey() final  bool processing;
 @override final  BriefResult? activeResult;
+@override@JsonKey() final  int resultNavigationRequest;
  final  List<BriefResult> _history;
 @override@JsonKey() List<BriefResult> get history {
   if (_history is EqualUnmodifiableListView) return _history;
@@ -299,16 +301,16 @@ _$AppStateCopyWith<_AppState> get copyWith => __$AppStateCopyWithImpl<_AppState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppState&&(identical(other.user, user) || other.user == user)&&(identical(other.authBusy, authBusy) || other.authBusy == authBusy)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.navigationIndex, navigationIndex) || other.navigationIndex == navigationIndex)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.audioImporting, audioImporting) || other.audioImporting == audioImporting)&&(identical(other.selectedAudio, selectedAudio) || other.selectedAudio == selectedAudio)&&(identical(other.processingOptions, processingOptions) || other.processingOptions == processingOptions)&&(identical(other.processingStep, processingStep) || other.processingStep == processingStep)&&(identical(other.processing, processing) || other.processing == processing)&&(identical(other.activeResult, activeResult) || other.activeResult == activeResult)&&const DeepCollectionEquality().equals(other._history, _history)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppState&&(identical(other.user, user) || other.user == user)&&(identical(other.authBusy, authBusy) || other.authBusy == authBusy)&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.navigationIndex, navigationIndex) || other.navigationIndex == navigationIndex)&&(identical(other.subscription, subscription) || other.subscription == subscription)&&(identical(other.audioImporting, audioImporting) || other.audioImporting == audioImporting)&&(identical(other.selectedAudio, selectedAudio) || other.selectedAudio == selectedAudio)&&(identical(other.processingOptions, processingOptions) || other.processingOptions == processingOptions)&&(identical(other.processingStep, processingStep) || other.processingStep == processingStep)&&(identical(other.processing, processing) || other.processing == processing)&&(identical(other.activeResult, activeResult) || other.activeResult == activeResult)&&(identical(other.resultNavigationRequest, resultNavigationRequest) || other.resultNavigationRequest == resultNavigationRequest)&&const DeepCollectionEquality().equals(other._history, _history)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,user,authBusy,themeMode,navigationIndex,subscription,audioImporting,selectedAudio,processingOptions,processingStep,processing,activeResult,const DeepCollectionEquality().hash(_history),errorMessage);
+int get hashCode => Object.hash(runtimeType,user,authBusy,themeMode,navigationIndex,subscription,audioImporting,selectedAudio,processingOptions,processingStep,processing,activeResult,resultNavigationRequest,const DeepCollectionEquality().hash(_history),errorMessage);
 
 @override
 String toString() {
-  return 'AppState(user: $user, authBusy: $authBusy, themeMode: $themeMode, navigationIndex: $navigationIndex, subscription: $subscription, audioImporting: $audioImporting, selectedAudio: $selectedAudio, processingOptions: $processingOptions, processingStep: $processingStep, processing: $processing, activeResult: $activeResult, history: $history, errorMessage: $errorMessage)';
+  return 'AppState(user: $user, authBusy: $authBusy, themeMode: $themeMode, navigationIndex: $navigationIndex, subscription: $subscription, audioImporting: $audioImporting, selectedAudio: $selectedAudio, processingOptions: $processingOptions, processingStep: $processingStep, processing: $processing, activeResult: $activeResult, resultNavigationRequest: $resultNavigationRequest, history: $history, errorMessage: $errorMessage)';
 }
 
 
@@ -319,7 +321,7 @@ abstract mixin class _$AppStateCopyWith<$Res> implements $AppStateCopyWith<$Res>
   factory _$AppStateCopyWith(_AppState value, $Res Function(_AppState) _then) = __$AppStateCopyWithImpl;
 @override @useResult
 $Res call({
- AuthUser? user, bool authBusy, ThemeMode themeMode, int navigationIndex, SubscriptionStatus subscription, bool audioImporting, AudioInput? selectedAudio, ProcessingOptions processingOptions, ProcessingStep processingStep, bool processing, BriefResult? activeResult, List<BriefResult> history, String? errorMessage
+ AuthUser? user, bool authBusy, ThemeMode themeMode, int navigationIndex, SubscriptionStatus subscription, bool audioImporting, AudioInput? selectedAudio, ProcessingOptions processingOptions, ProcessingStep processingStep, bool processing, BriefResult? activeResult, int resultNavigationRequest, List<BriefResult> history, String? errorMessage
 });
 
 
@@ -336,7 +338,7 @@ class __$AppStateCopyWithImpl<$Res>
 
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? user = freezed,Object? authBusy = null,Object? themeMode = null,Object? navigationIndex = null,Object? subscription = null,Object? audioImporting = null,Object? selectedAudio = freezed,Object? processingOptions = null,Object? processingStep = null,Object? processing = null,Object? activeResult = freezed,Object? history = null,Object? errorMessage = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? user = freezed,Object? authBusy = null,Object? themeMode = null,Object? navigationIndex = null,Object? subscription = null,Object? audioImporting = null,Object? selectedAudio = freezed,Object? processingOptions = null,Object? processingStep = null,Object? processing = null,Object? activeResult = freezed,Object? resultNavigationRequest = null,Object? history = null,Object? errorMessage = freezed,}) {
   return _then(_AppState(
 user: freezed == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
 as AuthUser?,authBusy: null == authBusy ? _self.authBusy : authBusy // ignore: cast_nullable_to_non_nullable
@@ -349,7 +351,8 @@ as AudioInput?,processingOptions: null == processingOptions ? _self.processingOp
 as ProcessingOptions,processingStep: null == processingStep ? _self.processingStep : processingStep // ignore: cast_nullable_to_non_nullable
 as ProcessingStep,processing: null == processing ? _self.processing : processing // ignore: cast_nullable_to_non_nullable
 as bool,activeResult: freezed == activeResult ? _self.activeResult : activeResult // ignore: cast_nullable_to_non_nullable
-as BriefResult?,history: null == history ? _self._history : history // ignore: cast_nullable_to_non_nullable
+as BriefResult?,resultNavigationRequest: null == resultNavigationRequest ? _self.resultNavigationRequest : resultNavigationRequest // ignore: cast_nullable_to_non_nullable
+as int,history: null == history ? _self._history : history // ignore: cast_nullable_to_non_nullable
 as List<BriefResult>,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
