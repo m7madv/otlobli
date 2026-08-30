@@ -17,12 +17,24 @@ class SubscriptionScreen extends StatefulWidget {
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   BillingCycle _cycle = BillingCycle.yearly;
+  String? _selectedPlanId;
 
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
     final colors = context.colors;
     final subscription = controller.subscription!;
+    final plans = controller.plans;
+    final selectedPlanId = plans.any((plan) => plan.id == _selectedPlanId)
+        ? _selectedPlanId!
+        : plans.any((plan) => plan.id == subscription.plan.id)
+        ? subscription.plan.id
+        : plans.isEmpty
+        ? null
+        : plans.first.id;
+    final selectedPlan = selectedPlanId == null
+        ? null
+        : plans.firstWhere((plan) => plan.id == selectedPlanId);
     final canManage = controller.membership!.role.canManageSubscription;
     final storeBusy = const {
       StoreBillingState.loading,
@@ -115,37 +127,41 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 },
               ),
               const SizedBox(height: 14),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth >= 760
-                      ? (constraints.maxWidth - 20) / 3
-                      : constraints.maxWidth;
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: controller.plans
-                        .map(
-                          (plan) => SizedBox(
-                            width: width,
-                            child: _PlanCard(
-                              plan: plan,
-                              offer: controller.storeOffer(plan.id, _cycle),
-                              current: plan.id == subscription.plan.id,
-                              sameStoreSelection:
-                                  subscription.isStoreSubscription &&
-                                  subscription.isUsable &&
-                                  plan.id == subscription.plan.id &&
-                                  subscription.billingCycle == _cycle.value,
-                              canBuy:
-                                  canManage && !storeBusy && !controller.isDemo,
-                              onBuy: controller.purchaseSubscription,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  );
-                },
-              ),
+              if (selectedPlan != null) ...[
+                SegmentedButton<String>(
+                  key: const ValueKey('subscription-plan-picker'),
+                  segments: [
+                    for (final plan in plans)
+                      ButtonSegment<String>(
+                        value: plan.id,
+                        label: Text(plan.name),
+                        icon: plan.id == subscription.plan.id
+                            ? const Icon(Icons.check_rounded, size: 17)
+                            : null,
+                      ),
+                  ],
+                  selected: {selectedPlan.id},
+                  onSelectionChanged: (value) =>
+                      setState(() => _selectedPlanId = value.first),
+                  showSelectedIcon: false,
+                  expandedInsets: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 10),
+                _PlanCard(
+                  key: ValueKey('subscription-plan-${selectedPlan.id}'),
+                  plan: selectedPlan,
+                  offer: controller.storeOffer(selectedPlan.id, _cycle),
+                  current: selectedPlan.id == subscription.plan.id,
+                  sameStoreSelection:
+                      subscription.isStoreSubscription &&
+                      subscription.isUsable &&
+                      selectedPlan.id == subscription.plan.id &&
+                      subscription.billingCycle == _cycle.value,
+                  canBuy: canManage && !storeBusy && !controller.isDemo,
+                  onBuy: controller.purchaseSubscription,
+                ),
+              ] else
+                const _MissingPlansNotice(),
               const SizedBox(height: 12),
               const _BillingTerms(),
             ],
@@ -154,6 +170,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
     );
   }
+}
+
+class _MissingPlansNotice extends StatelessWidget {
+  const _MissingPlansNotice();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: context.colors.surfaceContainer,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: context.colors.outlineVariant),
+    ),
+    child: const Text(
+      'تعذر تحميل بيانات الباقات. ارجع إلى الحساب ثم افتح الاشتراك مجدداً.',
+    ),
+  );
 }
 
 class _CurrentPlan extends StatelessWidget {
@@ -178,7 +211,7 @@ class _CurrentPlan extends StatelessWidget {
         : (subscription.usedWarranties / subscription.plan.monthlyWarranties)
               .clamp(0.0, 1.0);
     final statusLabel = switch (subscription.status) {
-      'trialing' => 'فترة تجريبية',
+      'trialing' => 'تجربة مجانية',
       'active' => subscription.autoRenews ? 'فعّال ويتجدد' : 'فعّال',
       'past_due' => 'مشكلة في التجديد',
       _ => 'متوقف',
@@ -223,6 +256,19 @@ class _CurrentPlan extends StatelessWidget {
               ),
             ],
           ),
+          if (subscription.status == 'trialing') ...[
+            const SizedBox(height: 10),
+            Text(
+              'تطبق التجربة حدود باقة ${subscription.plan.name}: '
+              '${subscription.plan.monthlyWarranties} ضمان شهرياً و'
+              '${subscription.plan.maxMembers} حسابات للفريق.',
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Text(
             '${subscription.remainingWarranties}',
@@ -469,6 +515,7 @@ class _StoreStatus extends StatelessWidget {
 
 class _PlanCard extends StatelessWidget {
   const _PlanCard({
+    super.key,
     required this.plan,
     required this.offer,
     required this.current,

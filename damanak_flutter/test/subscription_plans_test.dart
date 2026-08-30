@@ -108,6 +108,20 @@ void main() {
     expect(migration, isNot(contains("interval '7 days'")));
   });
 
+  test('المتجر الجديد يبدأ بتجربة بداية ويصحح التجارب الآمنة الحالية', () {
+    final migration = File(
+      'supabase/migrations/20260830130000_damanak_starter_trial_consistency.sql',
+    ).readAsStringSync();
+
+    expect(migration, contains("subscription.source = 'trial'"));
+    expect(migration, contains("set plan_id = 'starter'"));
+    expect(migration, contains("created_store_id,\n    'starter',"));
+    expect(migration, contains("member.status = 'active'"));
+    expect(migration, contains(') <= 2'));
+    expect(migration, contains(') <= 100'));
+    expect(migration, isNot(contains("created_store_id,\n    'growth',")));
+  });
+
   testWidgets('تعرض مقارنة الباقات ومصدر السعر ومسارات الإدارة بوضوح', (
     tester,
   ) async {
@@ -140,18 +154,24 @@ void main() {
     expect(find.text('قارن الباقات'), findsOneWidget);
     expect(find.textContaining('السعر والعملة النهائيان'), findsOneWidget);
 
-    for (final quota in ['100 ضمان/شهر', '600 ضمان/شهر', '3000 ضمان/شهر']) {
-      await tester.scrollUntilVisible(
-        find.text(quota),
-        260,
-        scrollable: scrollable,
-      );
+    final picker = find.byKey(const ValueKey('subscription-plan-picker'));
+    await tester.scrollUntilVisible(picker, 240, scrollable: scrollable);
+    expect(picker, findsOneWidget);
+
+    for (final (id, name, quota) in [
+      ('starter', 'بداية', '100 ضمان/شهر'),
+      ('growth', 'نمو', '600 ضمان/شهر'),
+      ('scale', 'توسع', '3000 ضمان/شهر'),
+    ]) {
+      await tester.tap(find.descendant(of: picker, matching: find.text(name)));
+      await tester.pump();
+      expect(find.byKey(ValueKey('subscription-plan-$id')), findsOneWidget);
       expect(find.text(quota), findsOneWidget);
-      if (quota == '600 ضمان/شهر') {
+      if (id == 'growth') {
         expect(find.text('موصى بها'), findsOneWidget);
       }
     }
-    expect(find.text('بانتظار سعر المتجر'), findsWidgets);
+    expect(find.text('بانتظار سعر المتجر'), findsOneWidget);
     expect(find.text('39'), findsNothing);
     expect(tester.takeException(), isNull);
   });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:damanak/data/demo_repository.dart';
 import 'package:damanak/models/account.dart';
 import 'package:damanak/models/sale.dart';
@@ -6,6 +8,22 @@ import 'package:damanak/state/app_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('ينقل تسجيل الخروج إلى شاشة الدخول من دون انتظار الشبكة', () async {
+    final repository = _DelayedSignOutRepository();
+    final controller = AppController.withRepository(repository);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+
+    expect(controller.stage, AppStage.ready);
+    await controller.signOut();
+
+    expect(repository.signOutStarted, isTrue);
+    expect(controller.stage, AppStage.signedOut);
+    expect(controller.busy, isFalse);
+    expect(controller.account, isNull);
+    repository.finishSignOut();
+  });
+
   group('نظام المتجر التجريبي', () {
     late AppController controller;
     late _CountingDemoRepository repository;
@@ -233,6 +251,24 @@ void main() {
       expect(controller.sales.first.status, SaleStatus.returned);
     });
   });
+}
+
+class _DelayedSignOutRepository extends DemoDamanakRepository {
+  final Completer<void> _signOutCompleter = Completer<void>();
+  bool signOutStarted = false;
+
+  @override
+  bool get isDemo => false;
+
+  @override
+  Future<void> signOut() {
+    signOutStarted = true;
+    return _signOutCompleter.future;
+  }
+
+  void finishSignOut() {
+    if (!_signOutCompleter.isCompleted) _signOutCompleter.complete();
+  }
 }
 
 class _CountingDemoRepository extends DemoDamanakRepository {

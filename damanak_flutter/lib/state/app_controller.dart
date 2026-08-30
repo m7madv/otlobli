@@ -250,7 +250,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> signOut() async {
     await _guard(() async {
-      await _repository!.signOut();
+      final signOutOperation = _repository!.signOut();
       final wasDemo = isDemo;
       _clearData();
       if (wasDemo) {
@@ -259,6 +259,11 @@ class AppController extends ChangeNotifier {
       } else {
         _stage = AppStage.signedOut;
       }
+      // Supabase removes the local session before it contacts the auth server.
+      // Move away from private store data immediately instead of leaving the
+      // account screen disabled while a slow network request finishes.
+      notifyListeners();
+      unawaited(signOutOperation.catchError((Object _) {}));
     });
   }
 
