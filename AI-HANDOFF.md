@@ -166,6 +166,14 @@ two sanitized 9:16 phone screenshots `1512x2688` with hashes
 They were uploaded and the Arabic listing was saved. Saudi Arabia is the only
 country selected for the closed track.
 
+After the owner's explicit publish instruction, commit `5cc4f5d` changed the
+gate to `releaseStatus=completed` and expected 12 accounts. Run `33320651915`
+reused bundle 1112 and failed safely at commit with Google's exact message:
+`Only releases with status draft may be created on draft app`. The live alpha
+release remains draft and no test started. The whole first-app record is still
+Draft; submit it to Google review from Play Console first, then rerun the exact
+workflow without rebuilding, reuploading, or changing the versionCode.
+
 Saved declarations: no ads, not government, no health features, encrypted data
 collection, and `Mobile payments and digital wallets`. Data Safety covers 14
 types; target ages are 13+. The owner explicitly accepted IARC and public support
@@ -179,28 +187,12 @@ Play Console now has a dedicated selected list `Otlobli Closed Testers` with 11
 clean accounts and the approved feedback email. Do not select or edit shared
 list `Closed Testers 12`. The owner explicitly excluded three friend-shared
 accounts labelled Codex, Durrah Al-Quran, and Mohammad Alzoubi; never enroll
-them for Otlobli. Exactly one new distinct clean Google account is still needed
-before release publication. Google requires 12 testers opted in continuously
-for 14 days; a list membership is not an opt-in and does not start the clock.
-Keep the exact release `draft` until the twelfth account is supplied, then add it
-to this dedicated list, change only `releaseStatus` to `completed`, sync docs,
-commit/push, dispatch the existing workflow, and verify the live opt-in link.
-`z12` has no Android system account; the Google add-account flow was opened but
-no account has been added yet. At the owner's explicit request, emulator
-instances `LDPlayer-9`, `z10`, and `z11` were permanently deleted because they
-held the three excluded accounts. Three fresh instances were then created, so
-`list2` now has exactly 12 indexes `0..11`. Every instance uses a consistent
-visible name `01 - <email>` through `12 - <email>`; the one instance containing
-two accounts lists both, and fresh instances 10..12 are honestly labelled
-`EMPTY - ADD GOOGLE ACCOUNT`. New instances use 900x1600@320, 4 CPU, and
-4096MB. Terminal inventory proved all Google accounts already present in
-instances 02..09 are already on the Play tester list. Adel's account and the
-new account initially appeared together in instance 01. The owner manually
-removed the new account and visually confirmed Adel is the only account shown.
-AccountManager output during Google's authentication UI was not reliable for
-this state, so do not claim ADB account verification; use the recorded owner
-confirmation. Instance 01 is finalized as
-`01 - adelalzoubi2022@gmail.com`, closed, and ADB is back to 0. Instance 10 is
+them for Otlobli. The owner approved adding the new clean account
+`bbhzhxjd@gmail.com`, but Browser entry did not tokenize or save it; the list
+still reports 11 and the list-edit dialog is at the manual input step. Google
+requires 12 testers opted in continuously for 14 days; list membership alone
+does not start the clock.
+
 The owner confirmed the final one-account-per-instance state. Names 01..12 are:
 `adelalzoubi2022`, `chatxhxh`, `mhm1981x`, `mhm1981dx`, `mhm1981d`,
 `mhmaadd.974`, `dhhddhhhd96`, `workmoh7`, `ryanalzby524`, `bbhzhxjd`,
@@ -212,7 +204,11 @@ and quit only.
 
 This does not yet satisfy the Play gate. The dedicated Play list still has 11
 accounts and must receive `bbhzhxjd@gmail.com`; the exact alpha release remains
-draft. After it is published, every account must use the opt-in link and remain
+draft. The owner approved transmitting that email to Google, but Browser input
+did not tokenize or save it; the list still visibly reports 11. The list-edit
+dialog was left at the input step for the owner to commit and save manually.
+After the first-app review submission permits publication and the workflow
+succeeds, every account must use the opt-in link and remain
 opted in continuously for 14 days. Installation/opening is not the literal
 opt-in counter rule, but the production-access form requires truthful details
 about feature usage, tester engagement, feedback, and changes. Run meaningful
