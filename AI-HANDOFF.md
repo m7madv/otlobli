@@ -134,16 +134,17 @@ Apple approves it.
 Google Play closed testing is explicitly authorized for the exact tracked AAB
 `artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, size 5,775,124,
 SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
-`CLOSED_TEST_AUTHORIZED.json` remains `inspect`. Run `33308484614` authenticated
-the service account but the first edit returned
-`404 Package not found: com.otlobli.app`; it uploaded nothing and changed no track. Play Console confirms
-the developer account has four other apps and no Otlobli record. The package is
-available and the Arabic/free/app form is prepared as `Otlobli`, but do not tick
-or submit the two legal acknowledgements (developer policies and U.S. export
-laws) without the owner's explicit consent. The existing service account has
-app-scoped access only to Damanak and VoiceBrief. After record creation, grant
-Otlobli read plus test-release permission, rerun inspect, bind the exact closed
-track, then set `publish`; never rebuild or substitute the AAB.
+Run `33308484614` authenticated the service account but stopped before upload
+because the app record did not exist. The owner then explicitly accepted the
+developer-policy and U.S.-export acknowledgements. Play Console app
+`4974026156685692649` now exists as Arabic/free/app `Otlobli` for
+`com.otlobli.app`. The service account has exactly three app permissions: app
+read, implied quality read, and test-audience releases; it has no production or
+financial permission. Inspection `33310340151` succeeded with zero bundles and
+empty tracks `production`, `beta`, `alpha`, `internal`. The exact-build gate is
+now `publish` and explicitly bound to closed-testing track `alpha`. Dispatch the
+workflow, verify upload/versionCode 1112/track status, and never rebuild or
+substitute the AAB.
 
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
 It lists 12 instances indexed 0..11; legacy LDPlayer4 lists none. Terminal-only

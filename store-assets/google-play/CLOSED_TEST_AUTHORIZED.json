@@ -1,5 +1,6 @@
 {
-  "operation": "inspect",
+  "operation": "publish",
+  "track": "alpha",
   "packageName": "com.otlobli.app",
   "appVersion": "86.244",
   "versionCode": "1112",
