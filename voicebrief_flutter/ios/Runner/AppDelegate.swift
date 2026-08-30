@@ -396,6 +396,7 @@ final class VoiceBriefReminderBridge {
 
         let alert = AlarmPresentation.Alert(
           title: "VoiceBrief",
+          stopButton: .stopButton,
           secondaryButton: nil,
           secondaryButtonBehavior: nil
         )
@@ -404,9 +405,12 @@ final class VoiceBriefReminderBridge {
           metadata: VoiceBriefAlarmMetadata(),
           tintColor: Color.blue
         )
-        let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>.alarm(
+        let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>(
+          countdownDuration: nil,
           schedule: .fixed(fireDate),
-          attributes: attributes
+          attributes: attributes,
+          stopIntent: nil,
+          secondaryIntent: nil
         )
         _ = try await manager.schedule(id: UUID(), configuration: configuration)
         result(true)
