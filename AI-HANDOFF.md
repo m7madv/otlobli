@@ -152,39 +152,43 @@ setup tasks truthfully, then change only `releaseStatus` to `completed` and reru
 
 Run `33310601936` succeeded and committed the exact existing bundle as
 `86.244 (1112)` on `alpha` with status `draft`; there was no Android rebuild and
-the test has not started. Tracked Google Play assets now exist under
+the test has not started. All eleven Play Console setup tasks are now complete:
+store listing/assets, privacy policy, ads, government, health, financial
+features, category/contact, IARC, Data Safety, target audience, and reviewer
+access. The owner personally entered the reviewer password and verified that
+the console shows username/password/instructions; no password is stored in the
+repository or handoff. Tracked Google Play assets exist under
 `store-assets/google-play/`: feature graphic `1024x500` SHA-256
 `D1A07F89BFDF923EBF811260DA558D0DF91F2008C09E0533586B7A371D6F6F86`, plus
 two sanitized 9:16 phone screenshots `1512x2688` with hashes
 `EC961F642EB2AADD324F5B9FD71156717D68009E9B3E0DFB87F66BCE0A6C8279` and
 `96DBDD0CB41D4EA4B520497763E416B37229F777D5987BA738E8524B8E6DEDFA`.
-Nothing was uploaded to the store listing and no policy declaration was saved.
+They were uploaded and the Arabic listing was saved. Saudi Arabia is the only
+country selected for the closed track.
 
-Known declarations: no ads, not government, no health features; encrypted
-collection of account/contact/address/order/payment/wallet/optional media, push
-token, product interaction, support, and user-initiated diagnostic data already
-declared in the privacy sources. Because users can top up and spend an in-app
-wallet balance, declare `Mobile payments and digital wallets`, not no financial
-features. The in-app permanent deletion flow is real, but the current public
-pages only point back into the app and do not satisfy Google's external account
-deletion initiation requirement. Do not submit until the owner provides a
-public support email authorized for store display and IARC sharing, explicitly
-accepts IARC terms, and supplies a dedicated reusable Google review account
-without OTP/2FA. Never reuse a personal email found in history or submit the
-live WhatsApp OTP flow as reviewer access; Google requires reusable,
-non-expiring credentials.
+Saved declarations: no ads, not government, no health features, encrypted data
+collection, and `Mobile payments and digital wallets`. Data Safety covers 14
+types; target ages are 13+. The owner explicitly accepted IARC and public support
+email sharing. External account deletion is now available at
+`https://talabieh.vercel.app/privacy.html#request-account-deletion`; the updated
+privacy/support pages are deployed at the stable alias. Reviewer access uses the
+owner-approved reusable Google account and must not rely on WhatsApp OTP.
 
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
-It lists 12 instances indexed 0..11; legacy LDPlayer4 lists none. Terminal-only
-enumeration proved exactly 12 unique Google accounts: index 0 `z12` has none,
-index 1 has two, and indexes 2..11 have one each. The owner expected 14, but no
-extra instance/config was found in either LDPlayer install. Google currently
-requires at least 12 continuously opted-in testers for 14 days, so the verified
-count meets the minimum but has no redundancy. All LDPlayer instances are shut
-down and temporary local ADB was restored to `adbDebug=0`; re-enable per instance
-only while enrolling/testing, then restore it. The unrelated Android Studio
-`Diagnostic_API_36`/`emulator-5554` remained connected and must not be stopped.
-Never print account emails/passwords; use terminal launch, ADB, and quit only.
+Play Console now has a dedicated selected list `Otlobli Closed Testers` with 11
+clean accounts and the approved feedback email. Do not select or edit shared
+list `Closed Testers 12`. The owner explicitly excluded three friend-shared
+accounts labelled Codex, Durrah Al-Quran, and Mohammad Alzoubi; never enroll
+them for Otlobli. Exactly one new distinct clean Google account is still needed
+before release publication. Google requires 12 testers opted in continuously
+for 14 days; a list membership is not an opt-in and does not start the clock.
+Keep the exact release `draft` until the twelfth account is supplied, then add it
+to this dedicated list, change only `releaseStatus` to `completed`, sync docs,
+commit/push, dispatch the existing workflow, and verify the live opt-in link.
+`z12` has no Android system account; the Google add-account flow was opened but
+no account was added. It is shut down and every LDPlayer config is back to
+`adbDebug=0`. Do not stop the unrelated Android Studio AVD. Use terminal launch,
+ADB, and quit only; never print account passwords.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
