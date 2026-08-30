@@ -76,10 +76,12 @@ Fast run `33306098541` passed exact `86.244 (1112)` identity, asset, and
 acceptance authorization, then stopped within seconds because the live Otlobli
 health still returned `whatsappConnected=false` and
 `whatsappSenderReady=false`. No App Store Connect key was prepared and no Apple
-request/build/upload occurred. The open Oracle Console session has expired;
-GitHub has no WhatsApp admin secret and local Windows has no OCI/SSH credential.
-Restore Oracle access, reconnect persisted session `0` through the protected
-loopback route, verify both fields true, then rerun the same fast workflow.
+request/build/upload occurred. The owner then explicitly corrected the evidence:
+login was tested repeatedly on exact app `86.244 (1112)`, the WhatsApp OTP
+arrived, and login succeeded. The transient `/health` probe was therefore
+removed only from the existing-build App Review job; physical acceptance is the
+submission evidence and this job must not touch Oracle or the WhatsApp session.
+The full authentication preflight remains unchanged for new TestFlight builds.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
