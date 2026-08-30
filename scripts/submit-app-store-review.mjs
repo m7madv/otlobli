@@ -518,18 +518,12 @@ async function findVersionSubmission(version) {
   return matches[0] || null
 }
 
-async function readVersionSubmission(submissionId, appStoreVersionId) {
+async function readSubmissionContents(submissionId) {
   const response = await apiRequest(apiPath(`/reviewSubmissions/${encodeURIComponent(submissionId)}`, {
     'fields[reviewSubmissions]': 'platform,state,items,appStoreVersionForReview',
   }))
   const items = await listSubmissionItems(response.data)
-  const item = items.find((candidate) =>
-    candidate.attributes?.state !== 'REMOVED' &&
-    candidate.relationships?.appStoreVersion?.data?.id === appStoreVersionId)
-  if (!item) {
-    throw new Error(`Review submission ${submissionId} does not contain App Store version ${appStoreVersionId}.`)
-  }
-  return { submission: response.data, item }
+  return { submission: response.data, items }
 }
 
 function owningSubmissionBlocker(error) {
@@ -658,6 +652,47 @@ async function addSubmissionItemAfterLegacyRemoval(submission, version) {
   throw lastError || new Error('Unable to add the current App Store version after legacy rejection cleanup.')
 }
 
+async function cancelLegacyVersionSubmission(contents, blocker, currentVersion) {
+  const submissionState = contents.submission.attributes?.state || 'UNKNOWN'
+  const legacyVersionId = contents.submission.relationships?.appStoreVersionForReview?.data?.id
+  const activeItems = contents.items.filter((item) => item.attributes?.state !== 'REMOVED')
+  if (submissionState !== 'UNRESOLVED_ISSUES') {
+    throw new Error(`Cannot cancel legacy review submission from state ${submissionState}.`)
+  }
+  if (legacyVersionId !== blocker.appStoreVersionId || legacyVersionId === currentVersion.id) {
+    throw new Error('Legacy review submission does not point exclusively to the blocking old App Store version.')
+  }
+  if (activeItems.length !== 0) {
+    throw new Error('Legacy review submission contains other active items; refusing to cancel it implicitly.')
+  }
+
+  await apiRequest(`/reviewSubmissions/${encodeURIComponent(contents.submission.id)}`, {
+    method: 'PATCH',
+    body: {
+      data: {
+        type: 'reviewSubmissions',
+        id: contents.submission.id,
+        attributes: { canceled: true },
+      },
+    },
+  })
+  console.log(
+    `Canceled legacy unresolved review submission ${contents.submission.id} for old App Store version ` +
+    `${legacyVersionId}; no app version or build was deleted.`,
+  )
+
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const refreshed = await readSubmissionContents(contents.submission.id)
+    const state = refreshed.submission.attributes?.state || 'UNKNOWN'
+    if (state === 'COMPLETE') return
+    if (state !== 'CANCELING' && state !== 'UNRESOLVED_ISSUES') {
+      throw new Error(`Legacy review submission moved to unexpected state ${state} after cancellation.`)
+    }
+    await sleep(2_000)
+  }
+  throw new Error('Timed out waiting for the legacy review submission cancellation to complete.')
+}
+
 async function submitReview(submission) {
   const response = await apiRequest(`/reviewSubmissions/${encodeURIComponent(submission.id)}`, {
     method: 'PATCH',
@@ -719,18 +754,24 @@ if (placement) {
   } catch (error) {
     const blocker = owningSubmissionBlocker(error)
     if (!blocker) throw error
-    const blockingPlacement = await readVersionSubmission(
-      blocker.submissionId,
-      blocker.appStoreVersionId,
-    )
-    if (blocker.appStoreVersionId === version.id) {
+    const blockingContents = await readSubmissionContents(blocker.submissionId)
+    const blockingItem = blockingContents.items.find((candidate) =>
+      candidate.attributes?.state !== 'REMOVED' &&
+      candidate.relationships?.appStoreVersion?.data?.id === blocker.appStoreVersionId)
+    if (blockingItem && blocker.appStoreVersionId === version.id) {
+      const blockingPlacement = { submission: blockingContents.submission, item: blockingItem }
       placement = blockingPlacement
       console.log(
         `Recovered existing review submission ${blocker.submissionId} from Apple's item ownership response; ` +
         `state ${placement.submission.attributes?.state || 'UNKNOWN'}.`,
       )
-    } else {
+    } else if (blockingItem) {
+      const blockingPlacement = { submission: blockingContents.submission, item: blockingItem }
       await removeRejectedLegacySubmissionItem(blockingPlacement, version)
+      const item = await addSubmissionItemAfterLegacyRemoval(submission, version)
+      placement = { submission, item }
+    } else {
+      await cancelLegacyVersionSubmission(blockingContents, blocker, version)
       const item = await addSubmissionItemAfterLegacyRemoval(submission, version)
       placement = { submission, item }
     }

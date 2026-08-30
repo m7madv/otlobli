@@ -66,11 +66,11 @@ usable SSH private key; do not delete or replace the session.
 The owner has now confirmed a fresh real OTP from one of the two apps. The registered `iOS Unsigned
 Build` workflow has a dedicated existing-build submission job for the exact
 `testflight` + `distribute-existing` + App Review combination. It resolves the
-version/build from source, verifies the physical-acceptance gate, probes the
-live Otlobli WhatsApp health contract immediately, and then runs the App Store
-submission script. The macOS archive/sign/upload job is skipped for this exact
-combination, so this does not create or upload a new IPA. Never bypass the live
-sender gate if it still reports disconnected/not ready.
+version/build from source, verifies the physical-acceptance gate, and then runs
+the App Store submission script. The macOS archive/sign/upload job is skipped
+for this exact combination, so this does not create or upload a new IPA. It does
+not inspect or mutate Oracle/WhatsApp; the full live authentication preflight
+remains on new TestFlight build/upload paths.
 
 Fast run `33306098541` passed exact `86.244 (1112)` identity, asset, and
 acceptance authorization, then stopped within seconds because the live Otlobli
@@ -93,6 +93,14 @@ blocking appStoreVersion/submission pair, verifies `UNRESOLVED_ISSUES` plus a
 adding current `86.244` to the existing draft. It never deletes an App Store
 version or build. If the owner is the current version itself, the prior resolved
 and same-submission resubmission path remains in place.
+
+Run `33307022048` proved the legacy submission is migrated: blocker version
+`890129230` is exposed by `appStoreVersionForReview`, not a modern item. The
+script now cancels this legacy submission only when it is exactly
+`UNRESOLVED_ISSUES`, points to the blocker version, differs from current
+`86.244`, and contains zero other active items. It waits for `COMPLETE`, then
+adds current `86.244` to the existing draft. Any ambiguity stops safely; no App
+Store version or build is deleted.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
