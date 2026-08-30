@@ -1,4 +1,4 @@
-# Active handoff — v86.244/1112 App Review rejection repair (2026-08-30)
+# Active handoff — v86.244/1112 submitted, WAITING_FOR_REVIEW (2026-08-30)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.244`; native
@@ -31,7 +31,8 @@ screen without pressing paid confirmation. `PREPARE_ONLY` was therefore
 replaced by exact-build `SUBMISSION_AUTHORIZED.json` for `86.244 (1112)`.
 Asset verification enforces exactly one gate, the complete acceptance fields,
 and five resume cycles; the submission script refuses any version/build other
-than the authorized pair. App Review submission is now authorized and pending.
+than the authorized pair. App Review submission is now complete and Apple state
+is `WAITING_FOR_REVIEW`.
 
 First App Review attempt `33304324644` passed build/signing and reused TestFlight
 without upload. It uploaded all six replacement screenshots to COMPLETE,
@@ -120,6 +121,15 @@ base64url ID decodes exactly to
 requires canonical re-encoding, exact submission ID, exact observed type code
 `6`, and exact blocker version ID before marking only that review item removed.
 It does not cancel the whole submission or delete an App Store version/build.
+
+Final run `33307366619` succeeded from head `8f53ba0dc84af3220c4e96535a6456851622b245`.
+It removed only rejected migrated review item `890129230` from unresolved
+submission `e5e27b8a-b628-4116-b135-361b91266929`, added current `86.244` to
+submission `2ae4119e-bfbf-4a1a-a813-ddda2bf7e460`, and submitted exact build
+`1112`. Apple returned `WAITING_FOR_REVIEW`. No App Store version/build was
+deleted, no IPA/TestFlight build was created or uploaded, and Oracle/WhatsApp
+was neither inspected nor modified. Do not claim public availability until
+Apple approves it.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
