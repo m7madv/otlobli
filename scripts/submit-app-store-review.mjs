@@ -488,6 +488,37 @@ async function findDraftSubmission() {
   return response.data[0] || null
 }
 
+async function listSubmissionItems(submission) {
+  const response = await apiRequest(apiPath(`/reviewSubmissions/${encodeURIComponent(submission.id)}/items`, {
+    'fields[reviewSubmissionItems]': 'state,appStoreVersion',
+    limit: 200,
+  }))
+  return response.data
+}
+
+async function findVersionSubmission(version) {
+  const response = await apiRequest(apiPath(`/apps/${encodeURIComponent(config.appId)}/reviewSubmissions`, {
+    'filter[platform]': 'IOS',
+    'fields[reviewSubmissions]': 'platform,state,items,appStoreVersionForReview',
+    limit: 200,
+  }))
+  const editableStates = new Set(['READY_FOR_REVIEW', 'UNRESOLVED_ISSUES'])
+  const matches = []
+
+  for (const submission of response.data.filter((candidate) => editableStates.has(candidate.attributes?.state))) {
+    const items = await listSubmissionItems(submission)
+    const item = items.find((candidate) =>
+      candidate.attributes?.state !== 'REMOVED' &&
+      candidate.relationships?.appStoreVersion?.data?.id === version.id)
+    if (item) matches.push({ submission, item })
+  }
+
+  if (matches.length > 1) {
+    throw new Error(`App Store version ${config.appVersion} appears in multiple editable review submissions.`)
+  }
+  return matches[0] || null
+}
+
 async function findOrCreateDraftSubmission() {
   const existing = await findDraftSubmission()
   if (existing) return existing
@@ -505,11 +536,8 @@ async function findOrCreateDraftSubmission() {
 }
 
 async function ensureSubmissionItem(submission, version) {
-  const response = await apiRequest(apiPath(`/reviewSubmissions/${encodeURIComponent(submission.id)}/items`, {
-    'fields[reviewSubmissionItems]': 'state,appStoreVersion',
-    limit: 50,
-  }))
-  const existing = response.data.find((item) => item.relationships?.appStoreVersion?.data?.id === version.id)
+  const items = await listSubmissionItems(submission)
+  const existing = items.find((item) => item.relationships?.appStoreVersion?.data?.id === version.id)
   if (existing) return existing
 
   const created = await apiRequest('/reviewSubmissionItems', {
@@ -526,6 +554,27 @@ async function ensureSubmissionItem(submission, version) {
   })
   console.log(`Added App Store version ${config.appVersion} to review submission ${submission.id}.`)
   return created.data
+}
+
+async function resolveRejectedSubmissionItem(item) {
+  const state = item.attributes?.state || 'UNKNOWN'
+  if (state === 'READY_FOR_REVIEW') return item
+  if (state !== 'REJECTED') {
+    throw new Error(`App Store review item ${item.id} cannot be resubmitted from state ${state}.`)
+  }
+
+  const response = await apiRequest(`/reviewSubmissionItems/${encodeURIComponent(item.id)}`, {
+    method: 'PATCH',
+    body: {
+      data: {
+        type: 'reviewSubmissionItems',
+        id: item.id,
+        attributes: { resolved: true },
+      },
+    },
+  })
+  console.log(`Marked rejected App Store version ${config.appVersion} resolved in its existing review submission.`)
+  return response.data
 }
 
 async function submitReview(submission) {
@@ -576,8 +625,18 @@ if (config.prepareOnly) {
   process.exit(0)
 }
 
-const submission = await findOrCreateDraftSubmission()
-await ensureSubmissionItem(submission, version)
+let placement = await findVersionSubmission(version)
+if (placement) {
+  console.log(
+    `Reusing review submission ${placement.submission.id} in state ${placement.submission.attributes?.state || 'UNKNOWN'}.`,
+  )
+} else {
+  const submission = await findOrCreateDraftSubmission()
+  const item = await ensureSubmissionItem(submission, version)
+  placement = { submission, item }
+}
+await resolveRejectedSubmissionItem(placement.item)
+const submission = placement.submission
 const submissionState = await submitReview(submission)
 console.log(`Submitted ${config.appVersion} (${config.appBuild}) to App Review; state: ${submissionState}.`)
 

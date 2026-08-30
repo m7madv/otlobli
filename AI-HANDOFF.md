@@ -33,6 +33,16 @@ Asset verification enforces exactly one gate, the complete acceptance fields,
 and five resume cycles; the submission script refuses any version/build other
 than the authorized pair. App Review submission is now authorized and pending.
 
+First App Review attempt `33304324644` passed build/signing and reused TestFlight
+without upload. It uploaded all six replacement screenshots to COMPLETE,
+deleted the two stale login screenshots, and linked build 1112. Apple then
+returned `ITEM_PART_OF_ANOTHER_SUBMISSION`: version resource `890129230` remains
+inside prior submission `e5e27b8a-b628-4116-b135-361b91266929` from the old
+rejection. The script now searches editable `READY_FOR_REVIEW` and
+`UNRESOLVED_ISSUES` submissions for the version, PATCHes a rejected item with
+`resolved=true`, and resubmits that same submission instead of creating a new
+one. Do not delete the old version or detach it manually while the retry runs.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS
