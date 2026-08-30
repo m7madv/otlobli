@@ -131,6 +131,15 @@ deleted, no IPA/TestFlight build was created or uploaded, and Oracle/WhatsApp
 was neither inspected nor modified. Do not claim public availability until
 Apple approves it.
 
+Google Play now shows `changes under review` for 14 submitted changes. The
+submission includes exact closed-track release `Otlobli 86.244 (1112)`, full
+rollout on `alpha`, Saudi Arabia, the reusable 12-member list
+`All Apps - Closed Testers`, store/app-content declarations, and no production
+release. The app record is no longer blocked on the initial review-submission
+step. Wait for Google's decision, then verify `alpha` is active and the opt-in
+link works; do not claim the 14-day clock started before 12 accounts actually
+opt in.
+
 Google Play closed testing is explicitly authorized for the exact tracked AAB
 `artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, size 5,775,124,
 SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
@@ -141,14 +150,12 @@ developer-policy and U.S.-export acknowledgements. Play Console app
 `com.otlobli.app`. The service account has exactly three app permissions: app
 read, implied quality read, and test-audience releases; it has no production or
 financial permission. Inspection `33310340151` succeeded with zero bundles and
-empty tracks `production`, `beta`, `alpha`, `internal`. The exact-build gate is
-now `publish` and explicitly bound to closed-testing track `alpha`. Dispatch the
-workflow, verify upload/versionCode 1112/track status, and never rebuild or
+empty tracks `production`, `beta`, `alpha`, `internal`. The exact-build gate was
+set to `publish` and bound to closed-testing track `alpha`; never rebuild or
 substitute the AAB. First publish run `33310435203` uploaded inside an uncommitted
 edit but Google rejected `completed` because the new app is still draft; the edit
-was deleted and no test started. The gate now requires `releaseStatus` and is
-temporarily `draft`. Commit that exact AAB draft to `alpha`, finish all 11 app
-setup tasks truthfully, then change only `releaseStatus` to `completed` and rerun.
+was deleted and no test started. The gate requires `releaseStatus`; the exact
+bundle was later committed as a draft and then submitted from Play Console.
 
 Run `33310601936` succeeded and committed the exact existing bundle as
 `86.244 (1112)` on `alpha` with status `draft`; there was no Android rebuild and
@@ -170,9 +177,9 @@ After the owner's explicit publish instruction, commit `5cc4f5d` changed the
 gate to `releaseStatus=completed` and expected 12 accounts. Run `33320651915`
 reused bundle 1112 and failed safely at commit with Google's exact message:
 `Only releases with status draft may be created on draft app`. The live alpha
-release remains draft and no test started. The whole first-app record is still
-Draft; submit it to Google review from Play Console first, then rerun the exact
-workflow without rebuilding, reuploading, or changing the versionCode.
+release was then reviewed and saved in Play Console. The owner approved the
+final submission, and the publishing overview now lists the exact release among
+the 14 changes under review. No rebuild, reupload, or versionCode change occurred.
 
 Saved declarations: no ads, not government, no health features, encrypted data
 collection, and `Mobile payments and digital wallets`. Data Safety covers 14
@@ -181,17 +188,19 @@ email sharing. External account deletion is now available at
 `https://talabieh.vercel.app/privacy.html#request-account-deletion`; the updated
 privacy/support pages are deployed at the stable alias. Reviewer access uses the
 owner-approved reusable Google account and must not rely on WhatsApp OTP.
+The advertising-ID declaration is `No`: the merged manifest for exact
+`86.244 (1112)` does not contain
+`com.google.android.gms.permission.AD_ID`, and Android/npm dependencies contain
+no advertising SDK. Google showed one non-blocking native-debug-symbol warning.
 
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
-Play Console now has a dedicated selected list `Otlobli Closed Testers` with 11
-clean accounts and the approved feedback email. Do not select or edit shared
+Play Console now has a reusable selected list `All Apps - Closed Testers` with
+12 clean accounts and the approved feedback email. Do not select or edit shared
 list `Closed Testers 12`. The owner explicitly excluded three friend-shared
 accounts labelled Codex, Durrah Al-Quran, and Mohammad Alzoubi; never enroll
-them for Otlobli. The owner approved adding the new clean account
-`bbhzhxjd@gmail.com`, but Browser entry did not tokenize or save it; the list
-still reports 11 and the list-edit dialog is at the manual input step. Google
-requires 12 testers opted in continuously for 14 days; list membership alone
-does not start the clock.
+them for Otlobli. The new clean account `bbhzhxjd@gmail.com` was saved and the
+grid reports 12. Google requires 12 testers opted in continuously for 14 days;
+list membership alone does not start the clock.
 
 The owner confirmed the final one-account-per-instance state. Names 01..12 are:
 `adelalzoubi2022`, `chatxhxh`, `mhm1981x`, `mhm1981dx`, `mhm1981d`,
@@ -202,18 +211,14 @@ contents are owner-verified, not ADB-verified. Never enter, store, or print
 passwords. Do not stop the unrelated Android Studio AVD; use terminal launch
 and quit only.
 
-This does not yet satisfy the Play gate. The dedicated Play list still has 11
-accounts and must receive `bbhzhxjd@gmail.com`; the exact alpha release remains
-draft. The owner approved transmitting that email to Google, but Browser input
-did not tokenize or save it; the list still visibly reports 11. The list-edit
-dialog was left at the input step for the owner to commit and save manually.
-After the first-app review submission permits publication and the workflow
-succeeds, every account must use the opt-in link and remain
-opted in continuously for 14 days. Installation/opening is not the literal
-opt-in counter rule, but the production-access form requires truthful details
-about feature usage, tester engagement, feedback, and changes. Run meaningful
-tests from the Play-installed build and collect honest feedback; never describe
-developer-controlled accounts as independent people or fabricate engagement.
+The Play submission is complete but the testing gate is not. After Google
+approves the pending changes and `alpha` becomes active, every account must use
+the opt-in link and remain opted in continuously for 14 days. Installation or
+opening alone is not the literal opt-in counter rule. The production-access
+form requires truthful details about feature use, tester engagement, feedback,
+and resulting changes. Run meaningful tests from the Play-installed build;
+never describe developer-controlled accounts as independent people or fabricate
+engagement.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
