@@ -342,7 +342,7 @@ final class VoiceBriefCalendarBridge: NSObject, EKEventEditViewDelegate {
 }
 
 #if canImport(AlarmKit)
-@available(iOS 26.0, *)
+@available(iOS 26.1, *)
 private struct VoiceBriefAlarmMetadata: AlarmMetadata {}
 #endif
 
@@ -366,7 +366,7 @@ final class VoiceBriefReminderBridge {
       }
 
 #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) {
+      if #available(iOS 26.1, *) {
         self.scheduleAlarm(fireDate: fireDate, result: result)
         return
       }
@@ -377,7 +377,7 @@ final class VoiceBriefReminderBridge {
   }
 
 #if canImport(AlarmKit)
-  @available(iOS 26.0, *)
+  @available(iOS 26.1, *)
   private func scheduleAlarm(fireDate: Date, result: @escaping FlutterResult) {
     Task { @MainActor in
       do {
@@ -396,7 +396,6 @@ final class VoiceBriefReminderBridge {
 
         let alert = AlarmPresentation.Alert(
           title: "VoiceBrief",
-          stopButton: .stopButton,
           secondaryButton: nil,
           secondaryButtonBehavior: nil
         )
@@ -405,12 +404,9 @@ final class VoiceBriefReminderBridge {
           metadata: VoiceBriefAlarmMetadata(),
           tintColor: Color.blue
         )
-        let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>(
-          countdownDuration: nil,
+        let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>.alarm(
           schedule: .fixed(fireDate),
-          attributes: attributes,
-          stopIntent: nil,
-          secondaryIntent: nil
+          attributes: attributes
         )
         _ = try await manager.schedule(id: UUID(), configuration: configuration)
         result(true)
