@@ -67,6 +67,8 @@
 		<false/>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
+		<key>NSAlarmKitUsageDescription</key>
+		<string>VoiceBrief schedules an alarm only after you confirm its date and time.</string>
 		<key>NSCalendarsFullAccessUsageDescription</key>
 		<string>VoiceBrief adds an important date only after you confirm it.</string>
 		<key>NSCalendarsUsageDescription</key>

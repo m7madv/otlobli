@@ -5,6 +5,10 @@ import EventKitUI
 import UIKit
 import UniformTypeIdentifiers
 import UserNotifications
+#if canImport(AlarmKit)
+import AlarmKit
+import SwiftUI
+#endif
 
 final class VoiceBriefShareBridge {
   static let shared = VoiceBriefShareBridge()
@@ -337,6 +341,11 @@ final class VoiceBriefCalendarBridge: NSObject, EKEventEditViewDelegate {
   }
 }
 
+#if canImport(AlarmKit)
+@available(iOS 26.0, *)
+private struct VoiceBriefAlarmMetadata: AlarmMetadata {}
+#endif
+
 final class VoiceBriefReminderBridge {
   static let shared = VoiceBriefReminderBridge()
 
@@ -355,32 +364,95 @@ final class VoiceBriefReminderBridge {
         result(FlutterError(code: "invalid_reminder", message: "Reminder must be in the future", details: nil))
         return
       }
-      let center = UNUserNotificationCenter.current()
-      center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-        guard granted, error == nil else {
-          DispatchQueue.main.async { result(false) }
+
+#if canImport(AlarmKit)
+      if #available(iOS 26.0, *) {
+        self.scheduleAlarm(fireDate: fireDate, result: result)
+        return
+      }
+#endif
+
+      self.scheduleNotificationFallback(fireDate: fireDate, values: values, result: result)
+    }
+  }
+
+#if canImport(AlarmKit)
+  @available(iOS 26.0, *)
+  private func scheduleAlarm(fireDate: Date, result: @escaping FlutterResult) {
+    Task { @MainActor in
+      do {
+        let manager = AlarmManager.shared
+        let authorizationState: AlarmManager.AuthorizationState
+        if manager.authorizationState == .notDetermined {
+          authorizationState = try await manager.requestAuthorization()
+        } else {
+          authorizationState = manager.authorizationState
+        }
+
+        guard authorizationState == .authorized else {
+          result(false)
           return
         }
-        let content = UNMutableNotificationContent()
-        content.title = values["title"] as? String ?? "VoiceBrief"
-        content.body = values["body"] as? String ?? ""
-        content.sound = .default
-        content.threadIdentifier = "voicebrief-reminders"
-        content.userInfo = ["voicebriefTarget": "reminder"]
-        let identifier = values["identifier"] as? String ?? UUID().uuidString.lowercased()
-        let trigger = UNTimeIntervalNotificationTrigger(
-          timeInterval: max(fireDate.timeIntervalSinceNow, 1),
-          repeats: false
+
+        let alert = AlarmPresentation.Alert(
+          title: "VoiceBrief",
+          secondaryButton: nil,
+          secondaryButtonBehavior: nil
         )
-        center.add(
-          UNNotificationRequest(
-            identifier: "voicebrief-reminder-\(identifier)",
-            content: content,
-            trigger: trigger
+        let attributes = AlarmAttributes(
+          presentation: AlarmPresentation(alert: alert),
+          metadata: VoiceBriefAlarmMetadata(),
+          tintColor: Color.blue
+        )
+        let configuration = AlarmManager.AlarmConfiguration<VoiceBriefAlarmMetadata>.alarm(
+          schedule: .fixed(fireDate),
+          attributes: attributes
+        )
+        _ = try await manager.schedule(id: UUID(), configuration: configuration)
+        result(true)
+      } catch {
+        result(
+          FlutterError(
+            code: "alarm_schedule_failed",
+            message: "The system alarm could not be scheduled",
+            details: nil
           )
-        ) { addError in
-          DispatchQueue.main.async { result(addError == nil) }
-        }
+        )
+      }
+    }
+  }
+#endif
+
+  private func scheduleNotificationFallback(
+    fireDate: Date,
+    values: [String: Any],
+    result: @escaping FlutterResult
+  ) {
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+      guard granted, error == nil else {
+        DispatchQueue.main.async { result(false) }
+        return
+      }
+      let content = UNMutableNotificationContent()
+      content.title = values["title"] as? String ?? "VoiceBrief"
+      content.body = values["body"] as? String ?? ""
+      content.sound = .default
+      content.threadIdentifier = "voicebrief-reminders"
+      content.userInfo = ["voicebriefTarget": "reminder"]
+      let identifier = values["identifier"] as? String ?? UUID().uuidString.lowercased()
+      let trigger = UNTimeIntervalNotificationTrigger(
+        timeInterval: max(fireDate.timeIntervalSinceNow, 1),
+        repeats: false
+      )
+      center.add(
+        UNNotificationRequest(
+          identifier: "voicebrief-reminder-\(identifier)",
+          content: content,
+          trigger: trigger
+        )
+      ) { addError in
+        DispatchQueue.main.async { result(addError == nil) }
       }
     }
   }
