@@ -108,6 +108,12 @@ now reports only relationship, blocker, current resource IDs, and active-item
 count on mismatch. It exposes no credentials and performs no cancellation when
 the constraints do not match.
 
+Run `33307207063` safely reported `relation=NONE`, blocker version
+`890129230`, current version `a03a0acc-2555-44aa-accd-78429a3e6a39`, and one
+active item. Nothing was canceled. The next diagnostic prints only that item's
+ID, state, and relationship target type/ID so the legacy ownership can be
+handled without guessing.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS

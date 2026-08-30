@@ -656,6 +656,13 @@ async function cancelLegacyVersionSubmission(contents, blocker, currentVersion) 
   const submissionState = contents.submission.attributes?.state || 'UNKNOWN'
   const legacyVersionId = contents.submission.relationships?.appStoreVersionForReview?.data?.id
   const activeItems = contents.items.filter((item) => item.attributes?.state !== 'REMOVED')
+  const activeItemSummary = activeItems.map((item) => {
+    const targets = Object.entries(item.relationships || {})
+      .map(([name, relationship]) => relationship?.data?.id ? `${name}=${relationship.data.id}` : null)
+      .filter(Boolean)
+      .join(',') || 'no-target'
+    return `${item.id}:${item.attributes?.state || 'UNKNOWN'}:${targets}`
+  }).join('|') || 'none'
   if (submissionState !== 'UNRESOLVED_ISSUES') {
     throw new Error(`Cannot cancel legacy review submission from state ${submissionState}.`)
   }
@@ -663,11 +670,14 @@ async function cancelLegacyVersionSubmission(contents, blocker, currentVersion) 
     throw new Error(
       'Legacy review submission relationship mismatch: ' +
       `relation=${legacyVersionId || 'NONE'}, blocker=${blocker.appStoreVersionId}, ` +
-      `current=${currentVersion.id}, activeItems=${activeItems.length}.`,
+      `current=${currentVersion.id}, activeItems=${activeItems.length}, ` +
+      `activeItemSummary=${activeItemSummary}.`,
     )
   }
   if (activeItems.length !== 0) {
-    throw new Error('Legacy review submission contains other active items; refusing to cancel it implicitly.')
+    throw new Error(
+      `Legacy review submission contains other active items; refusing to cancel it implicitly: ${activeItemSummary}.`,
+    )
   }
 
   await apiRequest(`/reviewSubmissions/${encodeURIComponent(contents.submission.id)}`, {
