@@ -1,0 +1,100 @@
+name: VoiceBrief Google Play internal
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type app.voicebrief.mobile:18:internal to publish build 18 internally
+        required: true
+        type: string
+      release_tag:
+        description: Draft GitHub release containing the approved signed AAB
+        required: true
+        type: string
+        default: voicebrief-build18-staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voicebrief-google-play-internal
+  cancel-in-progress: false
+
+jobs:
+  publish-internal:
+    name: Publish verified VoiceBrief build 18 internally
+    if: >-
+      github.repository == 'm7madv/otlobli' &&
+      github.ref == 'refs/heads/codex/voicebrief-ios' &&
+      github.actor == 'm7madv'
+    environment: voicebrief-google-play-internal
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AAB_NAME: VoiceBrief-0.1.0-build18-production-signed.aab
+      EXPECTED_AAB_BYTES: "59195892"
+      EXPECTED_AAB_SHA256: AEC8B94AA105FA083372FC7B65419A602AC2A3452DA8F98161CE59E53E262AAD
+      EXPECTED_UPLOAD_CERT_SHA256: 81:AA:4D:A6:E4:25:79:4E:88:0C:8D:DE:0A:75:68:F6:8C:EE:77:4A:3C:18:89:17:02:21:AD:04:46:EE:8F:D9
+
+    steps:
+      - name: Validate the explicit release target
+        env:
+          RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RELEASE_CONFIRMATION" = "app.voicebrief.mobile:18:internal"
+
+      - name: Checkout the guarded publisher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Download the approved signed AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/voicebrief-play"
+          mkdir -p "$destination"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$AAB_NAME" \
+            --dir "$destination"
+          test -f "$destination/$AAB_NAME"
+          echo "VOICEBRIEF_AAB_PATH=$destination/$AAB_NAME" >> "$GITHUB_ENV"
+
+      - name: Verify size, digest, and upload certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(stat -c %s "$VOICEBRIEF_AAB_PATH")" = "$EXPECTED_AAB_BYTES"
+          actual_sha256=$(sha256sum "$VOICEBRIEF_AAB_PATH" | awk '{print toupper($1)}')
+          test "$actual_sha256" = "$EXPECTED_AAB_SHA256"
+          jarsigner -verify -certs "$VOICEBRIEF_AAB_PATH"
+          keytool -printcert -jarfile "$VOICEBRIEF_AAB_PATH" \
+            | grep -F "$EXPECTED_UPLOAD_CERT_SHA256"
+
+      - name: Publish build 18 to the internal track
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+          report="$RUNNER_TEMP/voicebrief-google-play-build18.json"
+          echo "VOICEBRIEF_PLAY_REPORT=$report" >> "$GITHUB_ENV"
+          node .github/scripts/voicebrief_google_play_internal.mjs \
+            "$VOICEBRIEF_AAB_PATH" "$report"
+
+      - name: Upload the safe release report
+        if: always() && env.VOICEBRIEF_PLAY_REPORT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: voicebrief-google-play-build18-internal
+          path: ${{ env.VOICEBRIEF_PLAY_REPORT }}
+          if-no-files-found: error
+          retention-days: 30
