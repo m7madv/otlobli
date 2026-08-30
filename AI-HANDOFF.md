@@ -194,16 +194,19 @@ visible name `01 - <email>` through `12 - <email>`; the one instance containing
 two accounts lists both, and fresh instances 10..12 are honestly labelled
 `EMPTY - ADD GOOGLE ACCOUNT`. New instances use 900x1600@320, 4 CPU, and
 4096MB. Terminal inventory proved all Google accounts already present in
-instances 02..09 are already on the Play tester list. The owner's newly supplied
-account is the only unused account and is assigned to instance 01, but it is not
-yet in Android AccountManager, so the name retains `PENDING`.
-
-Instance 01 is the only running LDPlayer and is currently on the Google sign-in
-screen. Its ADB is temporarily `adbDebug=1`; instances 02..12 are back to 0.
-Once the owner finishes login, verify exactly one Google system account, remove
-`PENDING` from the instance name, restore ADB to 0, and close it. Do not enter,
-store, or print the password. Do not stop the unrelated Android Studio AVD. Use
-terminal launch, ADB, and quit only.
+instances 02..09 are already on the Play tester list. After owner login,
+instance 01 was verified to contain both Adel's account and the new account.
+The owner asked for one account per emulator. No disk/session clone was made
+and no account was removed before a separate login exists. Instance 01 is now
+stopped, ADB=0, and temporarily named with both emails plus `SPLIT PENDING`.
+Empty instance 10 was reassigned to the new account, renamed `PENDING`, and is
+the only running LDPlayer; it is on the Google sign-in screen with AccountManager
+empty and ADB=1. The owner must finish login there. Then verify the account,
+remove only the new account from instance 01 while retaining Adel, normalize
+both names, restore ADB=0, and close them. Instance 02 still contains two
+accounts and may be split into empty instance 11 using the same login-first
+process. Never enter, store, or print passwords. Do not stop the unrelated
+Android Studio AVD. Use terminal launch, ADB, and quit only.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
