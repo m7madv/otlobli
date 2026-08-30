@@ -73,7 +73,13 @@
 - Read-only App Store Connect run [33281554578](https://github.com/m7madv/otlobli/actions/runs/33281554578) confirmed iOS `0.1.0 (9)` is `VALID`, unexpired, attached to `VoiceBrief Internal`, and has the same build ID as the delivery UUID. Status artifact `9723131680` is 416 bytes with SHA-256 `15DF660E61DAA9F05FC42A3696CB071A4F7FEF5ED772892131A8717C0EB71C1F`.
 - `process-audio` active version `9` is deployed only to `jyehqpdbayslhzebdycj`, with bundle hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. The live transcription model is `gpt-4o-mini-transcribe`; summary remains `gpt-5.6-luna` with low reasoning effort and low verbosity.
 - The final Arabic live smoke separated tomorrow at five (`2026-08-31`, confirmation required) from day five/month nine (`2026-09-05`, date-only and confirmation required). Function timing was `11,282ms` total with `1,460ms` transcription; all temporary Auth, Storage, and entitlement test state was cleaned.
-- Real signed-iPhone WhatsApp share/automatic-open acceptance remains incomplete. `NSExtensionContext.open` is best-effort and must not be described as guaranteed. The upload also warns that iOS 15 will become the minimum accepted upload target in Spring 2027; the current build still declares iOS 14.
+- A subsequent signed-iPhone test rejected build 9's automatic and button-triggered app open while confirming that the extension saved the recording. The replacement is recorded below. The upload also warns that iOS 15 will become the minimum accepted upload target in Spring 2027; build 9 declares iOS 14.
+
+## Direct file-opening candidate — 2026-08-30
+
+- Physical iPhone evidence rejects build 9's automatic and button-triggered Share Extension launch. Apple supports `NSExtensionContext.open` on iOS for Today and iMessage extension points, not Share Extensions; the failed request and button have been removed rather than replaced with a private API workaround.
+- Source version is `0.1.0+10`. Runner declares `CFBundleDocumentTypes` for general audio plus MP3/MPEG-4/WAV and imports cold/warm file URLs through `SceneDelegate`/`AppDelegate`; `VoiceBrief Save` remains a clearly separate save-only App Group fallback for source apps that expose only Share Extension payloads.
+- Local format, analysis, 30 non-golden tests, eleven golden tests, and APK debug pass. The local debug APK is 177,592,197 bytes with SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. Signed TestFlight build, App Store processing, and real WhatsApp direct-destination acceptance are pending.
 
 ## Owner/external configuration
 

@@ -16,7 +16,7 @@ Screen → AppController (StateNotifier) → repository interface → fake or pr
 - `lib/core`: typed failures, safe logging, Drift database, validation, formatting, and quota math.
 - `lib/features`: domain/data/presentation code grouped by product feature.
 - `lib/ui/core`: design tokens, themes, and reusable components.
-- Native Kotlin/Swift owns operating-system share handoff. Android accepts `audio/*` plus `application/ogg`, copies granted `content://` data into bounded private cache, and normalizes WhatsApp-style `.opus` names to `.ogg`. iOS uses the registered audio type and the provider's suggested filename through the App Group. Both return a private copied path through `voicebrief/share`; widgets never parse intents or App Group defaults.
+- Native Kotlin/Swift owns operating-system share handoff. Android accepts `audio/*` plus `application/ogg`, copies granted `content://` data into bounded private cache, and normalizes WhatsApp-style `.opus` names to `.ogg`. iOS Runner registers as a `public.audio` document opener so the system can launch the app and deliver a file URL; a save-only Share Extension remains an App Group fallback. Both paths return a private copied path through `voicebrief/share`; widgets never parse intents or App Group defaults.
 - Native calendar bridges open the platform event editor. Flutter presents and confirms the interpreted date first; neither platform performs silent calendar writes.
 - UI widgets call only `AppController`. They do not call Supabase, RevenueCat, or OpenAI directly.
 
@@ -39,4 +39,4 @@ Screen → AppController (StateNotifier) → repository interface → fake or pr
 
 ## Known platform boundary
 
-The iOS `VoiceBriefShare` target is wired in `project.pbxproj`, but its Swift compilation, signing, App Group entitlement, Share Sheet behavior, and calendar editor require macOS/Xcode plus a signed physical-device test.
+The iOS Runner document-opening path and `VoiceBriefShare` target are wired in source, but their Swift compilation, signing, App Group entitlement, WhatsApp destination visibility, and cold/warm file delivery require macOS/Xcode plus a signed physical-device test.

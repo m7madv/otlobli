@@ -23,7 +23,7 @@ The sample configuration intentionally enables mocks and contains no private cre
 - Trimming exports a real private AAC/M4A on Android and iOS before upload. The transcript is automatic and displayed as an optional collapsed word-for-word reference, not as a second summary choice.
 - Results are stored in Drift only when the user explicitly saves them.
 - Server usage reservation and charging are atomic and idempotent by client job ID.
-- Android receives `audio/*` through native Kotlin. iOS includes the real `VoiceBriefShare` extension target and App Group handoff.
+- Android receives `audio/*` through native Kotlin. On iOS, Runner registers as a `public.audio` document opener for a system-supported direct app launch and file handoff; `VoiceBriefShare` remains a save-only App Group fallback because Share Extensions cannot launch their containing app.
 
 ## Verification
 

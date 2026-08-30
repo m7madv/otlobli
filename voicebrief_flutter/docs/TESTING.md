@@ -54,12 +54,18 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 - The deployed Arabic live smoke returned HTTP 200, detected Arabic, preserved both relative and explicit day/month markers, and returned two separate dates: `2026-08-31` and `2026-09-05`. Both require confirmation; the second remained date-only. The temporary user, uploaded object, and test entitlement were removed.
 - After setting the GPT-5.6 summary request to low reasoning effort and low verbosity, the same sample measured `1,330ms` download, `1,460ms` transcription, `7,177ms` summary, and `11,282ms` total inside the function; client elapsed time was `14,431ms`.
 
+## VoiceBrief build 10 direct-open candidate — 2026-08-30
+
+- Physical iPhone evidence rejects build 9's containing-app launch: the Share Extension saved the WhatsApp recording, but both its automatic `NSExtensionContext.open` request and visible `Open VoiceBrief` retry failed. This matches Apple's documented extension-point restriction.
+- Build 10 registers Runner for general audio plus explicit MP3/MPEG-4/WAV types, handles file URLs through scene and app delegates, performs a bounded security-scoped copy, and preserves the existing Flutter inbox. The save-only fallback is visibly named `VoiceBrief Save`, accepts providers from apps that expose only Share Extension payloads, and no longer contains an impossible open action.
+- Local verification passed format across 70 files, analysis with no issues, 30 non-golden tests, all eleven golden tests, and `flutter build apk --debug`. The 177,592,197-byte APK has SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. macOS compilation/signing and direct WhatsApp cold/warm acceptance remain pending.
+
 ## Platform checklist
 
 Android remaining device checks: duplicate delivery timing, hostile/oversize provider, microphone denial/pause/resume, playback conflict/interruption, process death, background/resume, extreme font/display scaling, and TalkBack on the production-signed build. File picker import, real playback/seek/waveform/trim, Back, deletion/Undo, microphone allow/start/cancel, and the default Note 8 viewport have passed on physical hardware.
 
-iOS/macOS remaining: signed App Group cold/warm handoff from WhatsApp, extension cancel/error on-device, Apple/Google redirect, microphone interruption/call/Bluetooth, sandbox monthly/annual/restore, and VoiceOver/Dynamic Type. Runner/extension compilation, signed archive/export, entitlement verification, and App Store validation/upload pass on GitHub macOS.
+iOS/macOS remaining: build 10 direct file-opening visibility and cold/warm handoff from WhatsApp, save-only extension cancel/error, microphone interruption/call/Bluetooth, sandbox monthly/annual/restore, and VoiceOver/Dynamic Type. Build 9 physically confirmed file saving but rejected containing-app launch; its Runner/extension compilation, signed archive/export, entitlement verification, and App Store validation/upload pass on GitHub macOS.
 
 ## Honest environment record
 
-This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded the iOS app plus Share Extension; simulator interaction and physical-iPhone acceptance remain unperformed.
+This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded build 9; build 10 compilation and upload are pending. The user's physical iPhone supplied build 9 failure evidence, while build 10 direct-opening acceptance remains unperformed.

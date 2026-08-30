@@ -2,18 +2,20 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 9
+## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 10
 
 - اعمل فقط داخل `voicebrief_flutter/` وملفات workflow الخاصة به على الفرع `codex/voicebrief-ios`. مشروع Supabase الصحيح `jyehqpdbayslhzebdycj`؛ لا تستخدم Damanak أو `talabieh`.
-- `ShareViewController.swift` يحفظ manifest ذرياً في App Group ثم يستعمل public `NSExtensionContext.open` لطلب `voicebrief://shared-audio`. هذا best-effort لأن iOS قد يرفض فتح التطبيق من Share Extension؛ عند الرفض يظهر زر إعادة محاولة. لا تضف `UIApplication.shared` أو responder-chain hacks.
+- أثبت iPhone الحقيقي أن البناء 9 يحفظ الملف لكن `NSExtensionContext.open` يفشل تلقائياً وعند الضغط على الزر. Apple لا تدعم هذا API في Share Extension؛ لا تعِد الطلب ولا تضف `UIApplication.shared` أو responder-chain hacks.
+- البناء 10 يستخدم مسارين عامين: Runner يعلن `CFBundleDocumentTypes` للصوت العام وMP3/MPEG-4/WAV، ويتلقى `file://` في `SceneDelegate` و`AppDelegate`، ثم `VoiceBriefShareBridge.importDocument` ينسخه على queue محدودة إلى App Group ويبلّغ Flutter في التشغيل البارد أو الدافئ. `VoiceBrief Save` يبقى Share Extension احتياطياً لأي تطبيق يقدّم ملفاً/مرفقاً صوتياً، ويحفظ فقط مع زر `Done`.
+- لا تعد بفتح مباشر من كل تطبيق: التطبيق المصدر وiOS يحددان إن كان الملف يُعرض لوجهة document-open أو للامتداد. حافظ على المسارين؛ لا توسّع Runner إلى `public.data` لأنه سيظهر للملفات غير الصوتية.
 - `process-audio/date_normalization.ts` يصحح فقط العبارات ذات علامة تاريخ صريحة (`يوم`/`بتاريخ`/`تاريخ`) كي لا تتحول أوقات الساعة إلى تواريخ. `يوم خمسة تسعة` ينتج 5 سبتمبر القادم، ويظل الوقت غير المذكور بحاجة إلى تأكيد.
 - الخادم يرسل `languageHint` مضبوطاً على `ar/en`، ويستخدم `gpt-4o-mini-transcribe` للنسخ و`gpt-5.6-luna` للتلخيص. طلب التلخيص يثبت `reasoning.effort=low` و`text.verbosity=low` مع JSON Schema الصارم. لا تسجل transcript أو اسم ملف أو هوية المستخدم.
 - `process-audio` منشور حصراً إلى `jyehqpdbayslhzebdycj`: `ACTIVE` version `9`، id `e4a26c2e-b9f2-43d3-9a6b-61467b8c8747`، hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. `OPENAI_TRANSCRIPTION_MODEL` الحي هو `gpt-4o-mini-transcribe`؛ لا تمس بقية الأسرار.
 - اختبار عربي حي نهائي بعينة `24.096s` فصل الغد `2026-08-31` عن `2026-09-05`، وطلب التأكيد لكليهما، ثم حذف مستخدم وStorage واستحقاق الاختبار. قياس الوظيفة: download `1330ms`، transcription `1460ms`، summary `7177ms`، total `11282ms`؛ زمن العميل `14431ms`. قبل خفض جهد التلخيص كانت الوظيفة نفسها `19717ms` والعميل `21066ms`.
-- التحقق المحلي الحالي: format على 70 ملفاً، analyze بلا مشكلات، 30 non-golden، 11 golden، Deno fmt، خمسة date tests، وDeno check. CI النهائي run `33280858741` من `05d9c3e` نجح في Android APK وiOS no-codesign وgolden وDeno؛ run `33031413075` السابق ناجح أيضاً.
+- التحقق المحلي للبناء 10: format على 70 ملفاً، analyze بلا مشكلات، 30 non-golden، 11 golden، وAPK debug ناجح. APK حجمه `177,592,197` وبصمته `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. نتائج Deno والبناء 9 السابقة ما زالت ناجحة؛ CI/Xcode للبناء 10 ينتظر الرفع.
 - TestFlight run `33031418401` نجح ورفع build 9؛ Delivery UUID `d3788d62-0ca7-423f-b234-425a325012f7`. IPA SHA-256 `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`، وZIP SHA-256 `DF4BFA9674C7F86C88BFBF0446B0BD1DBCC88941195D5E6AAD0F69FF937AC333`.
 - workflow القراءة فقط `.github/workflows/voicebrief-appstore-status.yml` نجح في run `33281554578`: App Store Connect يعرض `0.1.0 (9)` بحالة `VALID` وغير منتهٍ ومرتبطاً بمجموعة `VoiceBrief Internal`، build ID نفسه `d3788d62-0ca7-423f-b234-425a325012f7`، والحد الأدنى iOS 14. تقرير artifact رقم `9723131680` وبصمته `15DF660E61DAA9F05FC42A3696CB071A4F7FEF5ED772892131A8717C0EB71C1F`.
-- بقي قبول WhatsApp Share Extension على iPhone حقيقي؛ `flutter devices` لم يجد جهاز iOS. لا تدّع أن `NSExtensionContext.open` يفتح التطبيق دائماً. سجّل أيضاً أن iOS 14 مقبول الآن، لكن تحذير Apple يطلب iOS 15 للرفع بدءاً من ربيع 2027.
+- البناء 9 مرفوض جهازياً لمسار الفتح. بعد رفع البناء 10 اختبر من WhatsApp خيار VoiceBrief المباشر، التشغيل البارد والدافئ، وظهور التسجيل داخل التطبيق. وجود التطبيق كعارض للصوت يعتمد على اختيار iOS في قائمة فتح الملف، فلا تدّع قبول الجهاز قبل الاختبار. iOS 14 مقبول الآن، لكن Apple تطلب iOS 15 للرفع بدءاً من ربيع 2027.
 
 
 ## مشروع مستقل (2026-08-25) — ضمانك 4.1.0+7

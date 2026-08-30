@@ -8,6 +8,24 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>VoiceBrief</string>
+		<key>CFBundleDocumentTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeName</key>
+				<string>Audio</string>
+				<key>CFBundleTypeRole</key>
+				<string>Viewer</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
+				<key>LSItemContentTypes</key>
+				<array>
+					<string>public.audio</string>
+					<string>public.mp3</string>
+					<string>public.mpeg-4-audio</string>
+					<string>com.microsoft.waveform-audio</string>
+				</array>
+			</dict>
+		</array>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -45,6 +63,8 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<false/>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>NSCalendarsFullAccessUsageDescription</key>

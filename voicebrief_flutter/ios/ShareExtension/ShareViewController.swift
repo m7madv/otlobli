@@ -16,7 +16,6 @@ final class ShareViewController: UIViewController {
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private var importStarted = false
-  private var openAttemptInProgress = false
 
   private let symbolView: UIImageView = {
     let view = UIImageView(image: UIImage(systemName: "waveform.circle.fill"))
@@ -218,7 +217,7 @@ final class ShareViewController: UIViewController {
         try? FileManager.default.removeItem(at: target)
         throw ImportFailure.writeFailed
       }
-      showSuccessAndOpenApp()
+      showSuccess()
     } catch let failure as ImportFailure {
       showFailure(failure)
     } catch {
@@ -293,7 +292,7 @@ final class ShareViewController: UIViewController {
     return "\(stem.isEmpty ? "shared-audio" : stem).\(canonicalExtension)"
   }
 
-  private func showSuccessAndOpenApp() {
+  private func showSuccess() {
     DispatchQueue.main.async {
       self.progressView.stopAnimating()
       self.symbolView.image = UIImage(systemName: "checkmark.circle.fill")
@@ -303,48 +302,14 @@ final class ShareViewController: UIViewController {
         english: "Voice note imported"
       )
       self.messageLabel.text = self.localized(
-        arabic: "جارٍ فتح VoiceBrief والتسجيل جاهز للتحويل…",
-        english: "Opening VoiceBrief with your voice note ready to process…"
-      )
-      self.actionButton.isHidden = true
-      UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
-      self.openContainingApp()
-    }
-  }
-
-  @objc private func openContainingApp() {
-    guard !openAttemptInProgress else { return }
-    guard let url = URL(string: "voicebrief://shared-audio"),
-          let context = extensionContext
-    else {
-      showOpenFallback()
-      return
-    }
-    openAttemptInProgress = true
-    context.open(url) { [weak self] opened in
-      DispatchQueue.main.async {
-        guard let self else { return }
-        self.openAttemptInProgress = false
-        if opened {
-          context.completeRequest(returningItems: nil)
-        } else {
-          self.showOpenFallback()
-        }
-      }
-    }
-  }
-
-  private func showOpenFallback() {
-    DispatchQueue.main.async {
-      self.messageLabel.text = self.localized(
-        arabic: "حُفظ التسجيل، لكن iOS منع فتح التطبيق تلقائيًا. اضغط «فتح VoiceBrief» للمحاولة مرة أخرى.",
-        english: "Your voice note is saved, but iOS prevented the app from opening automatically. Tap Open VoiceBrief to try again."
+        arabic: "حُفظ التسجيل. اضغط «تم» ثم افتح VoiceBrief. للانتقال مباشرة في المرة القادمة اختر VoiceBrief نفسه من خيارات فتح الملف.",
+        english: "Your voice note is saved. Tap Done, then open VoiceBrief. Next time, choose VoiceBrief itself from the file-opening options for a direct transition."
       )
       self.configureActionButton(
-        title: self.localized(arabic: "فتح VoiceBrief", english: "Open VoiceBrief"),
-        action: #selector(self.openContainingApp)
+        title: self.localized(arabic: "تم", english: "Done"),
+        action: #selector(self.closeExtension)
       )
-      UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
+      UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
     }
   }
 

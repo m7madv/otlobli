@@ -3,13 +3,27 @@ import AVFoundation
 import EventKit
 import EventKitUI
 import UIKit
+import UniformTypeIdentifiers
 
 final class VoiceBriefShareBridge {
   static let shared = VoiceBriefShareBridge()
 
+  private enum DocumentImportFailure: Error {
+    case unsupportedAudio
+    case unreadableAudio
+    case oversizedAudio
+    case appGroupUnavailable
+    case writeFailed
+  }
+
   private let appGroup = "group.app.voicebrief.mobile"
   private let legacyPayloadKey = "VoiceBriefPendingShare"
   private let manifestName = "pending-share.json"
+  private let maxAudioBytes: Int64 = 25 * 1024 * 1024
+  private let importQueue = DispatchQueue(
+    label: "app.voicebrief.mobile.document-import",
+    qos: .userInitiated
+  )
   private var channel: FlutterMethodChannel?
   private var dartReady = false
 
@@ -28,7 +42,30 @@ final class VoiceBriefShareBridge {
 
   func notifyIfReady() {
     guard dartReady, let payload = takePayload() else { return }
-    channel?.invokeMethod("shareReceived", arguments: payload)
+    if payload["error"] != nil {
+      channel?.invokeMethod("shareError", arguments: nil)
+    } else {
+      channel?.invokeMethod("shareReceived", arguments: payload)
+    }
+  }
+
+  func importDocument(at source: URL) {
+    let accessingSecurityScopedResource = source.startAccessingSecurityScopedResource()
+    importQueue.async {
+      defer {
+        if accessingSecurityScopedResource {
+          source.stopAccessingSecurityScopedResource()
+        }
+      }
+      do {
+        try self.persistDocument(source)
+      } catch {
+        self.persistImportError()
+      }
+      DispatchQueue.main.async {
+        self.notifyIfReady()
+      }
+    }
   }
 
   private func takePayload() -> [String: Any]? {
@@ -54,6 +91,100 @@ final class VoiceBriefShareBridge {
     defaults.removeObject(forKey: legacyPayloadKey)
     return payload
   }
+
+  private func persistDocument(_ source: URL) throws {
+    let sourceExtension = source.pathExtension.lowercased()
+    let sourceType = UTType(filenameExtension: sourceExtension)
+    guard sourceType?.conforms(to: .audio) == true
+      || Self.supportedAudioExtensions.contains(sourceExtension)
+    else {
+      throw DocumentImportFailure.unsupportedAudio
+    }
+
+    let values = try source.resourceValues(forKeys: [.fileSizeKey])
+    let size: Int64
+    if let fileSize = values.fileSize, fileSize > 0 {
+      size = Int64(fileSize)
+    } else {
+      let attributes = try FileManager.default.attributesOfItem(atPath: source.path)
+      size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+    }
+    guard size > 0 else { throw DocumentImportFailure.unreadableAudio }
+    guard size <= maxAudioBytes else { throw DocumentImportFailure.oversizedAudio }
+    guard let container = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: appGroup
+    ) else {
+      throw DocumentImportFailure.appGroupUnavailable
+    }
+
+    let incoming = container.appendingPathComponent("Incoming", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: incoming,
+      withIntermediateDirectories: true
+    )
+    let manifest = incoming.appendingPathComponent(manifestName)
+    removePreviousPayload(manifest: manifest)
+
+    let originalName = source.lastPathComponent.isEmpty
+      ? "shared-audio.\(sourceExtension.isEmpty ? "m4a" : sourceExtension)"
+      : source.lastPathComponent
+    let target = incoming.appendingPathComponent("\(UUID().uuidString)-\(originalName)")
+    do {
+      try FileManager.default.copyItem(at: source, to: target)
+      let mime = sourceType?.preferredMIMEType
+        ?? UTType(filenameExtension: target.pathExtension)?.preferredMIMEType
+        ?? "audio/*"
+      let duration = CMTimeGetSeconds(AVURLAsset(url: target).duration)
+      let payload: [String: Any] = [
+        "path": target.path,
+        "name": originalName,
+        "mime": mime,
+        "source": "iosShare",
+        "sizeBytes": size,
+        "durationSeconds": duration.isFinite && duration > 0 ? Int(ceil(duration)) : 0,
+      ]
+      let data = try JSONSerialization.data(withJSONObject: payload)
+      try data.write(to: manifest, options: .atomic)
+      UserDefaults(suiteName: appGroup)?.removeObject(forKey: legacyPayloadKey)
+    } catch {
+      try? FileManager.default.removeItem(at: target)
+      throw DocumentImportFailure.writeFailed
+    }
+  }
+
+  private func persistImportError() {
+    guard let container = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: appGroup
+    ) else { return }
+    let incoming = container.appendingPathComponent("Incoming", isDirectory: true)
+    try? FileManager.default.createDirectory(
+      at: incoming,
+      withIntermediateDirectories: true
+    )
+    let manifest = incoming.appendingPathComponent(manifestName)
+    removePreviousPayload(manifest: manifest)
+    let payload = ["error": "share_handoff"]
+    guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+    try? data.write(to: manifest, options: .atomic)
+  }
+
+  private func removePreviousPayload(manifest: URL) {
+    if let data = try? Data(contentsOf: manifest),
+       let object = try? JSONSerialization.jsonObject(with: data),
+       let value = object as? [String: Any],
+       let previousPath = value["path"] as? String {
+      try? FileManager.default.removeItem(atPath: previousPath)
+    }
+    try? FileManager.default.removeItem(at: manifest)
+    if let previous = UserDefaults(suiteName: appGroup)?.dictionary(forKey: legacyPayloadKey),
+       let previousPath = previous["path"] as? String {
+      try? FileManager.default.removeItem(atPath: previousPath)
+    }
+  }
+
+  private static let supportedAudioExtensions: Set<String> = [
+    "flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "opus", "wav", "webm",
+  ]
 }
 
 final class VoiceBriefCalendarBridge: NSObject, EKEventEditViewDelegate {
@@ -210,6 +341,18 @@ final class VoiceBriefAudioEditorBridge {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    if url.isFileURL {
+      VoiceBriefShareBridge.shared.importDocument(at: url)
+      return true
+    }
+    return super.application(app, open: url, options: options)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

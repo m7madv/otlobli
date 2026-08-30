@@ -13,12 +13,12 @@ permissions:
 
 jobs:
   inspect-build:
-    name: Inspect VoiceBrief build 9
+    name: Inspect VoiceBrief build 10
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       VOICEBRIEF_APP_ID: "6805194629"
-      VOICEBRIEF_BUILD_NUMBER: "9"
+      VOICEBRIEF_BUILD_NUMBER: "10"
 
     steps:
       - name: Install App Store Connect client dependencies
@@ -29,7 +29,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          REPORT_PATH: ${{ runner.temp }}/voicebrief-appstore-build9.json
+          REPORT_PATH: ${{ runner.temp }}/voicebrief-appstore-build10.json
         shell: bash
         run: |
           set -euo pipefail
@@ -110,7 +110,7 @@ jobs:
                   ) from error
 
 
-          deadline = time.monotonic() + 600
+          deadline = time.monotonic() + 1_200
           payload = {}
           build = None
           while True:
@@ -134,7 +134,7 @@ jobs:
                           f"VoiceBrief build {build_number} was not found for app {app_id}."
                       )
                   raise SystemExit(
-                      f"VoiceBrief build {build_number} is still processing after 10 minutes."
+                      f"VoiceBrief build {build_number} is still processing after 20 minutes."
                   )
               time.sleep(20)
 
@@ -209,7 +209,7 @@ jobs:
       - name: Upload the safe status report
         uses: actions/upload-artifact@v4
         with:
-          name: voicebrief-appstore-build9-status
-          path: ${{ runner.temp }}/voicebrief-appstore-build9.json
+          name: voicebrief-appstore-build10-status
+          path: ${{ runner.temp }}/voicebrief-appstore-build10.json
           if-no-files-found: error
           retention-days: 30
