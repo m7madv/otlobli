@@ -20,6 +20,9 @@ if (!/^[A-F0-9]{64}$/.test(authorization.sha256)) throw new Error('Invalid autho
 if (authorization.operation === 'publish' && !String(authorization.track || '').trim()) {
   throw new Error('Publishing requires an exact Google Play track in the authorization record.')
 }
+if (authorization.operation === 'publish' && !['draft', 'completed'].includes(authorization.releaseStatus)) {
+  throw new Error('Publishing requires an exact Google Play releaseStatus of draft or completed.')
+}
 
 const bundlePath = resolve(repositoryRoot, authorization.bundlePath)
 if (!bundlePath.startsWith(`${repositoryRoot}\\`) && !bundlePath.startsWith(`${repositoryRoot}/`)) {
@@ -179,22 +182,22 @@ try {
           track: authorization.track,
           releases: [{
             name: `Otlobli ${authorization.appVersion} (${authorization.versionCode})`,
-            status: 'completed',
+            status: authorization.releaseStatus,
             versionCodes: [authorization.versionCode],
           }],
         },
       },
     )
     const release = updatedTrack.releases?.[0]
-    if (release?.status !== 'completed' || !release.versionCodes?.includes(authorization.versionCode)) {
-      throw new Error('Google Play closed-test track did not retain the authorized completed release.')
+    if (release?.status !== authorization.releaseStatus || !release.versionCodes?.includes(authorization.versionCode)) {
+      throw new Error('Google Play closed-test track did not retain the authorized release status/version.')
     }
 
     await apiRequest(`${apiRoot}/applications/${packageName}/edits/${editId}:commit`, { method: 'POST', body: {} })
     committed = true
     console.log(
       `Published ${authorization.appVersion} (${authorization.versionCode}) to Google Play track ` +
-      `${authorization.track}; status=completed.`,
+      `${authorization.track}; status=${authorization.releaseStatus}.`,
     )
   }
 } finally {

@@ -1,6 +1,7 @@
 {
   "operation": "publish",
   "track": "alpha",
+  "releaseStatus": "draft",
   "packageName": "com.otlobli.app",
   "appVersion": "86.244",
   "versionCode": "1112",

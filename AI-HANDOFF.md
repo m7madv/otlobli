@@ -144,7 +144,11 @@ financial permission. Inspection `33310340151` succeeded with zero bundles and
 empty tracks `production`, `beta`, `alpha`, `internal`. The exact-build gate is
 now `publish` and explicitly bound to closed-testing track `alpha`. Dispatch the
 workflow, verify upload/versionCode 1112/track status, and never rebuild or
-substitute the AAB.
+substitute the AAB. First publish run `33310435203` uploaded inside an uncommitted
+edit but Google rejected `completed` because the new app is still draft; the edit
+was deleted and no test started. The gate now requires `releaseStatus` and is
+temporarily `draft`. Commit that exact AAB draft to `alpha`, finish all 11 app
+setup tasks truthfully, then change only `releaseStatus` to `completed` and rerun.
 
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
 It lists 12 instances indexed 0..11; legacy LDPlayer4 lists none. Terminal-only
