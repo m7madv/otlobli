@@ -219,7 +219,9 @@ async function request(path, { method = 'GET', body } = {}) {
       const retryAfter = Number(response.headers.get('retry-after'));
       const delayMilliseconds = Number.isFinite(retryAfter)
         ? retryAfter * 1000
-        : Math.min(1000 * 2 ** attempt, 15000);
+        : response.status === 429
+          ? Math.min(60000 * (attempt + 1), 180000)
+          : Math.min(1000 * 2 ** attempt, 15000);
       await sleep(delayMilliseconds);
       continue;
     }
@@ -1229,38 +1231,36 @@ async function ensureApprovedPrices(subscription, definition) {
     }
   }
 
-  for (let index = 0; index < missingTerritories.length; index += 4) {
-    const batch = missingTerritories.slice(index, index + 4);
-    await Promise.all(
-      batch.map(async (territory) => {
-        const point = pricePoints.get(territory);
-        await request('/v1/subscriptionPrices', {
-          method: 'POST',
-          body: {
-            data: {
-              type: 'subscriptionPrices',
-              attributes: {
-                startDate: null,
-                planType: SUBSCRIPTION_PLAN_TYPE,
-              },
-              relationships: {
-                subscription: {
-                  data: { type: 'subscriptions', id: subscription.id },
-                },
-                subscriptionPricePoint: {
-                  data: { type: 'subscriptionPricePoints', id: point.id },
-                },
-              },
+  for (const [index, territory] of missingTerritories.entries()) {
+    const point = pricePoints.get(territory);
+    await request('/v1/subscriptionPrices', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionPrices',
+          attributes: {
+            startDate: null,
+            planType: SUBSCRIPTION_PLAN_TYPE,
+          },
+          relationships: {
+            subscription: {
+              data: { type: 'subscriptions', id: subscription.id },
+            },
+            subscriptionPricePoint: {
+              data: { type: 'subscriptionPricePoints', id: point.id },
             },
           },
-        });
-        territories[territory] = {
-          state: 'created',
-          planType: SUBSCRIPTION_PLAN_TYPE,
-          customerPrice: point.attributes?.customerPrice,
-        };
-      }),
-    );
+        },
+      },
+    });
+    territories[territory] = {
+      state: 'created',
+      planType: SUBSCRIPTION_PLAN_TYPE,
+      customerPrice: point.attributes?.customerPrice,
+    };
+    if (index < missingTerritories.length - 1) {
+      await sleep(500);
+    }
   }
   return {
     state: 'applied',
