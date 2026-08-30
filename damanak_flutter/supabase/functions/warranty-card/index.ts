@@ -275,12 +275,15 @@ export function renderWarranty(
     : "#087F5B";
   const portalTitle = store.customer_portal_title?.trim() ||
     "بطاقة ضمان موثّقة";
-  const policy = productPolicy.policy?.trim() || store.warranty_policy?.trim() ||
+  const policy = productPolicy.policy?.trim() ||
+    store.warranty_policy?.trim() ||
     "يغطي الضمان عيوب الصناعة والأعطال المشمولة خلال المدة الموضحة في البطاقة.";
   const exclusions = productPolicy.exclusions?.trim() ||
     store.warranty_exclusions?.trim() || "";
   const logo = store.logo_url?.startsWith("https://")
-    ? `<img class="logo" src="${escapeHtml(store.logo_url)}" alt="شعار ${escapeHtml(store.name)}">`
+    ? `<img class="logo" src="${escapeHtml(store.logo_url)}" alt="شعار ${
+      escapeHtml(store.name)
+    }">`
     : `<div class="mark" aria-hidden="true">✓</div>`;
   const status = warrantyStatus(warranty.expiry_date);
   const canSubmitClaim = status.className !== "expired";
@@ -401,7 +404,9 @@ export function renderWarranty(
     </head>
     <body>
       <main>
-        <header>${logo}<div><h1>${escapeHtml(portalTitle)}</h1><p class="muted">صادرة عبر ضمانك</p></div></header>
+        <header>${logo}<div><h1>${
+    escapeHtml(portalTitle)
+  }</h1><p class="muted">صادرة عبر ضمانك</p></div></header>
         ${submittedNotice}
         <article class="card">
           <div class="card-head"><h2>${escapeHtml(store.name)}</h2><p>${
@@ -442,7 +447,13 @@ export function renderWarranty(
         <section class="section" aria-labelledby="policy-title">
           <div class="section-head"><div><h2 id="policy-title">تغطية الضمان</h2><p class="muted">السياسة المعتمدة لهذا المنتج.</p></div></div>
           <p>${escapeHtml(policy)}</p>
-          ${exclusions ? `<h2 style="font-size:1rem;margin-top:16px">الاستثناءات</h2><p class="muted">${escapeHtml(exclusions)}</p>` : ""}
+          ${
+    exclusions
+      ? `<h2 style="font-size:1rem;margin-top:16px">الاستثناءات</h2><p class="muted">${
+        escapeHtml(exclusions)
+      }</p>`
+      : ""
+  }
         </section>
         <section class="section" aria-labelledby="claims-title">
           <div class="section-head"><div><h2 id="claims-title">مطالبات هذا الضمان</h2><p class="muted">الحالة المعروضة هي آخر تحديث شاركه المتجر.</p></div></div>
@@ -795,11 +806,27 @@ async function viewWarranty(request: Request) {
   if (error || !warranty) return json(404, { error: "WARRANTY_NOT_FOUND" });
   const { data: store, error: storeError } = await admin
     .from("stores")
-    .select("name,city,phone,logo_url,brand_color,customer_portal_title,warranty_policy,warranty_exclusions")
+    .select(
+      "name,city,phone,logo_url,brand_color,customer_portal_title,warranty_policy,warranty_exclusions",
+    )
     .eq("id", warranty.store_id)
     .maybeSingle();
   if (storeError || !store) return json(404, { error: "STORE_NOT_FOUND" });
-  const { data: product } = warranty.product_id
+  const { data: brandingAllowed } = await admin.rpc("store_plan_allows", {
+    target_store_id: warranty.store_id,
+    entitlement_name: "branding",
+  });
+  const publicStore = brandingAllowed === true ? store : {
+    name: store.name,
+    city: store.city,
+    phone: store.phone,
+    logo_url: "",
+    brand_color: "#087F5B",
+    customer_portal_title: "بطاقة ضمان موثّقة",
+    warranty_policy: "",
+    warranty_exclusions: "",
+  };
+  const { data: product } = brandingAllowed === true && warranty.product_id
     ? await admin.from("products").select("warranty_policy,warranty_exclusions")
       .eq("id", warranty.product_id).eq("store_id", warranty.store_id)
       .maybeSingle()
@@ -819,7 +846,7 @@ async function viewWarranty(request: Request) {
   return new Response(
     renderWarranty(
       warranty,
-      store,
+      publicStore,
       claims ?? [],
       token,
       url.searchParams.get("submitted")?.trim() || null,

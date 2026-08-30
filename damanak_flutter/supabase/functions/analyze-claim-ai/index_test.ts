@@ -1,7 +1,13 @@
-import { claimReviewSchema, extractOutputText, sanitizeReview } from "./index.ts";
+import {
+  claimReviewSchema,
+  extractOutputText,
+  sanitizeReview,
+} from "./index.ts";
 
 Deno.test("claim AI review stays strict and cannot decide the claim", () => {
-  if (claimReviewSchema.additionalProperties !== false) throw new Error("schema not strict");
+  if (claimReviewSchema.additionalProperties !== false) {
+    throw new Error("schema not strict");
+  }
   const serialized = JSON.stringify(claimReviewSchema);
   if (serialized.includes("accept") || serialized.includes("reject")) {
     throw new Error("automated decision leaked into schema");

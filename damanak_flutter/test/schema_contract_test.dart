@@ -154,6 +154,35 @@ void main() {
     }
   });
 
+  test(
+    'حارس التجربة يمنع تكرارها على الحساب والجهاز ولا يخزن المعرّف الخام',
+    () {
+      final migration = File(
+        'supabase/migrations/20260831030000_damanak_trial_abuse_guard.sql',
+      ).readAsStringSync();
+      final repository = File(
+        'lib/data/supabase_repository.dart',
+      ).readAsStringSync();
+
+      for (final token in [
+        'private.trial_account_claims',
+        'private.trial_device_claims',
+        "'damanak:trial-account:v1:'",
+        "'damanak:trial-device:v1:'",
+        'TRIAL_ALREADY_USED_BY_ACCOUNT',
+        'TRIAL_ALREADY_USED_ON_DEVICE',
+        'APP_UPDATE_REQUIRED_FOR_TRIAL',
+        'register_trial_device',
+        'revoke all on function public.register_trial_device',
+      ]) {
+        expect(migration, contains(token));
+      }
+      expect(migration, isNot(contains('raw_device_claim')));
+      expect(repository, contains("'device_claim'"));
+      expect(repository, contains("'register_trial_device'"));
+    },
+  );
+
   test('مخطط المطالبات يفرض دورة خدمة معزولة وتحديثاً متزامناً آمناً', () {
     final schema = File(
       'supabase/migrations/20260830160000_damanak_claims_foundation.sql',
@@ -363,5 +392,196 @@ void main() {
     expect(function, isNot(contains('customer_name')));
     expect(function, isNot(contains('customer_phone')));
     expect(function, isNot(contains('.from("maintenance_requests").update')));
+  });
+
+  test('حواجز الاستحقاق والحصص تستخدم مسارات ذرية ولا تترك تنفيذًا للزائر', () {
+    final posture = File(
+      'supabase/migrations/20260831040000_damanak_security_posture.sql',
+    ).readAsStringSync();
+    final guards = File(
+      'supabase/migrations/20260831050000_damanak_entitlement_and_quota_guards.sql',
+    ).readAsStringSync();
+
+    expect(posture, contains('DAMANAK_ANON_FUNCTION_EXECUTE_REMAINS'));
+    for (final token in [
+      'claim_ai_import_job',
+      'claim_ai_claim_review_job',
+      'reserve_api_request',
+      'finish_api_request',
+      "pg_advisory_xact_lock",
+      "status = 'trialing'",
+      'current_period_end > now()',
+      'DAMANAK_ANON_FUNCTION_EXECUTE_REMAINS',
+    ]) {
+      expect(guards, contains(token));
+    }
+  });
+
+  test('مزامنة المتجر دورية ومحدودة بالاستحقاقات القابلة للاستعمال', () {
+    final migration = File(
+      'supabase/migrations/20260831060000_damanak_recurring_entitlement_security.sql',
+    ).readAsStringSync();
+    final function = File(
+      'supabase/functions/refresh-store-entitlements/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'next_verification_at',
+      'claim_store_entitlement_refreshes',
+      "status in ('active', 'grace', 'past_due')",
+      'for update skip locked',
+      'damanak-entitlement-refresh',
+      'entitlement_refresh_secret',
+      'DAMANAK_ANON_FUNCTION_EXECUTE_REMAINS',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(function, contains('ENTITLEMENT_REFRESH_SECRET'));
+    expect(function, contains('verifyApplePurchase'));
+    expect(function, contains('verifyGooglePurchase'));
+  });
+
+  test('مسارات الكتابة تمنع نقل الملكية وتزوير المطالبات وتخمن الدعوات', () {
+    final migration = File(
+      'supabase/migrations/20260831070000_damanak_write_path_hardening.sql',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/data/supabase_repository.dart',
+    ).readAsStringSync();
+
+    for (final token in [
+      'revoke update on table public.stores from authenticated',
+      'enforce_authenticated_claim_write',
+      'CLAIM_IMMUTABLE_FIELDS',
+      'create_maintenance_request',
+      'revoke update on table public.maintenance_requests',
+      'private.invite_join_attempts',
+      'INVITE_RATE_LIMITED',
+      'gen_random_bytes(16)',
+      "[A-F0-9]{32}",
+      'drop policy if exists invites_select_managers',
+      'revoke select on table public.invite_codes',
+      'private.store_purchase_verification_limits',
+      'reserve_store_purchase_verification',
+      'window_attempts >= 10',
+      'day_attempts >= 50',
+      'subscriptions_enforce_member_limit',
+      'member_suspended_for_plan_limit',
+      "target_status = 'active'",
+      'enforce_usable_subscription_for_core_write',
+      'core_write_triggers',
+      "'register_sessions'",
+      "table_name || '_usable_subscription_guard'",
+      'SUBSCRIPTION_INACTIVE',
+      'DAMANAK_ANON_FUNCTION_EXECUTE_REMAINS',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(repository, contains("'create_maintenance_request'"));
+    expect(
+      repository,
+      isNot(contains(".from('maintenance_requests')\n        .insert")),
+    );
+  });
+
+  test(
+    'حارس الكتابة يجعل التشغيل منتهي الاشتراك للقراءة فقط ويحفظ المرتجع',
+    () {
+      final migration = File(
+        'supabase/migrations/20260831080000_damanak_business_write_paywall.sql',
+      ).readAsStringSync();
+
+      for (final token in [
+        'enforce_usable_subscription_for_core_write',
+        "coalesce((select auth.role()), '') <> 'authenticated'",
+        'before insert or update',
+        "table_name || '_00_subscription_write_guard'",
+        "'register_sessions'",
+        "'sale_returns'",
+        "'warranties'",
+        "current_setting('damanak.write_context', true)",
+        "set_config('damanak.write_context', 'return_sale', true)",
+        "to_jsonb(old)->>'status' = 'open'",
+        "to_jsonb(new)->>'status' = 'closed'",
+        'SUBSCRIPTION_INACTIVE',
+      ]) {
+        expect(migration, contains(token));
+      }
+      expect(migration, isNot(contains('before insert or update or delete')));
+    },
+  );
+
+  test('محدد تحقق المتجر يستخدم وقتًا UTC بلا تعارض مع CURRENT_TIME', () {
+    final migration = File(
+      'supabase/migrations/20260831100000_damanak_purchase_verification_limiter_fix.sql',
+    ).readAsStringSync();
+    expect(migration, contains('request_time timestamptz'));
+    expect(migration, contains("request_time at time zone 'UTC'"));
+    expect(migration, isNot(contains('current_time timestamptz')));
+  });
+
+  test('حارس الكتابة العام لا يفترض حقول سجل خاصة بجدول واحد', () {
+    final migration = File(
+      'supabase/migrations/20260831110000_damanak_generic_write_trigger_record_fix.sql',
+    ).readAsStringSync();
+    expect(migration, contains("to_jsonb(old)->>'status'"));
+    expect(migration, contains("to_jsonb(new)->>'store_id'"));
+    expect(migration, isNot(contains('old.status')));
+    expect(migration, isNot(contains('new.status')));
+  });
+
+  test('ربط إيصال المتجر ذري وSandbox محصور بمختبر مؤقت', () {
+    final migration = File(
+      'supabase/migrations/20260831120000_damanak_atomic_store_receipt_link.sql',
+    ).readAsStringSync();
+    final verifier = File(
+      'supabase/functions/verify-store-purchase/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'private.store_sandbox_testers',
+      "interval '24 hours'",
+      'pg_advisory_xact_lock',
+      'STORE_PURCHASE_ALREADY_LINKED',
+      'SANDBOX_TESTER_NOT_ALLOWED',
+      'SANDBOX_CANNOT_REPLACE_PRODUCTION',
+      'subscriptions_store_receipt_unique',
+      'subscriptions_store_entitlement_fk',
+      'subscriptions_store_receipt_complete_check',
+      'apply_verified_store_entitlement_with_receipt',
+      'raw_purchase_token',
+      'current_period_end > pg_catalog.now()',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(verifier, contains('apply_verified_store_entitlement_with_receipt'));
+    expect(verifier, isNot(contains('"save_store_receipt_secret",')));
+  });
+
+  test('حصة الضمان والفروع والهوية لا تعاد تدويرها بعد خفض الخطة', () {
+    final migration = File(
+      'supabase/migrations/20260831130000_damanak_quota_and_branding_integrity.sql',
+    ).readAsStringSync();
+    final portal = File(
+      'supabase/functions/warranty-card/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'new.created_at := pg_catalog.now()',
+      'new.created_by := actor',
+      'new.voided_at := null',
+      'revoke delete on table public.warranties',
+      'before insert or update of is_active, store_id',
+      'trim_branches_to_subscription_limit',
+      "actor_role <> 'authenticated'",
+      'new.warranty_policy is distinct from old.warranty_policy',
+      'products_branding_entitlement',
+      'PLAN_BRANDING_REQUIRED',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(migration, isNot(contains('and warranty.voided_at is null')));
+    expect(portal, contains('brandingAllowed === true'));
+    expect(portal, contains('const publicStore'));
   });
 }

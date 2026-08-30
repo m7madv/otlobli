@@ -313,7 +313,7 @@ class _JoinForm extends StatelessWidget {
               const SizedBox(height: 7),
               Text(
                 invitationRole == null
-                    ? 'افتح رابط المدير، أو أدخل رمز الدعوة الاحتياطي. لا تحتاج إلى كلمة مرور المالك.'
+                    ? 'افتح ضمانك وأدخل رمز الدعوة الذي أرسله المدير. لا تحتاج إلى كلمة مرور المالك.'
                     : 'تم تحميل الدعوة. صلاحيتك بعد الانضمام: ${invitationRole!.label}.',
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),

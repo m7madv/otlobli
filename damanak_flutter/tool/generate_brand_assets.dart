@@ -35,6 +35,33 @@ void main() {
     File('${root.path}/assets/branding/damanak_app_icon_master.png'),
     master,
   );
+  _writePng(
+    File('${root.path}/assets/branding/damanak_google_play_icon_512.png'),
+    image.copyResize(
+      master,
+      width: 512,
+      height: 512,
+      interpolation: image.Interpolation.average,
+    ),
+  );
+
+  final featureSourceFile = File(
+    '${root.path}/assets/branding/'
+    'damanak_google_play_feature_generated.png',
+  );
+  if (featureSourceFile.existsSync()) {
+    final featureSource = image.decodePng(featureSourceFile.readAsBytesSync());
+    if (featureSource == null) {
+      throw StateError('Unable to decode generated Google Play feature.');
+    }
+    _writePng(
+      File(
+        '${root.path}/assets/branding/'
+        'damanak_google_play_feature_1024x500.png',
+      ),
+      _coverResize(featureSource, width: 1024, height: 500),
+    );
+  }
 
   const iosIcons = <String, int>{
     'Icon-App-20x20@1x.png': 20,
@@ -168,6 +195,34 @@ image.Image _createTransparentLaunchMark(image.Image source, int size) {
     }
   }
   return output;
+}
+
+image.Image _coverResize(
+  image.Image source, {
+  required int width,
+  required int height,
+}) {
+  final targetRatio = width / height;
+  final sourceRatio = source.width / source.height;
+  final cropWidth = sourceRatio > targetRatio
+      ? (source.height * targetRatio).round()
+      : source.width;
+  final cropHeight = sourceRatio > targetRatio
+      ? source.height
+      : (source.width / targetRatio).round();
+  final cropped = image.copyCrop(
+    source,
+    x: (source.width - cropWidth) ~/ 2,
+    y: (source.height - cropHeight) ~/ 2,
+    width: cropWidth,
+    height: cropHeight,
+  );
+  return image.copyResize(
+    cropped,
+    width: width,
+    height: height,
+    interpolation: image.Interpolation.average,
+  );
 }
 
 void _writePng(File file, image.Image value) {

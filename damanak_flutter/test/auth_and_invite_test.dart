@@ -63,17 +63,18 @@ void main() {
     expect(find.text('تأكيد الانضمام'), findsOneWidget);
   });
 
-  test('ينشئ رابط دعوة يتضمن الرمز والصلاحية', () {
+  test('ينشئ صفحة دعوة HTTPS آمنة تتضمن الرمز والصلاحية', () {
     final invite = StoreInvite(
-      code: 'DMN-ABC123',
+      code: 'DMN-A1B2C3D4E5',
       role: MemberRole.manager,
       expiresAt: DateTime(2026, 8, 26),
       maxUses: 1,
     );
 
-    expect(invite.deepLink.scheme, 'com.damanak.damanak');
-    expect(invite.deepLink.host, 'join');
-    expect(invite.deepLink.queryParameters['code'], 'DMN-ABC123');
+    expect(invite.deepLink.scheme, 'https');
+    expect(invite.deepLink.host, 'exxayzlklvgeyqhvtzgi.supabase.co');
+    expect(invite.deepLink.path, '/functions/v1/legal/join');
+    expect(invite.deepLink.queryParameters['code'], 'DMN-A1B2C3D4E5');
     expect(invite.deepLink.queryParameters['role'], 'manager');
   });
 }

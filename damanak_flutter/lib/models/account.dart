@@ -179,8 +179,9 @@ class StoreInvite {
   final int maxUses;
 
   Uri get deepLink => Uri(
-    scheme: 'com.damanak.damanak',
-    host: 'join',
+    scheme: 'https',
+    host: 'exxayzlklvgeyqhvtzgi.supabase.co',
+    path: '/functions/v1/legal/join',
     queryParameters: {'code': code, 'role': role.name},
   );
 }

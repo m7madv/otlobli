@@ -1395,18 +1395,23 @@ class AppController extends ChangeNotifier {
       _storeBillingState = StoreBillingState.purchasing;
       _storeBillingMessage = 'جارٍ التحقق من إيصال المتجر بأمان…';
       notifyListeners();
-      _subscription = await _repository!.verifyStorePurchase(
-        storeId: _store!.id,
-        receipt: StorePurchaseReceipt(
-          platform: event.platform,
-          productId: event.productId,
-          basePlanId: event.basePlanId,
-          purchaseId: event.purchaseId,
-          transactionDate: event.transactionDate,
-          verificationData: event.verificationData,
-          verificationSource: event.verificationSource,
-        ),
-      );
+      _subscription = await _repository!
+          .verifyStorePurchase(
+            storeId: _store!.id,
+            receipt: StorePurchaseReceipt(
+              platform: event.platform,
+              productId: event.productId,
+              basePlanId: event.basePlanId,
+              purchaseId: event.purchaseId,
+              transactionDate: event.transactionDate,
+              verificationData: event.verificationData,
+              verificationSource: event.verificationSource,
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 35),
+            onTimeout: () => throw StateError('STORE_VERIFICATION_TIMEOUT'),
+          );
       if (event.needsCompletion) {
         await _billingService.completePurchase(event);
       }
@@ -1417,6 +1422,7 @@ class AppController extends ChangeNotifier {
           : 'تم الدفع وتفعيل الاشتراك من ${event.platform.label}.';
     } catch (error) {
       _storeBillingState = StoreBillingState.ready;
+      _storeBillingMessage = null;
       _errorMessage = _friendlyError(error);
     } finally {
       _processingPurchases.remove(event.key);
@@ -1596,8 +1602,21 @@ class AppController extends ChangeNotifier {
     if (value.contains('oauth') || value.contains('auth_failed')) {
       return 'لم يكتمل تسجيل الدخول. حاول مجدداً باستخدام Apple أو Google.';
     }
+    if (value.contains('invite_rate_limited')) {
+      return 'أُوقفت محاولات الدعوة مؤقتاً للحماية. انتظر 15 دقيقة ثم أعد المحاولة.';
+    }
     if (value.contains('invite_invalid')) {
       return 'رمز الدعوة غير صحيح أو انتهت صلاحيته.';
+    }
+    if (value.contains('trial_already_used_by_account') ||
+        value.contains('trial_already_used_on_device')) {
+      return 'استُخدمت التجربة المجانية سابقاً على هذا الحساب أو الجهاز. يمكنك الانضمام إلى متجر بدعوة أو اختيار اشتراك مدفوع.';
+    }
+    if (value.contains('app_update_required_for_trial')) {
+      return 'حدّث ضمانك إلى آخر نسخة لحماية التجربة المجانية ثم حاول مجدداً.';
+    }
+    if (value.contains('trial_device')) {
+      return 'تعذّر تأمين التجربة المجانية على هذا الجهاز. حدّث التطبيق ثم حاول مجدداً.';
     }
     if (value.contains('seat_limit_reached')) {
       return 'وصل المتجر إلى الحد الأقصى لأعضاء الخطة الحالية.';
@@ -1646,7 +1665,7 @@ class AppController extends ChangeNotifier {
       return 'متجر التطبيقات غير متاح على هذا الجهاز حالياً.';
     }
     if (value.contains('store_verification')) {
-      return 'لم ينجح التحقق الخادمي من الإيصال؛ لم تُفعّل الخطة ولم يُعتمد الدفع.';
+      return 'الدفع محفوظ لدى المتجر، لكن التحقق لم يكتمل بعد. لا تدفع مرة أخرى؛ استخدم استعادة المشتريات لإكمال التفعيل.';
     }
     if (value.contains('store_owner_required')) {
       return 'لا يمكن ربط الاشتراك إلا من حساب مالك المتجر.';

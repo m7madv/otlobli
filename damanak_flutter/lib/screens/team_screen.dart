@@ -144,7 +144,7 @@ class TeamScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'يمكن للموظف فتح الرابط المرسل أو مسح الرمز بالكاميرا.',
+              'يفتح الرمز صفحة ضمانك الآمنة التي تعرض رمز الانضمام، ثم يدخله الموظف داخل التطبيق.',
               textAlign: TextAlign.center,
               style: Theme.of(sheetContext).textTheme.bodySmall,
             ),
@@ -219,9 +219,9 @@ class TeamScreen extends StatelessWidget {
     final text =
         'دعوة للعمل في متجر $storeName عبر تطبيق ضمانك.\n'
         'الصلاحية: ${invite.role.label}.\n'
-        'افتح الرابط ثم سجّل الدخول باستخدام Apple أو Google:\n'
+        'افتح صفحة الدعوة الآمنة، ثم سجّل الدخول إلى ضمانك باستخدام Apple أو Google وأدخل الرمز الظاهر:\n'
         '${invite.deepLink}\n\n'
-        'إذا لم يفتح الرابط، افتح ضمانك واختر «الانضمام لمتجر» وأدخل الرمز: ${invite.code}\n'
+        'أو افتح ضمانك مباشرة واختر «الانضمام لمتجر» وأدخل الرمز: ${invite.code}\n'
         'الدعوة صالحة لشخص واحد ولمدة 48 ساعة.';
     await SharePlus.instance.share(
       ShareParams(

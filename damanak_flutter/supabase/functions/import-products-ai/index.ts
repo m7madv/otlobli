@@ -158,7 +158,9 @@ export function extractOutputText(response: Record<string, unknown>) {
 }
 
 export function extractGeminiText(response: Record<string, unknown>) {
-  const candidates = Array.isArray(response.candidates) ? response.candidates : [];
+  const candidates = Array.isArray(response.candidates)
+    ? response.candidates
+    : [];
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== "object") continue;
     const content = (candidate as { content?: unknown }).content;
@@ -242,7 +244,10 @@ function providerOrder() {
   const available = new Set<Provider>();
   if (optionalEnv("GEMINI_API_KEY")) available.add("gemini");
   if (optionalEnv("OPENAI_API_KEY")) available.add("openai");
-  return ([preferred, preferred === "gemini" ? "openai" : "gemini"] as Provider[])
+  return ([
+    preferred,
+    preferred === "gemini" ? "openai" : "gemini",
+  ] as Provider[])
     .filter((provider) => available.has(provider));
 }
 
@@ -251,9 +256,8 @@ async function extractWithGemini(
   encoded: string,
 ): Promise<ProviderResult> {
   const model = optionalEnv("GEMINI_IMPORT_MODEL") || "gemini-3.5-flash-lite";
-  const pricingTier: PricingTier = optionalEnv("GEMINI_IMPORT_PRICING_TIER") === "paid"
-    ? "paid"
-    : "free";
+  const pricingTier: PricingTier =
+    optionalEnv("GEMINI_IMPORT_PRICING_TIER") === "paid" ? "paid" : "free";
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -283,9 +287,10 @@ async function extractWithGemini(
   if (!response.ok) throw new Error("GEMINI_RESPONSE_FAILED");
   const outputText = extractGeminiText(payload);
   if (!outputText) throw new Error("GEMINI_OUTPUT_EMPTY");
-  const usage = payload.usageMetadata && typeof payload.usageMetadata === "object"
-    ? payload.usageMetadata as Record<string, unknown>
-    : {};
+  const usage =
+    payload.usageMetadata && typeof payload.usageMetadata === "object"
+      ? payload.usageMetadata as Record<string, unknown>
+      : {};
   const inputTokens = Number(usage.promptTokenCount || 0);
   const outputTokens = Number(usage.candidatesTokenCount || 0);
   return {
@@ -413,35 +418,6 @@ async function handle(request: Request) {
   }
 
   const admin = createClient(supabaseUrl, env("SUPABASE_SERVICE_ROLE_KEY"));
-  const { data: subscription } = await admin.from("subscriptions")
-    .select("plan_id")
-    .eq("store_id", storeId)
-    .in("status", ["trialing", "active"])
-    .maybeSingle();
-  const { data: plan } = subscription?.plan_id
-    ? await admin.from("plans").select("monthly_ai_imports")
-      .eq("id", subscription.plan_id).maybeSingle()
-    : { data: null };
-  const monthlyLimit = Number(plan?.monthly_ai_imports || 0);
-  if (monthlyLimit < 1) return json(403, { error: "AI_IMPORT_NOT_INCLUDED" });
-
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    .toISOString();
-  const dayStart = new Date(Date.now() - 86_400_000).toISOString();
-  const [{ count: monthlyCount }, { count: dailyCount }] = await Promise.all([
-    admin.from("ai_import_jobs").select("id", { count: "exact", head: true })
-      .eq("store_id", storeId).gte("created_at", monthStart),
-    admin.from("ai_import_jobs").select("id", { count: "exact", head: true })
-      .eq("store_id", storeId).gte("created_at", dayStart),
-  ]);
-  if ((monthlyCount ?? 0) >= monthlyLimit) {
-    return json(429, { error: "AI_IMPORT_MONTHLY_LIMIT", monthlyLimit });
-  }
-  if ((dailyCount ?? 0) >= 25) {
-    return json(429, { error: "AI_IMPORT_DAILY_SAFETY_LIMIT" });
-  }
-
   const providers = providerOrder();
   if (providers.length === 0) {
     return json(503, { error: "AI_PROVIDER_NOT_CONFIGURED" });
@@ -456,22 +432,39 @@ async function handle(request: Request) {
     : "paid";
   const filename = file.name.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
     .slice(0, 180) || "document";
-  const { data: job, error: jobError } = await admin
-    .from("ai_import_jobs")
-    .insert({
-      store_id: storeId,
-      user_id: userData.user.id,
-      status: "started",
-      filename,
-      mime_type: file.type,
-      size_bytes: file.size,
-      provider: firstProvider,
-      pricing_tier: firstTier,
-      model: firstModel,
-    })
-    .select("id")
-    .single();
-  if (jobError || !job) return json(500, { error: "AI_IMPORT_LOG_FAILED" });
+  const { data: jobClaim, error: jobError } = await admin.rpc(
+    "claim_ai_import_job",
+    {
+      target_store_id: storeId,
+      target_user_id: userData.user.id,
+      target_filename: filename,
+      target_mime_type: file.type,
+      target_size_bytes: file.size,
+      target_provider: firstProvider,
+      target_pricing_tier: firstTier,
+      target_model: firstModel,
+    },
+  );
+  if (jobError || !jobClaim || typeof jobClaim !== "object") {
+    const reason = String(jobError?.message ?? "").toUpperCase();
+    if (reason.includes("AI_IMPORT_MONTHLY_LIMIT")) {
+      return json(429, { error: "AI_IMPORT_MONTHLY_LIMIT" });
+    }
+    if (reason.includes("AI_IMPORT_DAILY_SAFETY_LIMIT")) {
+      return json(429, { error: "AI_IMPORT_DAILY_SAFETY_LIMIT" });
+    }
+    if (reason.includes("AI_IMPORT_NOT_INCLUDED")) {
+      return json(403, { error: "AI_IMPORT_NOT_INCLUDED" });
+    }
+    return json(500, { error: "AI_IMPORT_LOG_FAILED" });
+  }
+  const claimed = jobClaim as Record<string, unknown>;
+  const job = { id: String(claimed.jobId ?? "") };
+  const monthlyLimit = Number(claimed.monthlyLimit ?? 0);
+  const monthlyUsed = Number(claimed.monthlyUsed ?? 0);
+  if (!/^[0-9a-f-]{36}$/i.test(job.id)) {
+    return json(500, { error: "AI_IMPORT_LOG_FAILED" });
+  }
 
   let lastError = "AI_IMPORT_FAILED";
   try {
@@ -511,12 +504,14 @@ async function handle(request: Request) {
             outputTokens: result.outputTokens,
             estimatedCostUsd: result.estimatedCostUsd,
             model: result.model,
-            monthlyUsed: (monthlyCount ?? 0) + 1,
+            monthlyUsed,
             monthlyLimit,
           },
         });
       } catch (error) {
-        lastError = error instanceof Error ? error.message : "AI_PROVIDER_FAILED";
+        lastError = error instanceof Error
+          ? error.message
+          : "AI_PROVIDER_FAILED";
       }
     }
     throw new Error(lastError);

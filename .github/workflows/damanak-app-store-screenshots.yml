@@ -1,0 +1,51 @@
+name: Damanak App Store Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect is read-only; apply uploads the approved screenshots
+        required: true
+        type: choice
+        default: inspect
+        options:
+          - inspect
+          - apply
+
+jobs:
+  app-store-screenshots:
+    name: ${{ inputs.mode }} App Store screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: damanak_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect or upload screenshots
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        shell: bash
+        run: |
+          MODE_FLAG=""
+          if [[ "${{ inputs.mode }}" == "apply" ]]; then
+            MODE_FLAG="--apply"
+          fi
+          node scripts/app_store_screenshots.mjs \
+            $MODE_FLAG \
+            --output build/app-store-assets/report.json
+
+      - name: Upload screenshot report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: damanak-app-store-screenshots-${{ inputs.mode }}-${{ github.run_number }}
+          path: damanak_flutter/build/app-store-assets/report.json
+          if-no-files-found: warn
+          retention-days: 14

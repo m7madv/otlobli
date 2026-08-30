@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -22,16 +24,20 @@ import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
 import '../services/native_identity_token_service.dart';
+import '../services/trial_device_claim_service.dart';
 import 'damanak_repository.dart';
 
 class SupabaseDamanakRepository implements DamanakRepository {
   SupabaseDamanakRepository(
     this._client, {
     NativeIdentityTokenProvider? nativeIdentityTokens,
-  }) : _nativeIdentityTokens = nativeIdentityTokens;
+    TrialDeviceClaimProvider? trialDeviceClaims,
+  }) : _nativeIdentityTokens = nativeIdentityTokens,
+       _trialDeviceClaims = trialDeviceClaims;
 
   final SupabaseClient _client;
   final NativeIdentityTokenProvider? _nativeIdentityTokens;
+  final TrialDeviceClaimProvider? _trialDeviceClaims;
 
   @override
   bool get isDemo => false;
@@ -121,7 +127,27 @@ class SupabaseDamanakRepository implements DamanakRepository {
         .maybeSingle();
     if (membershipJson == null) return null;
     final membership = StoreMembership.fromJson(membershipJson);
+    if (membership.role == MemberRole.owner && _trialDeviceClaims != null) {
+      // Protect future trial attempts without adding a serial network request
+      // to the sign-in/startup path. New-store creation remains blocking.
+      unawaited(_registerTrialDevice(membership.storeId));
+    }
     return _loadSnapshot(membership);
+  }
+
+  Future<void> _registerTrialDevice(String storeId) async {
+    try {
+      await _client.rpc(
+        'register_trial_device',
+        params: {
+          'target_store_id': storeId,
+          'device_claim': await _trialDeviceClaims!.loadOrCreateClaim(),
+        },
+      );
+    } on Object {
+      // Registration protects future trials, but a collision or unavailable
+      // secure store must never lock an existing paid owner out of their data.
+    }
   }
 
   Future<WorkspaceSnapshot> _loadSnapshot(StoreMembership membership) async {
@@ -172,6 +198,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String city,
     required String countryCode,
   }) async {
+    final trialDeviceClaims = _trialDeviceClaims;
+    if (trialDeviceClaims == null) {
+      throw StateError('TRIAL_DEVICE_SECURITY_UNAVAILABLE');
+    }
     final value = await _client.rpc(
       'create_store_with_trial',
       params: {
@@ -179,6 +209,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
         'store_phone': phone.trim(),
         'store_city': city.trim(),
         'store_country_code': countryCode,
+        'device_claim': await trialDeviceClaims.loadOrCreateClaim(),
       },
     );
     final membership = StoreMembership(
@@ -197,6 +228,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
       params: {'invitation_code': invitationCode.trim().toUpperCase()},
     );
     final membershipJson = Map<String, dynamic>.from(value as Map);
+    final error = membershipJson['error'];
+    if (error is String && error.isNotEmpty) {
+      throw StateError(error);
+    }
     return _loadSnapshot(StoreMembership.fromJson(membershipJson));
   }
 
@@ -964,20 +999,17 @@ class SupabaseDamanakRepository implements DamanakRepository {
     ClaimCategory category = ClaimCategory.other,
     ClaimPriority priority = ClaimPriority.normal,
   }) async {
-    final row = await _client
-        .from('maintenance_requests')
-        .insert({
-          'store_id': storeId,
-          'warranty_id': warrantyId,
-          'issue': issue.trim(),
-          'category': category.databaseValue,
-          'priority': priority.name,
-          'channel': ClaimChannel.staff.databaseValue,
-          'created_by': _user.id,
-        })
-        .select()
-        .single();
-    return MaintenanceRequest.fromJson(row);
+    final value = await _client.rpc(
+      'create_maintenance_request',
+      params: {
+        'target_store_id': storeId,
+        'target_warranty_id': warrantyId,
+        'claim_issue': issue.trim(),
+        'claim_category': category.databaseValue,
+        'claim_priority': priority.name,
+      },
+    );
+    return MaintenanceRequest.fromJson(Map<String, dynamic>.from(value as Map));
   }
 
   @override

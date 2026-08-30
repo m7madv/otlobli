@@ -16,7 +16,7 @@ type PurchaseBody = {
   verificationSource?: string;
 };
 
-type VerifiedEntitlement = {
+export type VerifiedEntitlement = {
   platform: "app_store" | "google_play";
   productId: string;
   basePlanId: string;
@@ -29,10 +29,14 @@ type VerifiedEntitlement = {
   autoRenews: boolean;
 };
 
-function response(status: number, body: Record<string, unknown>) {
+function response(
+  status: number,
+  body: Record<string, unknown>,
+  extraHeaders: Record<string, string> = {},
+) {
   return Response.json(body, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", ...extraHeaders },
   });
 }
 
@@ -84,33 +88,73 @@ async function appleApiToken() {
     .sign(key);
 }
 
-async function fetchAppleStatus(transactionId: string) {
-  const token = await appleApiToken();
-  const path = `/inApps/v1/subscriptions/${encodeURIComponent(transactionId)}`;
-  let environment: "sandbox" | "production" = "production";
-  let result = await fetch(`https://api.storekit.apple.com${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (result.status === 404) {
-    environment = "sandbox";
-    result = await fetch(`https://api.storekit-sandbox.apple.com${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+export function decodeAppleClientTransaction(body: PurchaseBody) {
+  const signedTransaction = body.verificationData?.trim();
+  if (!signedTransaction || signedTransaction.split(".").length !== 3) {
+    return null;
   }
-  if (!result.ok) {
-    throw new Error(`APPLE_STATUS_${result.status}`);
+  try {
+    return decodeJwt(signedTransaction) as Record<string, unknown>;
+  } catch {
+    return null;
   }
-  return {
-    environment,
-    body: await result.json() as Record<string, unknown>,
-  };
 }
 
-async function verifyApplePurchase(
+export function appleEnvironmentOrder(environmentHint: unknown) {
+  const sandboxFirst = String(environmentHint ?? "").toLowerCase() ===
+    "sandbox";
+  const environments: Array<{
+    name: "sandbox" | "production";
+    host: string;
+  }> = sandboxFirst
+    ? [
+      { name: "sandbox", host: "https://api.storekit-sandbox.apple.com" },
+      { name: "production", host: "https://api.storekit.apple.com" },
+    ]
+    : [
+      { name: "production", host: "https://api.storekit.apple.com" },
+      { name: "sandbox", host: "https://api.storekit-sandbox.apple.com" },
+    ];
+  return environments;
+}
+
+async function fetchAppleStatus(
+  transactionId: string,
+  environmentHint: unknown,
+) {
+  const token = await appleApiToken();
+  const path = `/inApps/v1/subscriptions/${encodeURIComponent(transactionId)}`;
+  const environments = appleEnvironmentOrder(environmentHint);
+  const statuses: number[] = [];
+  for (const environment of environments) {
+    const result = await fetch(`${environment.host}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(12_000),
+    });
+    statuses.push(result.status);
+    if (result.ok) {
+      return {
+        environment: environment.name,
+        body: await result.json() as Record<string, unknown>,
+      };
+    }
+    // TestFlight transactions are sandbox transactions. Apple can answer 401
+    // or 404 on the production host, so neither response may prevent a
+    // separately authenticated sandbox lookup.
+    if (result.status !== 401 && result.status !== 404) break;
+  }
+  throw new Error(`APPLE_STATUS_${statuses.join("_")}`);
+}
+
+export async function verifyApplePurchase(
   body: PurchaseBody,
   userId: string,
 ): Promise<VerifiedEntitlement> {
-  const transactionId = body.purchaseId?.trim();
+  const clientTransaction = decodeAppleClientTransaction(body);
+  const transactionId = body.purchaseId?.trim() ||
+    (typeof clientTransaction?.transactionId === "string"
+      ? clientTransaction.transactionId
+      : null);
   if (!transactionId || !/^\d{6,30}$/.test(transactionId)) {
     throw new Error("APPLE_TRANSACTION_REQUIRED");
   }
@@ -118,7 +162,10 @@ async function verifyApplePurchase(
     throw new Error("APPLE_SOURCE_MISMATCH");
   }
 
-  const apple = await fetchAppleStatus(transactionId);
+  const apple = await fetchAppleStatus(
+    transactionId,
+    clientTransaction?.environment,
+  );
   if (apple.body.bundleId !== bundleId) {
     throw new Error("APPLE_BUNDLE_MISMATCH");
   }
@@ -222,6 +269,7 @@ async function googleAccessToken() {
   const tokenResponse = await fetch(tokenUri, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(12_000),
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
@@ -237,7 +285,7 @@ async function googleAccessToken() {
   return tokenBody.access_token;
 }
 
-async function verifyGooglePurchase(
+export async function verifyGooglePurchase(
   body: PurchaseBody,
   userId: string,
 ): Promise<VerifiedEntitlement> {
@@ -256,6 +304,7 @@ async function verifyGooglePurchase(
     }`;
   const result = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(12_000),
   });
   if (!result.ok) throw new Error(`GOOGLE_STATUS_${result.status}`);
   const purchase = await result.json() as Record<string, unknown>;
@@ -319,7 +368,7 @@ async function verifyGooglePurchase(
   };
 }
 
-Deno.serve(async (request) => {
+export async function handle(request: Request) {
   if (request.method !== "POST") {
     return response(405, { error: "METHOD_NOT_ALLOWED" });
   }
@@ -421,6 +470,37 @@ Deno.serve(async (request) => {
       return response(400, { error: "INVALID_PURCHASE_PAYLOAD" });
     }
 
+    const { data: reservation, error: reservationError } = await admin.rpc(
+      "reserve_store_purchase_verification",
+      {
+        target_store_id: storeId,
+        target_user_id: authData.user.id,
+      },
+    );
+    if (reservationError) {
+      throw new Error(
+        `STORE_VERIFICATION_RESERVATION_${reservationError.message}`,
+      );
+    }
+    const allowed = reservation && typeof reservation === "object" &&
+      reservation.allowed === true;
+    if (!allowed) {
+      const rawRetry = reservation && typeof reservation === "object"
+        ? Number(reservation.retry_after_seconds)
+        : 60;
+      const retryAfterSeconds = Number.isFinite(rawRetry)
+        ? Math.max(1, Math.ceil(rawRetry))
+        : 60;
+      return response(
+        429,
+        {
+          error: "STORE_VERIFICATION_RATE_LIMITED",
+          retryAfterSeconds,
+        },
+        { "Retry-After": String(retryAfterSeconds) },
+      );
+    }
+
     const entitlement = body.platform === "app_store"
       ? await verifyApplePurchase(body, purchaserId)
       : await verifyGooglePurchase(body, purchaserId);
@@ -429,7 +509,7 @@ Deno.serve(async (request) => {
     }
 
     const { error: applyError } = await admin.rpc(
-      "apply_verified_store_entitlement",
+      "apply_verified_store_entitlement_with_receipt",
       {
         target_store_id: storeId,
         target_user_id: purchaserId,
@@ -443,26 +523,12 @@ Deno.serve(async (request) => {
         entitlement_period_start: entitlement.periodStart,
         entitlement_period_end: entitlement.periodEnd,
         entitlement_auto_renews: entitlement.autoRenews,
+        raw_purchase_token: entitlement.platform === "google_play"
+          ? googlePurchaseToken
+          : null,
       },
     );
     if (applyError) throw new Error(`ENTITLEMENT_APPLY_${applyError.message}`);
-
-    if (entitlement.platform === "google_play") {
-      if (!googlePurchaseToken) {
-        throw new Error("GOOGLE_PURCHASE_TOKEN_REQUIRED");
-      }
-      const { error: receiptError } = await admin.rpc(
-        "save_store_receipt_secret",
-        {
-          billing_platform: "google_play",
-          external_original_transaction_id: entitlement.originalTransactionId,
-          raw_purchase_token: googlePurchaseToken,
-        },
-      );
-      if (receiptError) {
-        throw new Error(`RECEIPT_SECRET_SAVE_${receiptError.message}`);
-      }
-    }
 
     return response(200, {
       verified: true,
@@ -477,4 +543,6 @@ Deno.serve(async (request) => {
     console.error("verify-store-purchase", message);
     return response(400, { error: "STORE_VERIFICATION_FAILED" });
   }
-});
+}
+
+if (import.meta.main) Deno.serve(handle);

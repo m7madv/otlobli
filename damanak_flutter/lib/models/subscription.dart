@@ -164,7 +164,17 @@ class SubscriptionInfo {
   final bool autoRenews;
   final DateTime? lastVerifiedAt;
 
-  bool get isUsable => status == 'trialing' || status == 'active';
+  bool get isUsable {
+    final now = DateTime.now();
+    if (status == 'trialing') {
+      return trialEndsAt?.isAfter(now) ?? false;
+    }
+    if (status != 'active') return false;
+    final end = periodEndsAt;
+    if (isStoreSubscription) return end?.isAfter(now) ?? false;
+    return end == null || end.isAfter(now);
+  }
+
   int get remainingWarranties => (plan.monthlyWarranties - usedWarranties)
       .clamp(0, plan.monthlyWarranties);
   int get warrantyGraceAllowance => (plan.monthlyWarranties / 10).ceil();

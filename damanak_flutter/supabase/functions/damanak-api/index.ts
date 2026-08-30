@@ -69,21 +69,26 @@ if (import.meta.main) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^.*\/damanak-api/, "") || "/";
 
-    const { count } = await admin.from("api_request_logs")
-      .select("id", { count: "exact", head: true })
-      .eq("key_id", keyId)
-      .gte("created_at", new Date(Date.now() - 3_600_000).toISOString());
-    if ((count ?? 0) >= 300) {
+    const { data: requestLogId, error: reservationError } = await admin.rpc(
+      "reserve_api_request",
+      {
+        target_key_id: keyId,
+        target_store_id: storeId,
+        target_method: request.method,
+        target_path: path,
+      },
+    );
+    if (reservationError) {
+      return response(401, { error: "API_KEY_INVALID" });
+    }
+    if (requestLogId == null) {
       return response(429, { error: "API_RATE_LIMIT" });
     }
 
     const finish = async (status: number, body: Record<string, unknown>) => {
-      await admin.from("api_request_logs").insert({
-        key_id: keyId,
-        store_id: storeId,
-        method: request.method,
-        path: path.slice(0, 200),
-        response_status: status,
+      await admin.rpc("finish_api_request", {
+        target_log_id: requestLogId,
+        target_status: status,
       });
       return response(status, body);
     };
@@ -150,21 +155,27 @@ if (import.meta.main) {
         const { data: warranty } = await admin.from("warranties")
           .select("id,expiry_date").eq("id", warrantyId)
           .eq("store_id", storeId).is("voided_at", null).maybeSingle();
-        if (!warranty) return await finish(404, { error: "WARRANTY_NOT_FOUND" });
+        if (!warranty) {
+          return await finish(404, { error: "WARRANTY_NOT_FOUND" });
+        }
         const today = new Date().toISOString().slice(0, 10);
         if (warranty.expiry_date < today) {
           return await finish(409, { error: "WARRANTY_EXPIRED" });
         }
-        const { data, error } = await admin.from("maintenance_requests").insert({
-          store_id: storeId,
-          warranty_id: warrantyId,
-          issue,
-          category,
-          priority,
-          channel: "api",
-          created_by: null,
-        }).select("id,claim_number,status,created_at").single();
-        if (error || !data) return await finish(500, { error: "CLAIM_CREATE_FAILED" });
+        const { data, error } = await admin.from("maintenance_requests").insert(
+          {
+            store_id: storeId,
+            warranty_id: warrantyId,
+            issue,
+            category,
+            priority,
+            channel: "api",
+            created_by: null,
+          },
+        ).select("id,claim_number,status,created_at").single();
+        if (error || !data) {
+          return await finish(500, { error: "CLAIM_CREATE_FAILED" });
+        }
         return await finish(201, { data });
       }
 

@@ -10,6 +10,7 @@ import 'data/supabase_repository.dart';
 import 'state/app_controller.dart';
 import 'services/native_identity_token_service.dart';
 import 'services/store_billing_service.dart';
+import 'services/trial_device_claim_service.dart';
 import 'screens/startup_screen.dart';
 
 void main() {
@@ -93,6 +94,7 @@ Future<AppController> _createController() async {
         SupabaseDamanakRepository(
           Supabase.instance.client,
           nativeIdentityTokens: NativeIdentityTokenService(),
+          trialDeviceClaims: SecureTrialDeviceClaimService(),
         ),
         billingService: billingService,
       );

@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.dispatch-webhooks]
 verify_jwt = false
+
+[functions.refresh-store-entitlements]
+verify_jwt = false

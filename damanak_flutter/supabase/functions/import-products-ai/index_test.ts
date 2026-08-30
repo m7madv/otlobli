@@ -46,11 +46,15 @@ Deno.test("AI router extracts Gemini JSON and keeps the free tier at zero", () =
   });
   if (text !== '{"products":[]}') throw new Error("Gemini output missing");
   if (estimateProviderCost("gemini", "free", 100000, 10000) !== 0) {
-    throw new Error("Gemini free-tier imports must estimate zero provider cost");
+    throw new Error(
+      "Gemini free-tier imports must estimate zero provider cost",
+    );
   }
   const geminiPaidCost = estimateProviderCost("gemini", "paid", 100000, 10000);
   if (geminiPaidCost === null || Math.abs(geminiPaidCost - 0.055) > 0.000001) {
-    throw new Error("Gemini 3.5 Flash-Lite paid fallback cost changed unexpectedly");
+    throw new Error(
+      "Gemini 3.5 Flash-Lite paid fallback cost changed unexpectedly",
+    );
   }
   const openAiCost = estimateProviderCost("openai", "paid", 100000, 10000);
   if (openAiCost === null || Math.abs(openAiCost - 0.032) > 0.000001) {
