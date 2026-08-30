@@ -1,6 +1,6 @@
 # Otlobli Current State
 
-Last updated: 2026-08-27
+Last updated: 2026-08-30
 
 ## مشروع VoiceBrief المستقل (2026-08-25)
 
@@ -28,12 +28,12 @@ Last updated: 2026-08-27
 - السعر والعملة يأتيان حصراً من Apple أو Google؛ معرّفات المنتجات الستة ثابتة ولا توجد أسعار محلية بديلة.
 - Build `19` يمنح StoreKit 2 معظم مهلة واحدة مقدارها `16` ثانية، ثم ينفذ طلب StoreKit 1 احتياطياً واحداً فقط. أزيلت الطلبات المجمعة المتداخلة التي كانت تطيل التحميل، وأصبحت استجابة Apple الفارغة الصريحة تعرض `APPLE-CATALOG-0-QAT` بدل `storekit_no_response` المضلل؛ هذا تحسين تشخيصي ولا يصطنع سعراً.
 - أثبت الفحصان [33282129595](https://github.com/m7madv/otlobli/actions/runs/33282129595) و[33282239803](https://github.com/m7madv/otlobli/actions/runs/33282239803) أن App ID الصريح `com.damanak.damanak` وميزة `In-App Purchase` فعالان، وأن ملف `Damanak App Store 2026` المضمّن `ACTIVE` ومطابق، وأن إصدار App Store `1.0` قابل للتحرير وليس `PENDING_CONTRACT`.
-- فحص Apple [33283457003](https://github.com/m7madv/otlobli/actions/runs/33283457003) يؤكد أن Build `19` أصبح `VALID` وداخل `Damanak Internal`. المنتجات الستة متاحة في قطر ودول الخليج المحددة وأسعار قطر هي `39.99/399.99` و`79.99/799.99` و`199.99/1999.99 QAR`، لكن حالة الأصل ما تزال `MISSING_METADATA` وإصدارات المنتجات `PREPARE_FOR_SUBMISSION`.
-- محاولة مسودة المراجعة [33282418740](https://github.com/m7madv/otlobli/actions/runs/33282418740) أضافت صفراً ولم ترسل شيئاً؛ كشفت أن إصدار App Store العام ينقصه وصف وكلمات ودعم وخصوصية وتصنيف عمر وفئة وتسعير وبناء ومعلومات مراجعة. هذه البيانات مطلوبة للمراجعة العامة، بينما اختبار TestFlight لا يتطلب إرسال الاشتراكات للمراجعة.
+- فحص Apple [33283457003](https://github.com/m7madv/otlobli/actions/runs/33283457003) يؤكد أن Build `19` أصبح `VALID` وداخل `Damanak Internal`. كشف التشغيل [33303360125](https://github.com/m7madv/otlobli/actions/runs/33303360125) أن سبب `MISSING_METADATA` هو غياب جداول `UPFRONT` للمناطق غير الخليجية؛ Apple تشترط جدول سعر لكل مناطق المتجر حتى مع قصر توفر البيع على الخليج.
+- أكمل التشغيل [33303648935](https://github.com/m7madv/otlobli/actions/runs/33303648935) `175` سعراً لكل واحد من المنتجات الستة مع إبقاء التوفر في دول الخليج الست فقط. أكد الفحص المستقل [33304164006](https://github.com/m7madv/otlobli/actions/runs/33304164006) أن الأصول الستة `READY_TO_SUBMIT`، والمسودة تضم إصدارات الاشتراك `6/6` مع عنصر المجموعة، ولم يُرسل شيء إلى App Review. بقيت أسعار قطر `39.99/399.99` و`79.99/799.99` و`199.99/1999.99 QAR`.
 - المانع الرسمي الوحيد غير المتحقق حيّاً هو قسم `Business`: يجب أن تكون `Paid Apps Agreement` و`Bank Accounts` و`Tax Forms` كلها `Active`. جلسة App Store Connect الحالية منتهية، لذلك لم تُفحص هذه الحالات ولم يُدّعَ أنها سليمة.
 - التحقق الحالي: `flutter analyze` بلا مشاكل، و`53` اختباراً ناجحاً. رفع التشغيل [33282748179](https://github.com/m7madv/otlobli/actions/runs/33282748179) iOS Build `19` إلى TestFlight؛ IPA المحلية `damanak_flutter/output/github-run-33282748179/ضمانك.ipa` حجمها `23,302,381` وبصمتها `021BFA8A9021929EAE8DE1B06575F947BCF2BFBA307D2711F39CEBB1D23543AA`.
 - نشر التشغيل [33282749664](https://github.com/m7madv/otlobli/actions/runs/33282749664) Android Build `19` إلى الاختبار الداخلي بحالة `completed`؛ AAB المحلية `damanak_flutter/output/github-run-33282749664/app/outputs/bundle/release/app-release.aab` حجمها `56,313,152` وبصمتها `65729812ECD659290BEB14412DA8E9802660BF2C5BFC3D856091BE88CA594C4F`.
-- لم يُنفذ شراء حقيقي ولم يؤكد جهاز iPhone بعد استرجاع المنتجات `6/6` على Build `19`. يلزم أولاً تحديث TestFlight، ثم التحقق من الحالات المالية الثلاث؛ وإذا كانت كلها `Active` وبقي الكتالوج `0/6` بعد ساعة، يُفتح طلب Apple Developer Support.
+- لم يُنفذ شراء حقيقي ولم يؤكد جهاز iPhone بعد استرجاع المنتجات `6/6` على Build `19`. آخر تعديل كتالوج كان في `2026-08-30 12:26` بتوقيت السعودية؛ تسمح Apple بساعة لانتشاره في Sandbox/TestFlight. بعد ذلك يلزم إغلاق التطبيق بالقوة وإعادة فتحه والجلب. إذا بقي `0/6`، تُفحص الحالات المالية الثلاث ثم يُفتح Apple Developer Support عند كونها كلها `Active`.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
 
