@@ -7,6 +7,7 @@ import '../models/product.dart';
 import '../state/app_scope.dart';
 import '../widgets/message_banner.dart';
 import 'product_form_screen.dart';
+import 'product_import_screen.dart';
 import 'scanner_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -28,6 +29,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Future<void> _addProduct() async {
     await Navigator.of(context).push<Product>(
       MaterialPageRoute(builder: (_) => const ProductFormScreen()),
+    );
+  }
+
+  Future<void> _importProducts() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const ProductImportScreen()),
     );
   }
 
@@ -123,9 +130,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'المنتجات',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'المنتجات',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ),
+                          if (canManage)
+                            IconButton(
+                              tooltip: 'استيراد منتجات CSV',
+                              onPressed: _importProducts,
+                              icon: const Icon(Icons.upload_file_outlined),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 5),
                       Text(

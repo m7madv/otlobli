@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/app_theme.dart';
-import '../core/currency.dart';
 import '../core/date_utils.dart';
-import '../models/warranty.dart';
 import '../models/account.dart';
+import '../models/maintenance_request.dart';
+import '../models/warranty.dart';
 import '../state/app_scope.dart';
 
 class ReportsScreen extends StatelessWidget {
@@ -19,16 +19,26 @@ class ReportsScreen extends StatelessWidget {
     final controller = AppScope.of(context);
     final store = controller.store!;
     final warranties = controller.warranties;
-    final average = controller.sales.isEmpty
-        ? 0
-        : controller.totalSales / controller.sales.length;
+    final requests = controller.requests;
+    final openClaims = requests.where((item) => !item.status.isClosed).length;
+    final overdueClaims = requests.where((item) => item.isOverdue).length;
+    final approvedClaims = requests
+        .where((item) => item.approvedAt != null)
+        .toList();
+    final completedClaims = requests
+        .where((item) => item.completedAt != null)
+        .toList();
+    final rejectedClaims = requests
+        .where((item) => item.status == MaintenanceStatus.rejected)
+        .length;
+    final decidedClaims = approvedClaims.length + rejectedClaims;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('التقارير والتصدير'),
+        title: const Text('أداء الضمان'),
         actions: [
           IconButton(
-            tooltip: 'تصدير CSV',
-            onPressed: () => _exportCsv(context),
+            tooltip: 'تصدير المطالبات CSV',
+            onPressed: () => _exportClaimsCsv(context),
             icon: const Icon(Icons.file_download_outlined),
           ),
         ],
@@ -42,13 +52,22 @@ class ReportsScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
               children: [
                 Text(
-                  'ملخص المتجر',
+                  'صحة خدمة ما بعد البيع',
                   style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'أرقام تشغيلية تساعدك على تقليل التأخير وتحسين قرار الضمان.',
+                  style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final width = constraints.maxWidth >= 720
+                    final largeText =
+                        MediaQuery.textScalerOf(context).scale(14) > 19;
+                    final width = largeText
+                        ? constraints.maxWidth
+                        : constraints.maxWidth >= 720
                         ? (constraints.maxWidth - 20) / 3
                         : (constraints.maxWidth - 10) / 2;
                     return Wrap(
@@ -57,34 +76,81 @@ class ReportsScreen extends StatelessWidget {
                       children: [
                         _ReportMetric(
                           width: width,
-                          label: 'إجمالي المبيعات',
-                          value: formatMoney(
-                            controller.totalSales,
-                            store.currencyCode,
-                          ),
-                          icon: Icons.payments_outlined,
+                          label: 'مطالبات مفتوحة',
+                          value: '$openClaims',
+                          icon: Icons.inbox_outlined,
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'مبيعات الشهر',
-                          value: formatMoney(
-                            controller.currentMonthSales,
-                            store.currencyCode,
-                          ),
-                          icon: Icons.calendar_today_outlined,
+                          label: 'مطالبات متأخرة',
+                          value: '$overdueClaims',
+                          icon: Icons.warning_amber_rounded,
+                          warning: overdueClaims > 0,
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'متوسط الإيصال',
-                          value: formatMoney(average, store.currencyCode),
-                          icon: Icons.query_stats_outlined,
+                          label: 'نسبة القبول',
+                          value: decidedClaims == 0
+                              ? '—'
+                              : '${(approvedClaims.length / decidedClaims * 100).round()}%',
+                          icon: Icons.task_alt_outlined,
+                        ),
+                        _ReportMetric(
+                          width: width,
+                          label: 'متوسط وقت القبول',
+                          value: _averageDuration(
+                            approvedClaims.map(
+                              (item) =>
+                                  item.approvedAt!.difference(item.createdAt),
+                            ),
+                          ),
+                          icon: Icons.speed_outlined,
+                        ),
+                        _ReportMetric(
+                          width: width,
+                          label: 'متوسط وقت الإغلاق',
+                          value: _averageDuration(
+                            completedClaims.map(
+                              (item) =>
+                                  item.completedAt!.difference(item.createdAt),
+                            ),
+                          ),
+                          icon: Icons.timelapse_rounded,
+                        ),
+                        _ReportMetric(
+                          width: width,
+                          label: 'ضمانات سارية',
+                          value:
+                              '${warranties.where((item) => item.statusAt() == WarrantyStatus.active).length}',
+                          icon: Icons.verified_user_outlined,
                         ),
                       ],
                     );
                   },
                 ),
                 const SizedBox(height: 24),
-                _BreakdownCard(warranties: warranties),
+                _ClaimBreakdownCard(
+                  title: 'أسباب المطالبات',
+                  emptyLabel: 'لا توجد مطالبات مصنفة بعد.',
+                  values: {
+                    for (final category in ClaimCategory.values)
+                      category.label: requests
+                          .where((item) => item.category == category)
+                          .length,
+                  },
+                ),
+                const SizedBox(height: 14),
+                _ClaimBreakdownCard(
+                  title: 'قرارات المعالجة',
+                  emptyLabel: 'تظهر القرارات بعد إغلاق أول مطالبة.',
+                  values: {
+                    for (final resolution in ClaimResolution.values)
+                      if (resolution != ClaimResolution.none)
+                        resolution.label: requests
+                            .where((item) => item.resolution == resolution)
+                            .length,
+                  },
+                ),
                 const SizedBox(height: 14),
                 Card(
                   child: ListTile(
@@ -105,14 +171,33 @@ class ReportsScreen extends StatelessWidget {
                       ),
                     ),
                     title: const Text(
-                      'تصدير سجل المبيعات CSV',
+                      'تصدير سجل المطالبات CSV',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: const Text(
-                      'يشمل الإيصال والعميل والمنتج والخصم وطريقة الدفع.',
+                      'يشمل الحالة والأولوية والمسؤول والقرار وأوقات المعالجة.',
                     ),
                     trailing: const Icon(Icons.ios_share_outlined),
-                    onTap: () => _exportCsv(context),
+                    onTap: () => _exportClaimsCsv(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    leading: const Icon(Icons.receipt_long_outlined),
+                    title: const Text(
+                      'تصدير سجل الضمانات CSV',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      '${warranties.length} ضمان • العملة ${store.currencyCode}',
+                    ),
+                    trailing: const Icon(Icons.ios_share_outlined),
+                    onTap: () => _exportWarrantiesCsv(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -151,7 +236,64 @@ class ReportsScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _exportCsv(BuildContext context) async {
+  String _averageDuration(Iterable<Duration> values) {
+    final safe = values.where((value) => !value.isNegative).toList();
+    if (safe.isEmpty) return '—';
+    final minutes =
+        safe.fold<int>(0, (sum, value) => sum + value.inMinutes) ~/ safe.length;
+    if (minutes < 60) return '$minutes د';
+    final hours = minutes / 60;
+    if (hours < 24) return '${hours.toStringAsFixed(hours < 10 ? 1 : 0)} س';
+    return '${(hours / 24).toStringAsFixed(1)} يوم';
+  }
+
+  Future<void> _exportClaimsCsv(BuildContext context) async {
+    final controller = AppScope.of(context);
+    final rows = <List<String>>[
+      [
+        'رقم المطالبة',
+        'رقم الضمان',
+        'المنتج',
+        'العميل',
+        'المشكلة',
+        'الفئة',
+        'الأولوية',
+        'الحالة',
+        'القرار',
+        'المسؤول',
+        'تاريخ الإنشاء',
+        'آخر تحديث',
+        'موعد الخدمة',
+      ],
+      ...controller.requests.map((item) {
+        final warranty = controller.warrantyById(item.warrantyId);
+        final assignee = controller.teamMemberById(item.assignedTo);
+        return [
+          item.displayNumber,
+          warranty?.displayNumber ?? '',
+          warranty?.productName ?? '',
+          warranty?.customerName ?? '',
+          item.issue,
+          item.category.label,
+          item.priority.label,
+          item.status.label,
+          item.resolution.label,
+          assignee?.fullName ?? '',
+          item.createdAt.toIso8601String(),
+          item.updatedAt.toIso8601String(),
+          item.slaDueAt?.toIso8601String() ?? '',
+        ];
+      }),
+    ];
+    await _shareCsv(
+      context,
+      rows,
+      'damanak-claims',
+      'تقرير مطالبات ${controller.store!.name}',
+    );
+  }
+
+  Future<void> _exportWarrantiesCsv(BuildContext context) async {
     final controller = AppScope.of(context);
     final rows = <List<String>>[
       [
@@ -183,19 +325,33 @@ class ReportsScreen extends StatelessWidget {
         ],
       ),
     ];
+    await _shareCsv(
+      context,
+      rows,
+      'damanak-warranties',
+      'تقرير ضمانات ${controller.store!.name}',
+    );
+  }
+
+  Future<void> _shareCsv(
+    BuildContext context,
+    List<List<String>> rows,
+    String filePrefix,
+    String subject,
+  ) async {
     final csv = rows.map((row) => row.map(_csvCell).join(',')).join('\r\n');
     final bytes = Uint8List.fromList(utf8.encode('\ufeff$csv'));
     final file = XFile.fromData(
       bytes,
       mimeType: 'text/csv',
-      name: 'damanak-sales-${DateTime.now().millisecondsSinceEpoch}.csv',
+      name: '$filePrefix-${DateTime.now().millisecondsSinceEpoch}.csv',
     );
     final box = context.findRenderObject() as RenderBox?;
     await SharePlus.instance.share(
       ShareParams(
         files: [file],
         fileNameOverrides: [file.name],
-        subject: 'تقرير مبيعات ${controller.store!.name}',
+        subject: subject,
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
@@ -212,12 +368,14 @@ class _ReportMetric extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.warning = false,
   });
 
   final double width;
   final String label;
   final String value;
   final IconData icon;
+  final bool warning;
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +388,7 @@ class _ReportMetric extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: colors.primary),
+              Icon(icon, color: warning ? colors.error : colors.primary),
               const SizedBox(height: 14),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -250,51 +408,51 @@ class _ReportMetric extends StatelessWidget {
   }
 }
 
-class _BreakdownCard extends StatelessWidget {
-  const _BreakdownCard({required this.warranties});
+class _ClaimBreakdownCard extends StatelessWidget {
+  const _ClaimBreakdownCard({
+    required this.title,
+    required this.values,
+    required this.emptyLabel,
+  });
 
-  final Iterable<Warranty> warranties;
+  final String title;
+  final Map<String, int> values;
+  final String emptyLabel;
 
   @override
   Widget build(BuildContext context) {
-    final counts = <PaymentMethod, int>{
-      for (final method in PaymentMethod.values) method: 0,
-    };
-    for (final warranty in warranties) {
-      counts[warranty.paymentMethod] = counts[warranty.paymentMethod]! + 1;
-    }
-    final total = warranties.length;
+    final visible = values.entries.where((entry) => entry.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = visible.fold<int>(0, (sum, entry) => sum + entry.value);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('طرق الدفع', style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 14),
-            ...counts.entries
-                .where((entry) => entry.value > 0)
-                .map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(entry.key.label)),
-                        Text('${entry.value} إيصال'),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 80,
-                          child: LinearProgressIndicator(
-                            value: total == 0 ? 0 : entry.value / total,
-                            minHeight: 7,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      ],
+            ...visible.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(entry.key)),
+                    Text('${entry.value}'),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 80,
+                      child: LinearProgressIndicator(
+                        value: total == 0 ? 0 : entry.value / total,
+                        minHeight: 7,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-            if (total == 0) const Text('لا توجد مبيعات مسجلة بعد.'),
+              ),
+            ),
+            if (total == 0) Text(emptyLabel),
           ],
         ),
       ),

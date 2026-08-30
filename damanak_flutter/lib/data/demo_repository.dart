@@ -6,9 +6,11 @@ import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/claim_attachment.dart';
 import '../models/inventory.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
+import '../models/product_ai_import.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
@@ -642,6 +644,39 @@ class DemoDamanakRepository implements DamanakRepository {
     );
     _products[index] = product;
     return product;
+  }
+
+  @override
+  Future<AiProductImportResult> analyzeProductDocument({
+    required String storeId,
+    required ProductDocumentInput document,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return const AiProductImportResult(
+      jobId: 'demo-ai-import',
+      currency: 'QAR',
+      products: [
+        AiProductSuggestion(
+          name: 'منتج مستخرج تجريبياً',
+          brand: 'علامة تجريبية',
+          category: 'إلكترونيات',
+          barcode: '',
+          sku: 'AI-DEMO-01',
+          warrantyMonths: 12,
+          salePrice: 249,
+          costPrice: 180,
+          quantity: 1,
+          confidence: 0.91,
+          sourceText: 'منتج مستخرج من المستند التجريبي',
+        ),
+      ],
+      usage: AiImportUsage(
+        inputTokens: 1800,
+        outputTokens: 220,
+        estimatedCostUsd: 0.00234,
+        model: 'demo',
+      ),
+    );
   }
 
   @override
@@ -1371,6 +1406,22 @@ class DemoDamanakRepository implements DamanakRepository {
   }
 
   @override
+  Future<Warranty?> findWarrantyBySerial(
+    String storeId,
+    String serialNumber,
+  ) async {
+    final normalized = _normalizeSerial(serialNumber);
+    if (normalized.isEmpty) return null;
+    for (final warranty in _warranties) {
+      if (warranty.storeId == storeId &&
+          _normalizeSerial(warranty.serialNumber) == normalized) {
+        return warranty;
+      }
+    }
+    return null;
+  }
+
+  @override
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
@@ -1459,6 +1510,8 @@ class DemoDamanakRepository implements DamanakRepository {
     required String storeId,
     required String warrantyId,
     required String issue,
+    ClaimCategory category = ClaimCategory.other,
+    ClaimPriority priority = ClaimPriority.normal,
   }) async {
     final request = MaintenanceRequest(
       id: _uuid.v4(),
@@ -1469,20 +1522,34 @@ class DemoDamanakRepository implements DamanakRepository {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       createdBy: _account.id,
+      claimNumber: 1000 + _requests.length + 1,
+      category: category,
+      priority: priority,
+      slaDueAt: DateTime.now().add(const Duration(hours: 48)),
     );
     _requests.insert(0, request);
     return request;
   }
 
   @override
-  Future<void> updateRequestStatus(
-    String requestId,
-    MaintenanceStatus status,
-  ) async {
-    final index = _requests.indexWhere((item) => item.id == requestId);
+  Future<MaintenanceRequest> updateRequest(MaintenanceRequest request) async {
+    final index = _requests.indexWhere((item) => item.id == request.id);
     if (index >= 0) {
-      _requests[index] = _requests[index].copyWith(status: status);
+      final updated = request.copyWith(version: request.version + 1);
+      _requests[index] = updated;
+      return updated;
     }
+    throw StateError('CLAIM_NOT_FOUND');
+  }
+
+  @override
+  Future<List<ClaimAttachment>> loadRequestAttachments(
+    String requestId,
+  ) async => const [];
+
+  @override
+  Future<Uri> createRequestAttachmentLink(String storagePath) async {
+    throw StateError('CLAIM_ATTACHMENT_UNAVAILABLE');
   }
 
   @override
@@ -1561,3 +1628,6 @@ class DemoDamanakRepository implements DamanakRepository {
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) =>
       throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
 }
+
+String _normalizeSerial(String value) =>
+    value.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');

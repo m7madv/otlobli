@@ -10,7 +10,7 @@ import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
 import '../widgets/page_frame.dart';
 import '../widgets/status_chip.dart';
-import 'warranty_detail_screen.dart';
+import 'claim_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -40,8 +40,13 @@ class HomeScreen extends StatelessWidget {
     final expiringCount = warranties
         .where((item) => item.statusAt() == WarrantyStatus.expiringSoon)
         .length;
-    final openRequests = requests
-        .where((item) => item.status != MaintenanceStatus.completed)
+    final openRequests = requests.where((item) => !item.status.isClosed).length;
+    final overdueRequests = requests.where((item) => item.isOverdue).length;
+    final unassignedRequests = requests
+        .where((item) => !item.status.isClosed && item.assignedTo == null)
+        .length;
+    final readyRequests = requests
+        .where((item) => item.status == MaintenanceStatus.readyForPickup)
         .length;
     final recentRequests = requests
         .where((item) => controller.warrantyById(item.warrantyId) != null)
@@ -61,6 +66,15 @@ class HomeScreen extends StatelessWidget {
               storeName: controller.store!.name,
               role: controller.membership!.role.label,
             ),
+            if (overdueRequests + unassignedRequests + readyRequests > 0) ...[
+              const SizedBox(height: 14),
+              _TodayWorkCard(
+                overdue: overdueRequests,
+                unassigned: unassignedRequests,
+                ready: readyRequests,
+                onOpen: onShowRequests,
+              ),
+            ],
             const SizedBox(height: 18),
             _WarrantyStarter(onScan: onScan, onManual: onCreateWarranty),
             const SizedBox(height: 12),
@@ -91,7 +105,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 26),
             _SectionHeading(
-              title: 'طلبات الصيانة الحديثة',
+              title: 'مطالبات الضمان الحديثة',
               actionLabel: 'عرض الكل',
               onAction: onShowRequests,
             ),
@@ -109,7 +123,7 @@ class HomeScreen extends StatelessWidget {
                     onOpen: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) =>
-                            WarrantyDetailScreen(warrantyId: warranty.id),
+                            ClaimDetailScreen(requestId: request.id),
                       ),
                     ),
                   ),
@@ -189,6 +203,89 @@ class _WorkspaceHeading extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TodayWorkCard extends StatelessWidget {
+  const _TodayWorkCard({
+    required this.overdue,
+    required this.unassigned,
+    required this.ready,
+    required this.onOpen,
+  });
+
+  final int overdue;
+  final int unassigned;
+  final int ready;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final parts = <String>[
+      if (overdue > 0) '$overdue متأخرة',
+      if (unassigned > 0) '$unassigned بلا مسؤول',
+      if (ready > 0) '$ready جاهزة للاستلام',
+    ];
+    return Semantics(
+      button: true,
+      label: 'متابعة اليوم، ${parts.join('، ')}',
+      child: Card(
+        color: overdue > 0 ? colors.errorContainer : colors.primaryContainer,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  overdue > 0
+                      ? Icons.notification_important_outlined
+                      : Icons.notifications_active_outlined,
+                  color: overdue > 0
+                      ? colors.onErrorContainer
+                      : colors.onPrimaryContainer,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'متابعة اليوم',
+                        style: TextStyle(
+                          color: overdue > 0
+                              ? colors.onErrorContainer
+                              : colors.onPrimaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        parts.join(' • '),
+                        style: TextStyle(
+                          color: overdue > 0
+                              ? colors.onErrorContainer
+                              : colors.onPrimaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_back_rounded,
+                  color: overdue > 0
+                      ? colors.onErrorContainer
+                      : colors.onPrimaryContainer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -691,12 +788,12 @@ class _EmptyRequests extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'لا توجد طلبات صيانة حديثة',
+                    'لا توجد مطالبات ضمان حديثة',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'تظهر هنا الطلبات المسجلة من بطاقات الضمان.',
+                    'تظهر هنا المطالبات المسجلة من بطاقات الضمان.',
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
                       fontSize: 12,
@@ -706,7 +803,7 @@ class _EmptyRequests extends StatelessWidget {
               ),
             ),
             IconButton(
-              tooltip: 'فتح الصيانة',
+              tooltip: 'فتح مركز المطالبات',
               onPressed: onOpen,
               icon: const Icon(Icons.arrow_back_rounded),
             ),

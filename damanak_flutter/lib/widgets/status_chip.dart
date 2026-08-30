@@ -53,15 +53,45 @@ class MaintenanceStatusChip extends StatelessWidget {
         colors.surfaceContainerHighest,
         Icons.fiber_new_rounded,
       ),
+      MaintenanceStatus.needsReview => (
+        colors.onSurface,
+        colors.surfaceContainerHighest,
+        Icons.fact_check_outlined,
+      ),
+      MaintenanceStatus.approved => (
+        colors.primary,
+        colors.primaryContainer,
+        Icons.verified_outlined,
+      ),
       MaintenanceStatus.inProgress => (
         colors.onSurface,
         colors.surfaceContainerHighest,
         Icons.build_circle_outlined,
       ),
+      MaintenanceStatus.waitingForCustomer => (
+        colors.onSurface,
+        colors.surfaceContainerHighest,
+        Icons.hourglass_top_rounded,
+      ),
+      MaintenanceStatus.readyForPickup => (
+        colors.primary,
+        colors.primaryContainer,
+        Icons.inventory_2_outlined,
+      ),
       MaintenanceStatus.completed => (
         colors.primary,
         colors.primaryContainer,
         Icons.task_alt_rounded,
+      ),
+      MaintenanceStatus.rejected => (
+        colors.error,
+        colors.errorContainer,
+        Icons.block_rounded,
+      ),
+      MaintenanceStatus.cancelled => (
+        colors.onSurfaceVariant,
+        colors.surfaceContainerHighest,
+        Icons.cancel_outlined,
       ),
     };
 

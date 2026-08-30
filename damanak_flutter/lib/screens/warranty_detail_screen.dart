@@ -10,6 +10,7 @@ import '../models/branch.dart';
 import '../models/warranty.dart';
 import '../state/app_scope.dart';
 import '../widgets/status_chip.dart';
+import 'claim_detail_screen.dart';
 
 class WarrantyDetailScreen extends StatefulWidget {
   const WarrantyDetailScreen({
@@ -141,14 +142,14 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            'طلبات الصيانة',
+                            'مطالبات الضمان',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
                         TextButton.icon(
                           onPressed: () => _openMaintenanceDialog(warranty),
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('طلب جديد'),
+                          label: const Text('مطالبة جديدة'),
                         ),
                       ],
                     ),
@@ -160,6 +161,12 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                         (request) => Card(
                           margin: const EdgeInsets.only(bottom: 9),
                           child: ListTile(
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    ClaimDetailScreen(requestId: request.id),
+                              ),
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
@@ -175,7 +182,7 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
-                                '${request.id} • ${formatDate(request.createdAt)}',
+                                '${request.displayNumber} • ${formatDate(request.createdAt)}',
                                 textDirection: TextDirection.ltr,
                               ),
                             ),
@@ -264,39 +271,39 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
   }
 
   Future<void> _openMaintenanceDialog(Warranty warranty) async {
-    final issueController = TextEditingController();
+    var issueText = '';
     final issue = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('طلب صيانة جديد'),
-        content: TextField(
-          controller: issueController,
-          minLines: 3,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'وصف المشكلة',
-            hintText: 'مثال: الجهاز لا يعمل بعد التشغيل',
-            alignLabelWithHint: true,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('مطالبة ضمان جديدة'),
+          content: TextField(
+            autofocus: true,
+            minLines: 3,
+            maxLines: 5,
+            onChanged: (value) =>
+                setDialogState(() => issueText = value.trim()),
+            decoration: const InputDecoration(
+              labelText: 'ما المشكلة؟',
+              hintText: 'مثال: الجهاز لا يعمل بعد التشغيل',
+              alignLabelWithHint: true,
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: issueText.length < 3
+                  ? null
+                  : () => Navigator.pop(dialogContext, issueText),
+              child: const Text('تسجيل المطالبة'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = issueController.text.trim();
-              if (value.isNotEmpty) {
-                Navigator.pop(dialogContext, value);
-              }
-            },
-            child: const Text('حفظ الطلب'),
-          ),
-        ],
       ),
     );
-    issueController.dispose();
     if (issue == null || !mounted) {
       return;
     }
@@ -306,7 +313,7 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('تم تسجيل طلب الصيانة.')));
+      ).showSnackBar(const SnackBar(content: Text('تم تسجيل مطالبة الضمان.')));
     }
   }
 
@@ -316,7 +323,7 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
       builder: (dialogContext) => AlertDialog(
         title: const Text('حذف بطاقة الضمان؟'),
         content: const Text(
-          'سيتم حذف البطاقة وطلبات الصيانة التابعة لها من سجل المتجر نهائياً.',
+          'سيتم حذف البطاقة ومطالبات الضمان التابعة لها من سجل المتجر نهائياً.',
         ),
         actions: [
           TextButton(
@@ -720,7 +727,7 @@ class _NoRequests extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'لا توجد طلبات صيانة لهذه البطاقة.',
+                'لا توجد مطالبات ضمان لهذه البطاقة.',
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ),

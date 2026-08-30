@@ -153,4 +153,131 @@ void main() {
       expect(verifier, contains(token));
     }
   });
+
+  test('مخطط المطالبات يفرض دورة خدمة معزولة وتحديثاً متزامناً آمناً', () {
+    final schema = File(
+      'supabase/migrations/20260830160000_damanak_claims_foundation.sql',
+    ).readAsStringSync();
+
+    for (final token in [
+      'claim_number',
+      'needs_review',
+      'waiting_for_customer',
+      'ready_for_pickup',
+      'decision_reason',
+      'sla_due_at',
+      'maintenance_request_events',
+      'guard_maintenance_request',
+      'CLAIM_VERSION_CONFLICT',
+      'CLAIM_MANAGER_REQUIRED',
+      'update_maintenance_request',
+      'enable row level security',
+    ]) {
+      expect(schema, contains(token));
+    }
+
+    expect(
+      schema,
+      contains('grant execute on function public.update_maintenance_request'),
+    );
+    expect(
+      schema,
+      contains('revoke all on table public.maintenance_request_events'),
+    );
+  });
+
+  test(
+    'بوابة العميل تعزل الملفات وتحد الإرسال ولا تكشف الملاحظات الداخلية',
+    () {
+      final migration = File(
+        'supabase/migrations/20260830170000_damanak_customer_claim_portal.sql',
+      ).readAsStringSync();
+      final function = File(
+        'supabase/functions/warranty-card/index.ts',
+      ).readAsStringSync();
+
+      for (final token in [
+        'maintenance_request_attachments',
+        'submit_public_warranty_claim',
+        'CLAIM_RATE_LIMITED',
+        'WARRANTY_EXPIRED',
+        'public_submission_id',
+        'pg_advisory_xact_lock',
+        'claim-attachments',
+        'to service_role',
+        'enable row level security',
+      ]) {
+        expect(migration, contains(token));
+      }
+
+      for (final token in [
+        'multipart/form-data',
+        'allowedAttachmentTypes',
+        'maxAttachmentBytes',
+        'submitPublicClaim',
+        'form-action \'self\'',
+        'referrer-policy',
+        'maintenance_request_attachments',
+        'customer_notes',
+      ]) {
+        expect(function, contains(token));
+      }
+
+      expect(
+        function,
+        isNot(contains('select("*,maintenance_request_attachments(*)")')),
+      );
+      expect(function, isNot(contains('internal_notes')));
+    },
+  );
+
+  test('حارس التكرار يعزل المتجر ويطبع الرقم التسلسلي قبل المطابقة', () {
+    final migration = File(
+      'supabase/migrations/20260830180000_damanak_duplicate_guards.sql',
+    ).readAsStringSync();
+
+    for (final token in [
+      'warranties_store_serial_normalized_idx',
+      'find_warranty_by_serial',
+      'regexp_replace',
+      'is_store_member',
+      'voided_at is null',
+      'to authenticated',
+    ]) {
+      expect(migration, contains(token));
+    }
+  });
+
+  test('استيراد الذكاء الاصطناعي مسجل التكلفة ومتاح للمدير فقط', () {
+    final migration = File(
+      'supabase/migrations/20260830190000_damanak_ai_import_jobs.sql',
+    ).readAsStringSync();
+    final function = File(
+      'supabase/functions/import-products-ai/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'ai_import_jobs',
+      'estimated_cost_usd',
+      'ai_import_jobs_select_managers',
+      "has_store_role(store_id, array['owner', 'manager'])",
+      'enable row level security',
+    ]) {
+      expect(migration, contains(token));
+    }
+    for (final token in [
+      'OPENAI_API_KEY',
+      'gpt-5.4-mini',
+      'json_schema',
+      'store: false',
+      'AI_IMPORT_DAILY_LIMIT',
+      'IMPORT_MANAGER_REQUIRED',
+      'productImportSchema',
+      'confidence',
+    ]) {
+      expect(function, contains(token));
+    }
+    expect(function, contains('env("OPENAI_API_KEY")'));
+    expect(function, isNot(contains('sk-proj-')));
+  });
 }

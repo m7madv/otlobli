@@ -87,37 +87,25 @@ class AccountScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _HubSection(
-              title: 'أدوات المتجر',
+              title: 'خدمة الضمان',
               children: [
-                _HubTile(
-                  icon: Icons.point_of_sale_outlined,
-                  title: 'نقطة البيع',
-                  subtitle: 'بيع سريع وإيصال داخلي',
-                  onTap: () => _open(context, const PointOfSaleScreen()),
-                ),
                 _HubTile(
                   icon: Icons.inventory_2_outlined,
                   title: 'المنتجات',
                   subtitle: '${controller.products.length} منتج في الكتالوج',
                   onTap: () => _open(context, const ProductsScreen()),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _HubSection(
-              title: 'العمل اليومي',
-              children: [
-                _HubTile(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'المبيعات والمرتجعات',
-                  subtitle: '${controller.sales.length} عملية',
-                  onTap: () => _open(context, const SalesScreen()),
-                ),
                 _HubTile(
                   icon: Icons.people_outline_rounded,
                   title: 'العملاء',
                   subtitle: '${controller.customers.length} عميل',
                   onTap: () => _open(context, const CustomersScreen()),
+                ),
+                _HubTile(
+                  icon: Icons.analytics_outlined,
+                  title: 'أداء الضمان',
+                  subtitle: 'التأخير والقبول والإغلاق وأسباب الأعطال',
+                  onTap: () => _open(context, const ReportsScreen()),
                 ),
               ],
             ),
@@ -132,6 +120,30 @@ class AccountScreen extends StatelessWidget {
                   onTap: () => _open(context, const BranchesScreen()),
                 ),
                 _HubTile(
+                  icon: Icons.groups_2_outlined,
+                  title: 'الفريق والصلاحيات',
+                  subtitle: '${controller.team.length} أعضاء',
+                  onTap: () => _open(context, const TeamScreen()),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _HubSection(
+              title: 'أدوات بيع اختيارية',
+              children: [
+                _HubTile(
+                  icon: Icons.point_of_sale_outlined,
+                  title: 'نقطة البيع',
+                  subtitle: 'إصدار بيع وضمان في خطوة واحدة',
+                  onTap: () => _open(context, const PointOfSaleScreen()),
+                ),
+                _HubTile(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'المبيعات والمرتجعات',
+                  subtitle: '${controller.sales.length} عملية',
+                  onTap: () => _open(context, const SalesScreen()),
+                ),
+                _HubTile(
                   icon: Icons.point_of_sale_outlined,
                   title: 'الصندوق والورديات',
                   subtitle: 'فتح وإغلاق وجرد النقد',
@@ -143,12 +155,6 @@ class AccountScreen extends StatelessWidget {
                   subtitle: '${controller.suppliers.length} مورد',
                   onTap: () => _open(context, const ProcurementScreen()),
                 ),
-                _HubTile(
-                  icon: Icons.analytics_outlined,
-                  title: 'التقارير',
-                  subtitle: 'المبيعات وطرق الدفع والتصدير',
-                  onTap: () => _open(context, const ReportsScreen()),
-                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -156,22 +162,16 @@ class AccountScreen extends StatelessWidget {
               title: 'الحساب',
               children: [
                 _HubTile(
-                  icon: Icons.groups_2_outlined,
-                  title: 'الفريق والصلاحيات',
-                  subtitle: '${controller.team.length} أعضاء',
-                  onTap: () => _open(context, const TeamScreen()),
+                  icon: Icons.storefront_outlined,
+                  title: 'بيانات المتجر',
+                  subtitle: '${store.city} • ${store.phone}',
+                  onTap: () => _open(context, const SettingsScreen()),
                 ),
                 _HubTile(
                   icon: Icons.workspace_premium_outlined,
                   title: 'الاشتراك',
                   subtitle: 'خطة ${controller.subscription!.plan.name}',
                   onTap: () => _open(context, const SubscriptionScreen()),
-                ),
-                _HubTile(
-                  icon: Icons.storefront_outlined,
-                  title: 'بيانات المتجر',
-                  subtitle: '${store.city} • ${store.phone}',
-                  onTap: () => _open(context, const SettingsScreen()),
                 ),
               ],
             ),
@@ -198,7 +198,7 @@ class AccountScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 4.3.2',
+                'ضمانك للأعمال 4.4.0',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),

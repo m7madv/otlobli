@@ -31,9 +31,9 @@ class _ShellScreenState extends State<ShellScreen> {
       label: 'الضمانات',
     ),
     NavigationDestination(
-      icon: Icon(Icons.build_outlined),
-      selectedIcon: Icon(Icons.build_rounded),
-      label: 'الصيانة',
+      icon: Icon(Icons.fact_check_outlined),
+      selectedIcon: Icon(Icons.fact_check_rounded),
+      label: 'المطالبات',
     ),
     NavigationDestination(
       icon: Icon(Icons.admin_panel_settings_outlined),

@@ -9,9 +9,11 @@ import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/claim_attachment.dart';
 import '../models/inventory.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
+import '../models/product_ai_import.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/store_profile.dart';
@@ -517,6 +519,19 @@ class AppController extends ChangeNotifier {
     return updated;
   }
 
+  Future<AiProductImportResult?> analyzeProductDocument(
+    ProductDocumentInput document,
+  ) async {
+    AiProductImportResult? result;
+    await _guard(() async {
+      result = await _repository!.analyzeProductDocument(
+        storeId: _store!.id,
+        document: document,
+      );
+    });
+    return result;
+  }
+
   List<Warranty> warrantiesByStatus(WarrantyStatus status) =>
       _warranties.where((item) => item.statusAt() == status).toList();
 
@@ -527,8 +542,33 @@ class AppController extends ChangeNotifier {
     return null;
   }
 
+  Future<Warranty?> findWarrantyBySerial(String serialNumber) async {
+    final normalized = serialNumber.trim();
+    if (normalized.isEmpty || _store == null) return null;
+    Warranty? match;
+    await _guard(() async {
+      match = await _repository!.findWarrantyBySerial(_store!.id, normalized);
+    });
+    return match;
+  }
+
   List<MaintenanceRequest> requestsForWarranty(String warrantyId) =>
       _requests.where((request) => request.warrantyId == warrantyId).toList();
+
+  MaintenanceRequest? requestById(String id) {
+    for (final item in _requests) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  TeamMember? teamMemberById(String? id) {
+    if (id == null) return null;
+    for (final item in _team) {
+      if (item.userId == id) return item;
+    }
+    return null;
+  }
 
   Future<Warranty?> addWarranty({
     String? customerId,
@@ -634,6 +674,8 @@ class AppController extends ChangeNotifier {
   Future<MaintenanceRequest?> addMaintenanceRequest({
     required String warrantyId,
     required String issue,
+    ClaimCategory category = ClaimCategory.other,
+    ClaimPriority priority = ClaimPriority.normal,
   }) async {
     MaintenanceRequest? created;
     await _guard(() async {
@@ -641,6 +683,8 @@ class AppController extends ChangeNotifier {
         storeId: _store!.id,
         warrantyId: warrantyId,
         issue: issue,
+        category: category,
+        priority: priority,
       );
       _requests.insert(0, created!);
     });
@@ -651,13 +695,33 @@ class AppController extends ChangeNotifier {
     String requestId,
     MaintenanceStatus status,
   ) async {
+    final request = requestById(requestId);
+    if (request == null || request.status == status) return;
+    await saveMaintenanceRequest(request.copyWith(status: status));
+  }
+
+  Future<void> saveMaintenanceRequest(MaintenanceRequest request) async {
     await _guard(() async {
-      await _repository!.updateRequestStatus(requestId, status);
-      final index = _requests.indexWhere((item) => item.id == requestId);
+      final updated = await _repository!.updateRequest(request);
+      final index = _requests.indexWhere((item) => item.id == request.id);
       if (index >= 0) {
-        _requests[index] = _requests[index].copyWith(status: status);
+        _requests[index] = updated;
       }
     });
+  }
+
+  Future<List<ClaimAttachment>> loadRequestAttachments(String requestId) {
+    final repository = _repository;
+    if (repository == null) return Future.value(const []);
+    return repository.loadRequestAttachments(requestId);
+  }
+
+  Future<Uri> createRequestAttachmentLink(String storagePath) {
+    final repository = _repository;
+    if (repository == null) {
+      return Future.error(StateError('CLAIM_ATTACHMENT_UNAVAILABLE'));
+    }
+    return repository.createRequestAttachmentLink(storagePath);
   }
 
   Future<StoreInvite?> createInvite(MemberRole role, int maxUses) async {
@@ -1383,6 +1447,33 @@ class AppController extends ChangeNotifier {
     }
     if (value.contains('warranty_share_link')) {
       return 'تعذّر تجهيز رابط التحقق من الضمان. حاول مرة أخرى بعد لحظات.';
+    }
+    if (value.contains('claim_version_conflict')) {
+      return 'حدّث موظف آخر هذه المطالبة. أعد تحميلها قبل حفظ تعديلك.';
+    }
+    if (value.contains('claim_manager_required')) {
+      return 'هذا القرار يحتاج إلى حساب المالك أو المدير.';
+    }
+    if (value.contains('claim_decision_reason_required')) {
+      return 'اكتب سبب القرار قبل رفض المطالبة.';
+    }
+    if (value.contains('claim_status_transition_invalid')) {
+      return 'لا يمكن نقل المطالبة مباشرةً إلى هذه الحالة.';
+    }
+    if (value.contains('claim_assignee_invalid')) {
+      return 'اختر موظفاً نشطاً من فريق المتجر.';
+    }
+    if (value.contains('ai_import_daily_limit')) {
+      return 'وصل المتجر إلى حد تحليل المستندات اليومي.';
+    }
+    if (value.contains('import_manager_required')) {
+      return 'استيراد المستندات متاح للمالك أو المدير فقط.';
+    }
+    if (value.contains('ai_import_failed')) {
+      return 'تعذر تحليل المستند. جرّب ملفاً أوضح أو استخدم CSV.';
+    }
+    if (value.contains('claim_attachment')) {
+      return 'تعذر فتح ملف المطالبة. تحقق من الاتصال وحاول مرة أخرى.';
     }
     if (value.contains('insufficient_stock')) {
       return 'الكمية المطلوبة أكبر من الرصيد المتاح في هذا الفرع.';

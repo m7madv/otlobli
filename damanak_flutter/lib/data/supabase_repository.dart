@@ -1,13 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/claim_attachment.dart';
 import '../models/inventory.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
+import '../models/product_ai_import.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
@@ -452,6 +456,33 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
+  Future<AiProductImportResult> analyzeProductDocument({
+    required String storeId,
+    required ProductDocumentInput document,
+  }) async {
+    final response = await _client.functions.invoke(
+      'import-products-ai',
+      body: {'storeId': storeId},
+      files: [
+        http.MultipartFile.fromBytes(
+          'file',
+          document.bytes,
+          filename: document.filename,
+          contentType: MediaType.parse(document.mimeType),
+        ),
+      ],
+    );
+    if (response.status != 200 || response.data is! Map) {
+      final data = response.data;
+      final code = data is Map ? data['error'] : null;
+      throw StateError(code is String ? code : 'AI_IMPORT_FAILED');
+    }
+    return AiProductImportResult.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  @override
   Future<List<InventoryLevel>> loadInventory(String storeId) async {
     final rows = await _client
         .from('inventory_levels')
@@ -784,6 +815,39 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
+  Future<Warranty?> findWarrantyBySerial(
+    String storeId,
+    String serialNumber,
+  ) async {
+    try {
+      final value = await _client.rpc(
+        'find_warranty_by_serial',
+        params: {
+          'target_store_id': storeId,
+          'target_serial': serialNumber.trim(),
+        },
+      );
+      if (value == null) return null;
+      return Warranty.fromJson(Map<String, dynamic>.from(value as Map));
+    } on PostgrestException catch (error) {
+      final missingRpc =
+          error.code == 'PGRST202' ||
+          error.message.contains('find_warranty_by_serial');
+      if (!missingRpc) rethrow;
+      final row = await _client
+          .from('warranties')
+          .select()
+          .eq('store_id', storeId)
+          .eq('serial_number', serialNumber.trim())
+          .isFilter('voided_at', null)
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      return row == null ? null : Warranty.fromJson(row);
+    }
+  }
+
+  @override
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
@@ -876,6 +940,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String storeId,
     required String warrantyId,
     required String issue,
+    ClaimCategory category = ClaimCategory.other,
+    ClaimPriority priority = ClaimPriority.normal,
   }) async {
     final row = await _client
         .from('maintenance_requests')
@@ -883,6 +949,9 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'store_id': storeId,
           'warranty_id': warrantyId,
           'issue': issue.trim(),
+          'category': category.databaseValue,
+          'priority': priority.name,
+          'channel': ClaimChannel.staff.databaseValue,
           'created_by': _user.id,
         })
         .select()
@@ -891,22 +960,51 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
-  Future<void> updateRequestStatus(
-    String requestId,
-    MaintenanceStatus status,
-  ) async {
-    final value = switch (status) {
-      MaintenanceStatus.newRequest => 'new',
-      MaintenanceStatus.inProgress => 'in_progress',
-      MaintenanceStatus.completed => 'completed',
-    };
-    await _client
-        .from('maintenance_requests')
-        .update({
-          'status': value,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', requestId);
+  Future<MaintenanceRequest> updateRequest(MaintenanceRequest request) async {
+    final value = await _client.rpc(
+      'update_maintenance_request',
+      params: {
+        'target_request_id': request.id,
+        'expected_version': request.version,
+        'patch': {
+          'status': request.status.databaseValue,
+          'category': request.category.databaseValue,
+          'priority': request.priority.name,
+          'resolution': request.resolution.databaseValue,
+          'customer_notes': request.customerNotes.trim(),
+          'internal_notes': request.internalNotes.trim(),
+          'diagnosis': request.diagnosis.trim(),
+          'resolution_notes': request.resolutionNotes.trim(),
+          'decision_reason': request.decisionReason.trim(),
+          'assigned_to': request.assignedTo,
+          'service_branch_id': request.serviceBranchId,
+          'sla_due_at': request.slaDueAt?.toIso8601String(),
+        },
+      },
+    );
+    return MaintenanceRequest.fromJson(Map<String, dynamic>.from(value as Map));
+  }
+
+  @override
+  Future<List<ClaimAttachment>> loadRequestAttachments(String requestId) async {
+    final rows = await _client
+        .from('maintenance_request_attachments')
+        .select()
+        .eq('request_id', requestId)
+        .order('created_at', ascending: false);
+    return rows.map(ClaimAttachment.fromJson).toList();
+  }
+
+  @override
+  Future<Uri> createRequestAttachmentLink(String storagePath) async {
+    final value = await _client.storage
+        .from('claim-attachments')
+        .createSignedUrl(storagePath, 600);
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.isScheme('https')) {
+      throw StateError('CLAIM_ATTACHMENT_LINK_INVALID');
+    }
+    return uri;
   }
 
   @override

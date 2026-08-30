@@ -53,6 +53,16 @@ void main() {
       expect(controller.productByBarcode('000000'), isNull);
     });
 
+    test('يكشف الرقم التسلسلي المسجل رغم اختلاف الشرطات والحروف', () async {
+      final warranty = controller.warranties.first;
+      final alternate = warranty.serialNumber.replaceAll('-', '').toLowerCase();
+
+      final match = await controller.findWarrantyBySerial(alternate);
+
+      expect(match?.id, warranty.id);
+      expect(await controller.findWarrantyBySerial('SERIAL-NOT-FOUND'), isNull);
+    });
+
     test('يضيف منتجاً ثم يصدر له ضماناً ويحتسب الاستخدام', () async {
       final beforeUsage = controller.subscription!.usedWarranties;
       final product = await controller.addProduct(

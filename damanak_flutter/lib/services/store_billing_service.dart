@@ -62,12 +62,10 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
     }
   }
 
-  // StoreKit 2 remains the primary source and receives most of the single
-  // overall deadline. Keep at most one StoreKit 1 fallback request so a timed
-  // out native request does not fan out into overlapping StoreKit work.
-  final storeKit2Budget = Duration(
-    microseconds: (timeout.inMicroseconds * 3) ~/ 4,
-  );
+  // StoreKit 2 remains the primary source, but reserve half of the single
+  // overall deadline for StoreKit 1. A tiny fallback window made valid catalog
+  // responses lose a race against the timer on slower iPhones.
+  final storeKit2Budget = Duration(microseconds: timeout.inMicroseconds ~/ 2);
   await collect(storeKit2Query, productIds, maximumTimeout: storeKit2Budget);
   var missing = missingIds();
   if (missing.isEmpty) {

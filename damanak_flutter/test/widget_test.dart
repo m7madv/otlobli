@@ -1,4 +1,5 @@
 import 'package:damanak/app.dart';
+import 'package:damanak/screens/product_import_screen.dart';
 import 'package:damanak/screens/startup_screen.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:flutter/material.dart';
@@ -40,11 +41,11 @@ void main() {
 
     expect(find.text('الرئيسية'), findsOneWidget);
     expect(find.text('الضمانات'), findsOneWidget);
-    expect(find.text('الصيانة'), findsOneWidget);
+    expect(find.text('المطالبات'), findsOneWidget);
     expect(find.text('الإدارة'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-scan-warranty')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-manual-warranty')), findsOneWidget);
-    expect(find.text('طلبات الصيانة الحديثة'), findsOneWidget);
+    expect(find.text('مطالبات الضمان الحديثة'), findsOneWidget);
   });
 
   testWidgets('يبحث في الضمانات بالهاتف ويعرض فلاتر الحالة', (tester) async {
@@ -207,11 +208,104 @@ void main() {
     expect(find.text('إضافة الرقم للسلة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('يبقى مركز المطالبات قابلاً للاستخدام عند 320×568 و200%', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+    await controller.addMaintenanceRequest(
+      warrantyId: controller.warranties.first.id,
+      issue: 'الجهاز لا يعمل بعد التشغيل',
+    );
+
+    await tester.pumpWidget(DamanakApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('المطالبات'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('مركز المطالبات'), findsOneWidget);
+    expect(find.text('نطاق العمل'), findsOneWidget);
+    expect(find.text('1 مطالبة'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('تبقى تقارير الضمان قابلة للقراءة عند 320×568 و200%', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+    await controller.addMaintenanceRequest(
+      warrantyId: controller.warranties.first.id,
+      issue: 'البطارية لا تشحن',
+    );
+
+    await tester.pumpWidget(DamanakApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('الإدارة'));
+    await tester.pumpAndSettle();
+    final reports = find.ancestor(
+      of: find.text('أداء الضمان'),
+      matching: find.byType(ListTile),
+    );
+    await tester.ensureVisible(reports);
+    await tester.pumpAndSettle();
+    await tester.tap(reports);
+    await tester.pumpAndSettle();
+
+    expect(find.text('صحة خدمة ما بعد البيع'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('أسباب المطالبات'),
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('أسباب المطالبات'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('تبقى خيارات استيراد المنتجات واضحة عند 320×568 و200%', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(const DamanakAppFrame(home: ProductImportScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('استيراد المنتجات'), findsOneWidget);
+    expect(find.text('اختيار ملف CSV'), findsOneWidget);
+    expect(find.text('تحليل PDF أو صورة'), findsOneWidget);
+    expect(find.text('قالب جاهز'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _openPointOfSale(WidgetTester tester) async {
   await tester.tap(find.text('الإدارة'));
   await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('نقطة البيع'),
+    220,
+    scrollable: find.byType(Scrollable).last,
+  );
   final pointOfSale = find.ancestor(
     of: find.text('نقطة البيع'),
     matching: find.byType(ListTile),

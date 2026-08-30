@@ -2,9 +2,11 @@ import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/claim_attachment.dart';
 import '../models/maintenance_request.dart';
 import '../models/inventory.dart';
 import '../models/product.dart';
+import '../models/product_ai_import.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
@@ -118,6 +120,10 @@ abstract interface class DamanakRepository {
     required num reorderPoint,
     required bool isActive,
   });
+  Future<AiProductImportResult> analyzeProductDocument({
+    required String storeId,
+    required ProductDocumentInput document,
+  });
 
   Future<List<InventoryLevel>> loadInventory(String storeId);
   Future<List<StockMovement>> loadStockMovements(String storeId);
@@ -203,6 +209,7 @@ abstract interface class DamanakRepository {
     String storeId,
     String invoiceNumber,
   );
+  Future<Warranty?> findWarrantyBySerial(String storeId, String serialNumber);
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
@@ -233,8 +240,12 @@ abstract interface class DamanakRepository {
     required String storeId,
     required String warrantyId,
     required String issue,
+    ClaimCategory category = ClaimCategory.other,
+    ClaimPriority priority = ClaimPriority.normal,
   });
-  Future<void> updateRequestStatus(String requestId, MaintenanceStatus status);
+  Future<MaintenanceRequest> updateRequest(MaintenanceRequest request);
+  Future<List<ClaimAttachment>> loadRequestAttachments(String requestId);
+  Future<Uri> createRequestAttachmentLink(String storagePath);
 
   Future<List<TeamMember>> loadTeam(String storeId);
   Future<StoreInvite> createInvite({

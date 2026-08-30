@@ -13,6 +13,8 @@ import '../widgets/message_banner.dart';
 import 'scanner_screen.dart';
 import 'warranty_detail_screen.dart';
 
+enum _DuplicateWarrantyAction { openExisting, continueIssuing }
+
 class WarrantyFormScreen extends StatefulWidget {
   const WarrantyFormScreen({this.product, this.scannedBarcode = '', super.key});
 
@@ -180,6 +182,53 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
     }
     if (!_formKey.currentState!.validate()) return;
     final controller = AppScope.of(context);
+    final duplicate = await controller.findWarrantyBySerial(_serialNumber.text);
+    if (!mounted) return;
+    if (duplicate != null) {
+      final action = await showDialog<_DuplicateWarrantyAction>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.content_copy_rounded),
+          title: const Text('الرقم التسلسلي مسجل'),
+          content: Text(
+            'هذا الرقم مرتبط بالضمان ${duplicate.displayNumber} للعميل '
+            '${duplicate.customerName}، وصلاحيته حتى '
+            '${formatDate(duplicate.expiryDate)}. افتح السجل قبل إصدار ضمان آخر.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            if (controller.membership!.role.canManageTeam)
+              TextButton(
+                onPressed: () => Navigator.pop(
+                  dialogContext,
+                  _DuplicateWarrantyAction.continueIssuing,
+                ),
+                child: const Text('إصدار جديد بعد المراجعة'),
+              ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                _DuplicateWarrantyAction.openExisting,
+              ),
+              child: const Text('فتح الضمان الحالي'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (action == _DuplicateWarrantyAction.openExisting) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => WarrantyDetailScreen(warrantyId: duplicate.id),
+          ),
+        );
+        return;
+      }
+      if (action != _DuplicateWarrantyAction.continueIssuing) return;
+    }
     final subscription = controller.subscription!;
     if (!subscription.isUsable || subscription.remainingWarranties <= 0) {
       await showDialog<void>(
