@@ -27,8 +27,6 @@ jobs:
     timeout-minutes: 20
     env:
       AAB_NAME: VoiceBrief-0.1.0-build18-production-signed.aab
-      APPROVED_RELEASE_ID: "379423128"
-      APPROVED_ASSET_ID: "537149859"
       EXPECTED_AAB_BYTES: "59195892"
       EXPECTED_AAB_SHA256: AEC8B94AA105FA083372FC7B65419A602AC2A3452DA8F98161CE59E53E262AAD
       EXPECTED_UPLOAD_CERT_SHA256: 81:AA:4D:A6:E4:25:79:4E:88:0C:8D:DE:0A:75:68:F6:8C:EE:77:4A:3C:18:89:17:02:21:AD:04:46:EE:8F:D9
@@ -50,34 +48,19 @@ jobs:
 
       - name: Download the approved signed AAB
         env:
-          GH_TOKEN: ${{ github.token }}
+          VOICEBRIEF_AAB_SIGNED_URL: ${{ secrets.VOICEBRIEF_AAB_SIGNED_URL }}
         shell: bash
         run: |
           set -euo pipefail
+          test -n "$VOICEBRIEF_AAB_SIGNED_URL"
+          test "$(node -e 'process.stdout.write(new URL(process.env.VOICEBRIEF_AAB_SIGNED_URL).hostname)')" \
+            = "release-assets.githubusercontent.com"
           destination="$RUNNER_TEMP/voicebrief-play"
           mkdir -p "$destination"
-          release=$(gh api "/repos/$GITHUB_REPOSITORY/releases/$APPROVED_RELEASE_ID")
-          test "$(jq -r '.draft' <<<"$release")" = "true"
-          test "$(jq -r '.tag_name' <<<"$release")" = "voicebrief-build18-staging"
-          test "$(jq -r '.target_commitish' <<<"$release")" = "codex/voicebrief-ios"
-          asset_count=$(jq \
-            --argjson asset_id "$APPROVED_ASSET_ID" \
-            --arg asset_name "$AAB_NAME" \
-            '[.assets[] | select(.id == $asset_id and .name == $asset_name)] | length' \
-            <<<"$release")
-          test "$asset_count" = "1"
-          test "$(jq -r \
-            --argjson asset_id "$APPROVED_ASSET_ID" \
-            '.assets[] | select(.id == $asset_id) | .size' \
-            <<<"$release")" = "$EXPECTED_AAB_BYTES"
-          test "$(jq -r \
-            --argjson asset_id "$APPROVED_ASSET_ID" \
-            '.assets[] | select(.id == $asset_id) | .digest' \
-            <<<"$release")" = "sha256:$(tr '[:upper:]' '[:lower:]' <<<"$EXPECTED_AAB_SHA256")"
-          gh api \
-            -H "Accept: application/octet-stream" \
-            "/repos/$GITHUB_REPOSITORY/releases/assets/$APPROVED_ASSET_ID" \
-            > "$destination/$AAB_NAME"
+          curl --fail --silent --show-error --location --retry 3 \
+            --proto '=https' --proto-redir '=https' \
+            --output "$destination/$AAB_NAME" \
+            "$VOICEBRIEF_AAB_SIGNED_URL"
           test -f "$destination/$AAB_NAME"
           echo "VOICEBRIEF_AAB_PATH=$destination/$AAB_NAME" >> "$GITHUB_ENV"
 
