@@ -102,6 +102,12 @@ script now cancels this legacy submission only when it is exactly
 adds current `86.244` to the existing draft. Any ambiguity stops safely; no App
 Store version or build is deleted.
 
+Run `33307160043` stopped before cancellation because the migrated submission
+relationship did not match the blocker under the strict guard. A safe diagnostic
+now reports only relationship, blocker, current resource IDs, and active-item
+count on mismatch. It exposes no credentials and performs no cancellation when
+the constraints do not match.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS

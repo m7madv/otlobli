@@ -660,7 +660,11 @@ async function cancelLegacyVersionSubmission(contents, blocker, currentVersion) 
     throw new Error(`Cannot cancel legacy review submission from state ${submissionState}.`)
   }
   if (legacyVersionId !== blocker.appStoreVersionId || legacyVersionId === currentVersion.id) {
-    throw new Error('Legacy review submission does not point exclusively to the blocking old App Store version.')
+    throw new Error(
+      'Legacy review submission relationship mismatch: ' +
+      `relation=${legacyVersionId || 'NONE'}, blocker=${blocker.appStoreVersionId}, ` +
+      `current=${currentVersion.id}, activeItems=${activeItems.length}.`,
+    )
   }
   if (activeItems.length !== 0) {
     throw new Error('Legacy review submission contains other active items; refusing to cancel it implicitly.')
