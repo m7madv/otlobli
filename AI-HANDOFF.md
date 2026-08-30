@@ -83,6 +83,17 @@ removed only from the existing-build App Review job; physical acceptance is the
 submission evidence and this job must not touch Oracle or the WhatsApp session.
 The full authentication preflight remains unchanged for new TestFlight builds.
 
+Run `33306887739` reached App Store Connect without a build/upload and verified
+the exact build plus all six screenshots. Apple then showed that unresolved
+submission `e5e27b8a-b628-4116-b135-361b91266929` owns a different legacy App
+Store version item, not the current `86.244` resource. Apple does not allow new
+items while a submission has unresolved issues. Recovery now parses exactly one
+blocking appStoreVersion/submission pair, verifies `UNRESOLVED_ISSUES` plus a
+`REJECTED` legacy item, marks only that review item `removed=true`, then retries
+adding current `86.244` to the existing draft. It never deletes an App Store
+version or build. If the owner is the current version itself, the prior resolved
+and same-submission resubmission path remains in place.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS

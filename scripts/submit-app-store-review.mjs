@@ -518,34 +518,42 @@ async function findVersionSubmission(version) {
   return matches[0] || null
 }
 
-async function readVersionSubmission(submissionId, version) {
+async function readVersionSubmission(submissionId, appStoreVersionId) {
   const response = await apiRequest(apiPath(`/reviewSubmissions/${encodeURIComponent(submissionId)}`, {
     'fields[reviewSubmissions]': 'platform,state,items,appStoreVersionForReview',
   }))
   const items = await listSubmissionItems(response.data)
   const item = items.find((candidate) =>
     candidate.attributes?.state !== 'REMOVED' &&
-    candidate.relationships?.appStoreVersion?.data?.id === version.id)
+    candidate.relationships?.appStoreVersion?.data?.id === appStoreVersionId)
   if (!item) {
-    throw new Error(`Review submission ${submissionId} does not contain App Store version ${version.id}.`)
+    throw new Error(`Review submission ${submissionId} does not contain App Store version ${appStoreVersionId}.`)
   }
   return { submission: response.data, item }
 }
 
-function owningSubmissionId(error) {
+function owningSubmissionBlocker(error) {
   if (!(error instanceof AppStoreConnectError)) return null
-  const submissionIds = new Set()
+  const blockers = new Map()
   for (const apiError of error.errors || []) {
     const associatedErrors = apiError.meta?.associatedErrors || {}
-    for (const issues of Object.values(associatedErrors)) {
+    for (const [resourcePath, issues] of Object.entries(associatedErrors)) {
+      const resourceMatch = resourcePath.match(/^\/appStoreVersions\/([^/]+)$/)
+      if (!resourceMatch) continue
       if (!Array.isArray(issues)) continue
       for (const issue of issues) {
+        if (issue.code !== 'STATE_ERROR.ITEM_PART_OF_ANOTHER_SUBMISSION') continue
         const match = String(issue.detail || '').match(/reviewSubmission with id ([0-9a-f-]{36})/i)
-        if (match) submissionIds.add(match[1])
+        if (!match) continue
+        const blocker = {
+          appStoreVersionId: resourceMatch[1],
+          submissionId: match[1],
+        }
+        blockers.set(`${blocker.appStoreVersionId}:${blocker.submissionId}`, blocker)
       }
     }
   }
-  return submissionIds.size === 1 ? [...submissionIds][0] : null
+  return blockers.size === 1 ? [...blockers.values()][0] : null
 }
 
 async function findOrCreateDraftSubmission() {
@@ -604,6 +612,50 @@ async function resolveRejectedSubmissionItem(item) {
   })
   console.log(`Marked rejected App Store version ${config.appVersion} resolved in its existing review submission.`)
   return response.data
+}
+
+async function removeRejectedLegacySubmissionItem(placement, currentVersion) {
+  const submissionState = placement.submission.attributes?.state || 'UNKNOWN'
+  const itemState = placement.item.attributes?.state || 'UNKNOWN'
+  const legacyVersionId = placement.item.relationships?.appStoreVersion?.data?.id
+  if (submissionState !== 'UNRESOLVED_ISSUES' || itemState !== 'REJECTED') {
+    throw new Error(
+      `Cannot remove blocking App Store version ${legacyVersionId || 'UNKNOWN'} from ` +
+      `submission state ${submissionState} and item state ${itemState}.`,
+    )
+  }
+  if (!legacyVersionId || legacyVersionId === currentVersion.id) {
+    throw new Error('Legacy rejection cleanup must not remove the current App Store version item.')
+  }
+
+  await apiRequest(`/reviewSubmissionItems/${encodeURIComponent(placement.item.id)}`, {
+    method: 'PATCH',
+    body: {
+      data: {
+        type: 'reviewSubmissionItems',
+        id: placement.item.id,
+        attributes: { removed: true },
+      },
+    },
+  })
+  console.log(
+    `Removed rejected legacy App Store version ${legacyVersionId} from unresolved review submission ` +
+    `${placement.submission.id}; no app version or build was deleted.`,
+  )
+}
+
+async function addSubmissionItemAfterLegacyRemoval(submission, version) {
+  let lastError = null
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      return await ensureSubmissionItem(submission, version)
+    } catch (error) {
+      lastError = error
+      if (!(error instanceof AppStoreConnectError) || error.status !== 409 || attempt === 6) throw error
+      await sleep(attempt * 1_000)
+    }
+  }
+  throw lastError || new Error('Unable to add the current App Store version after legacy rejection cleanup.')
 }
 
 async function submitReview(submission) {
@@ -665,12 +717,23 @@ if (placement) {
     const item = await ensureSubmissionItem(submission, version)
     placement = { submission, item }
   } catch (error) {
-    const submissionId = owningSubmissionId(error)
-    if (!submissionId) throw error
-    placement = await readVersionSubmission(submissionId, version)
-    console.log(
-      `Recovered existing review submission ${submissionId} from Apple's item ownership response; state ${placement.submission.attributes?.state || 'UNKNOWN'}.`,
+    const blocker = owningSubmissionBlocker(error)
+    if (!blocker) throw error
+    const blockingPlacement = await readVersionSubmission(
+      blocker.submissionId,
+      blocker.appStoreVersionId,
     )
+    if (blocker.appStoreVersionId === version.id) {
+      placement = blockingPlacement
+      console.log(
+        `Recovered existing review submission ${blocker.submissionId} from Apple's item ownership response; ` +
+        `state ${placement.submission.attributes?.state || 'UNKNOWN'}.`,
+      )
+    } else {
+      await removeRejectedLegacySubmissionItem(blockingPlacement, version)
+      const item = await addSubmissionItemAfterLegacyRemoval(submission, version)
+      placement = { submission, item }
+    }
   }
 }
 await resolveRejectedSubmissionItem(placement.item)
