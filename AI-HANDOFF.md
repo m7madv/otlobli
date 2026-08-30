@@ -194,19 +194,22 @@ visible name `01 - <email>` through `12 - <email>`; the one instance containing
 two accounts lists both, and fresh instances 10..12 are honestly labelled
 `EMPTY - ADD GOOGLE ACCOUNT`. New instances use 900x1600@320, 4 CPU, and
 4096MB. Terminal inventory proved all Google accounts already present in
-instances 02..09 are already on the Play tester list. After owner login,
-instance 01 was verified to contain both Adel's account and the new account.
-The owner asked for one account per emulator. No disk/session clone was made
-and no account was removed before a separate login exists. Instance 01 is now
-stopped, ADB=0, and temporarily named with both emails plus `SPLIT PENDING`.
-Empty instance 10 was reassigned to the new account, renamed `PENDING`, and is
-the only running LDPlayer; it is on the Google sign-in screen with AccountManager
-empty and ADB=1. The owner must finish login there. Then verify the account,
-remove only the new account from instance 01 while retaining Adel, normalize
-both names, restore ADB=0, and close them. Instance 02 still contains two
-accounts and may be split into empty instance 11 using the same login-first
-process. Never enter, store, or print passwords. Do not stop the unrelated
-Android Studio AVD. Use terminal launch, ADB, and quit only.
+instances 02..09 are already on the Play tester list. Owner login initially
+showed Adel's account and the new account together in instance 01, and the owner
+then asked to remove the new one. After restarting 01, direct ADB inspection at
+`127.0.0.1:5555` reported `Accounts: 0`: the new account is absent, but Adel is
+also absent; no manual account-removal action was executed. Instance 01 is the
+only running LDPlayer, honestly named
+`01 - adelalzoubi2022@gmail.com - RELOGIN`, and left on Google's add-account
+flow so the owner can sign in Adel only. Keep ADB=1 only until verification.
+After the owner says login is complete, use explicit serial `127.0.0.1:5555`
+to verify exactly Adel exists and the new account does not, rename 01 without
+`RELOGIN`, close it, and restore ADB=0. Instance 10 is again closed and named
+`10 - EMPTY - ADD GOOGLE ACCOUNT`. Instance 02 still contains two accounts and
+may be split into empty instance 11 using a separate owner login. Never enter,
+store, or print passwords. Do not stop the unrelated Android Studio AVD and do
+not use `ldconsole adb --index 0`, which can collide with its `emulator-5554`;
+use terminal launch, explicit ADB serial, and quit only.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
