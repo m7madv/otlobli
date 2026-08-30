@@ -114,6 +114,13 @@ active item. Nothing was canceled. The next diagnostic prints only that item's
 ID, state, and relationship target type/ID so the legacy ownership can be
 handled without guessing.
 
+Run `33307283332` proved the sole active item is `REJECTED` and its canonical
+base64url ID decodes exactly to
+`e5e27b8a-b628-4116-b135-361b91266929|6|890129230`. Migrated-item recovery now
+requires canonical re-encoding, exact submission ID, exact observed type code
+`6`, and exact blocker version ID before marking only that review item removed.
+It does not cancel the whole submission or delete an App Store version/build.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS

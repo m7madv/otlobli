@@ -608,10 +608,26 @@ async function resolveRejectedSubmissionItem(item) {
   return response.data
 }
 
-async function removeRejectedLegacySubmissionItem(placement, currentVersion) {
+function migratedReviewItemVersionId(item, submissionId) {
+  const itemId = String(item.id || '')
+  if (!/^[A-Za-z0-9_-]+$/.test(itemId)) return null
+  let decoded = ''
+  try {
+    decoded = Buffer.from(itemId, 'base64url').toString('utf8')
+  } catch {
+    return null
+  }
+  if (Buffer.from(decoded).toString('base64url') !== itemId) return null
+  const parts = decoded.split('|')
+  if (parts.length !== 3 || parts[0] !== submissionId || parts[1] !== '6' || !parts[2]) return null
+  return parts[2]
+}
+
+async function removeRejectedLegacySubmissionItem(placement, currentVersion, expectedVersionId) {
   const submissionState = placement.submission.attributes?.state || 'UNKNOWN'
   const itemState = placement.item.attributes?.state || 'UNKNOWN'
   const legacyVersionId = placement.item.relationships?.appStoreVersion?.data?.id
+    || migratedReviewItemVersionId(placement.item, placement.submission.id)
   if (submissionState !== 'UNRESOLVED_ISSUES' || itemState !== 'REJECTED') {
     throw new Error(
       `Cannot remove blocking App Store version ${legacyVersionId || 'UNKNOWN'} from ` +
@@ -620,6 +636,11 @@ async function removeRejectedLegacySubmissionItem(placement, currentVersion) {
   }
   if (!legacyVersionId || legacyVersionId === currentVersion.id) {
     throw new Error('Legacy rejection cleanup must not remove the current App Store version item.')
+  }
+  if (legacyVersionId !== expectedVersionId) {
+    throw new Error(
+      `Legacy review item points to App Store version ${legacyVersionId}, not blocker ${expectedVersionId}.`,
+    )
   }
 
   await apiRequest(`/reviewSubmissionItems/${encodeURIComponent(placement.item.id)}`, {
@@ -661,7 +682,8 @@ async function cancelLegacyVersionSubmission(contents, blocker, currentVersion) 
       .map(([name, relationship]) => relationship?.data?.id ? `${name}=${relationship.data.id}` : null)
       .filter(Boolean)
       .join(',') || 'no-target'
-    return `${item.id}:${item.attributes?.state || 'UNKNOWN'}:${targets}`
+    const migratedVersionId = migratedReviewItemVersionId(item, contents.submission.id)
+    return `${item.id}:${item.attributes?.state || 'UNKNOWN'}:${targets}:migratedVersion=${migratedVersionId || 'NONE'}`
   }).join('|') || 'none'
   if (submissionState !== 'UNRESOLVED_ISSUES') {
     throw new Error(`Cannot cancel legacy review submission from state ${submissionState}.`)
@@ -771,7 +793,8 @@ if (placement) {
     const blockingContents = await readSubmissionContents(blocker.submissionId)
     const blockingItem = blockingContents.items.find((candidate) =>
       candidate.attributes?.state !== 'REMOVED' &&
-      candidate.relationships?.appStoreVersion?.data?.id === blocker.appStoreVersionId)
+      (candidate.relationships?.appStoreVersion?.data?.id === blocker.appStoreVersionId ||
+        migratedReviewItemVersionId(candidate, blocker.submissionId) === blocker.appStoreVersionId))
     if (blockingItem && blocker.appStoreVersionId === version.id) {
       const blockingPlacement = { submission: blockingContents.submission, item: blockingItem }
       placement = blockingPlacement
@@ -781,7 +804,7 @@ if (placement) {
       )
     } else if (blockingItem) {
       const blockingPlacement = { submission: blockingContents.submission, item: blockingItem }
-      await removeRejectedLegacySubmissionItem(blockingPlacement, version)
+      await removeRejectedLegacySubmissionItem(blockingPlacement, version, blocker.appStoreVersionId)
       const item = await addSubmissionItemAfterLegacyRemoval(submission, version)
       placement = { submission, item }
     } else {
