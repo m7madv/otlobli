@@ -188,13 +188,22 @@ commit/push, dispatch the existing workflow, and verify the live opt-in link.
 `z12` has no Android system account; the Google add-account flow was opened but
 no account has been added yet. At the owner's explicit request, emulator
 instances `LDPlayer-9`, `z10`, and `z11` were permanently deleted because they
-held the three excluded accounts. `list2` now contains only `z12` and
-`LDPlayer-1..8`. `z12` is the only running LDPlayer and is currently on the
-Google sign-in screen so the owner can enter the clean twelfth account. Its ADB
-is temporarily `adbDebug=1`; once login succeeds, verify exactly one Google
-system account, restore `adbDebug=0`, and close the instance. Do not enter or
-print the password. Do not stop the unrelated Android Studio AVD. Use terminal
-launch, ADB, and quit only.
+held the three excluded accounts. Three fresh instances were then created, so
+`list2` now has exactly 12 indexes `0..11`. Every instance uses a consistent
+visible name `01 - <email>` through `12 - <email>`; the one instance containing
+two accounts lists both, and fresh instances 10..12 are honestly labelled
+`EMPTY - ADD GOOGLE ACCOUNT`. New instances use 900x1600@320, 4 CPU, and
+4096MB. Terminal inventory proved all Google accounts already present in
+instances 02..09 are already on the Play tester list. The owner's newly supplied
+account is the only unused account and is assigned to instance 01, but it is not
+yet in Android AccountManager, so the name retains `PENDING`.
+
+Instance 01 is the only running LDPlayer and is currently on the Google sign-in
+screen. Its ADB is temporarily `adbDebug=1`; instances 02..12 are back to 0.
+Once the owner finishes login, verify exactly one Google system account, remove
+`PENDING` from the instance name, restore ADB to 0, and close it. Do not enter,
+store, or print the password. Do not stop the unrelated Android Studio AVD. Use
+terminal launch, ADB, and quit only.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
