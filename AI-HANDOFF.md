@@ -186,9 +186,15 @@ Keep the exact release `draft` until the twelfth account is supplied, then add i
 to this dedicated list, change only `releaseStatus` to `completed`, sync docs,
 commit/push, dispatch the existing workflow, and verify the live opt-in link.
 `z12` has no Android system account; the Google add-account flow was opened but
-no account was added. It is shut down and every LDPlayer config is back to
-`adbDebug=0`. Do not stop the unrelated Android Studio AVD. Use terminal launch,
-ADB, and quit only; never print account passwords.
+no account has been added yet. At the owner's explicit request, emulator
+instances `LDPlayer-9`, `z10`, and `z11` were permanently deleted because they
+held the three excluded accounts. `list2` now contains only `z12` and
+`LDPlayer-1..8`. `z12` is the only running LDPlayer and is currently on the
+Google sign-in screen so the owner can enter the clean twelfth account. Its ADB
+is temporarily `adbDebug=1`; once login succeeds, verify exactly one Google
+system account, restore `adbDebug=0`, and close the instance. Do not enter or
+print the password. Do not stop the unrelated Android Studio AVD. Use terminal
+launch, ADB, and quit only.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
