@@ -158,6 +158,10 @@ function createToken() {
 
 let token = createToken();
 
+function sleep(milliseconds) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, milliseconds));
+}
+
 function redactApiErrors(body, status) {
   const errors = Array.isArray(body?.errors) ? body.errors : [];
   if (errors.length === 0) return `App Store Connect request failed (${status})`;
@@ -185,23 +189,45 @@ function redactApiErrors(body, status) {
 }
 
 async function request(path, { method = 'GET', body } = {}) {
-  const response = await fetch(`${API_ROOT}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const text = await response.text();
-  const parsed = text ? JSON.parse(text) : {};
-  if (!response.ok) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const response = await fetch(`${API_ROOT}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const text = await response.text();
+    let parsed = {};
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = {};
+      }
+    }
+    if (response.ok) return parsed;
+
+    if (response.status === 401 && attempt === 0) {
+      token = createToken();
+      continue;
+    }
+    const retryable = response.status === 429 || response.status >= 500;
+    if (retryable && attempt < 5) {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const delayMilliseconds = Number.isFinite(retryAfter)
+        ? retryAfter * 1000
+        : Math.min(1000 * 2 ** attempt, 15000);
+      await sleep(delayMilliseconds);
+      continue;
+    }
     const error = new Error(redactApiErrors(parsed, response.status));
     error.status = response.status;
     throw error;
   }
-  return parsed;
+  throw new Error('App Store Connect request exhausted its retry budget');
 }
 
 async function listAll(path) {
@@ -1059,7 +1085,6 @@ function samePrice(left, right) {
 async function existingPricesByTerritory(subscription) {
   const rows = await listAll(
     `/v1/subscriptions/${subscription.id}/prices?filter[planType]=${SUBSCRIPTION_PLAN_TYPE}` +
-      `&filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
       '&include=subscriptionPricePoint,territory&limit=200',
   );
   const prices = new Map();
@@ -1137,20 +1162,20 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
     exactAnchorPrice = false;
   }
 
-  const targetTerritories = APP_STORE_TERRITORIES.filter((id) => id !== 'SAU');
+  const territoryRows = await listAll('/v1/territories?limit=200');
+  const expectedTerritories = territoryRows.map((row) => row.id).sort();
   const equalizedRows = await listAll(
     `/v1/subscriptionPricePoints/${encodeURIComponent(source.id)}/equalizations` +
-      `?filter[territory]=${targetTerritories.join(',')}` +
-      '&include=territory&limit=200',
+      '?include=territory&limit=200',
   );
   const result = new Map([['SAU', source]]);
   for (const row of equalizedRows) {
     const territory = row.relationships?.territory?.data?.id;
-    if (territory && targetTerritories.includes(territory)) {
+    if (territory) {
       result.set(territory, row);
     }
   }
-  const missing = APP_STORE_TERRITORIES.filter((id) => !result.has(id));
+  const missing = expectedTerritories.filter((id) => !result.has(id));
   if (missing.length > 0) {
     throw new Error(
       `Apple returned no adjusted price point for: ${missing.join(', ')}`,
@@ -1158,6 +1183,7 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
   }
   return {
     points: result,
+    expectedTerritories,
     exactAnchorPrice,
     effectiveAnchorPriceSar: Number(source.attributes?.customerPrice),
   };
@@ -1185,8 +1211,12 @@ async function ensureApprovedPrices(subscription, definition) {
   const pricePoints = priceSelection.points;
   const existing = await existingPricesByTerritory(subscription);
   const territories = {};
+  const expectedTerritories = priceSelection.expectedTerritories;
+  const missingTerritories = expectedTerritories.filter(
+    (territory) => !existing.has(territory),
+  );
 
-  for (const territory of APP_STORE_TERRITORIES) {
+  for (const territory of expectedTerritories) {
     const point = pricePoints.get(territory);
     const current = existing.get(territory);
     if (current) {
@@ -1197,31 +1227,40 @@ async function ensureApprovedPrices(subscription, definition) {
       };
       continue;
     }
-    await request('/v1/subscriptionPrices', {
-      method: 'POST',
-      body: {
-        data: {
-          type: 'subscriptionPrices',
-          attributes: {
-            startDate: null,
-            planType: SUBSCRIPTION_PLAN_TYPE,
-          },
-          relationships: {
-            subscription: {
-              data: { type: 'subscriptions', id: subscription.id },
+  }
+
+  for (let index = 0; index < missingTerritories.length; index += 4) {
+    const batch = missingTerritories.slice(index, index + 4);
+    await Promise.all(
+      batch.map(async (territory) => {
+        const point = pricePoints.get(territory);
+        await request('/v1/subscriptionPrices', {
+          method: 'POST',
+          body: {
+            data: {
+              type: 'subscriptionPrices',
+              attributes: {
+                startDate: null,
+                planType: SUBSCRIPTION_PLAN_TYPE,
+              },
+              relationships: {
+                subscription: {
+                  data: { type: 'subscriptions', id: subscription.id },
+                },
+                subscriptionPricePoint: {
+                  data: { type: 'subscriptionPricePoints', id: point.id },
+                },
+              },
             },
-            subscriptionPricePoint: {
-              data: { type: 'subscriptionPricePoints', id: point.id },
-            },
           },
-        },
-      },
-    });
-    territories[territory] = {
-      state: 'created',
-      planType: SUBSCRIPTION_PLAN_TYPE,
-      customerPrice: point.attributes?.customerPrice,
-    };
+        });
+        territories[territory] = {
+          state: 'created',
+          planType: SUBSCRIPTION_PLAN_TYPE,
+          customerPrice: point.attributes?.customerPrice,
+        };
+      }),
+    );
   }
   return {
     state: 'applied',
@@ -1231,6 +1270,10 @@ async function ensureApprovedPrices(subscription, definition) {
     requestedAnchorPriceSar: definition.intendedPriceSar,
     effectiveAnchorPriceSar: priceSelection.effectiveAnchorPriceSar,
     exactAnchorPrice: priceSelection.exactAnchorPrice,
+    globalTerritoryCount: expectedTerritories.length,
+    existingTerritoryCount:
+      expectedTerritories.length - missingTerritories.length,
+    createdTerritoryCount: missingTerritories.length,
     territories,
   };
 }
@@ -1886,7 +1929,8 @@ async function main() {
     pricesApproved: true,
     pricesRequested: applyPrices,
     pricesApplied: false,
-    priceTerritories: APP_STORE_TERRITORIES,
+    priceTerritoryScope: 'all-app-store-territories',
+    priceAnchorTerritory: 'SAU',
     subscriptionPlanType: SUBSCRIPTION_PLAN_TYPE,
     planAvailabilityTerritories: APP_STORE_TERRITORIES,
     planAvailabilityScope: 'exact-gulf-only',
@@ -1903,7 +1947,7 @@ async function main() {
     availableInNewTerritories: false,
     pricingNote:
       applyPrices
-        ? 'UPFRONT availability and approved SAR anchor prices with Apple-equalized Gulf price points were requested in this run.'
+        ? 'Global UPFRONT price schedules derived from the approved SAR anchor prices were requested; product availability remains restricted to the six configured Gulf territories.'
         : 'UPFRONT availability and approved prices are inspected but not modified in this run.',
   };
 

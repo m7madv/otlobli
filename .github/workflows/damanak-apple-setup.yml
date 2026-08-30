@@ -12,7 +12,7 @@ on:
           - inspect
           - apply
       apply_prices:
-        description: Apply the owner-approved SAR prices and Apple Gulf equalizations
+        description: Apply Apple-required global price schedules from the approved SAR anchors while keeping Gulf-only availability
         required: true
         type: boolean
         default: false
@@ -31,7 +31,7 @@ jobs:
   app-store-connect:
     name: ${{ inputs.mode }} App Store Connect resources
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     defaults:
       run:
