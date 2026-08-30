@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { boundedJson, BoundedJsonError } from "../_shared/bounded_json.ts";
 import { bearerToken, jsonResponse } from "../_shared/http.ts";
+import {
+  uploadedObjectMatchesReservation,
+  UploadTicketStorageError,
+} from "./core.ts";
 
 const maxBodyBytes = 8_192;
 const maxAudioBytes = 25 * 1024 * 1024;
@@ -123,31 +127,6 @@ Deno.serve(async (request) => {
     return jsonResponse(409, { error: "job_in_progress" });
   }
 
-  const { data: expired, error: expiredError } = await serviceClient
-    .from("audio_upload_reservations")
-    .select("job_id, storage_path")
-    .eq("user_id", userId)
-    .lte("expires_at", new Date().toISOString())
-    .limit(20);
-  if (expiredError) return jsonResponse(503, { error: "service_unavailable" });
-  if ((expired ?? []).length > 0) {
-    const expiredPaths = expired!.map((item) => item.storage_path as string);
-    const { error: removeError } = await serviceClient.storage.from(audioBucket)
-      .remove(expiredPaths);
-    if (removeError) {
-      return jsonResponse(503, { error: "storage_cleanup_failed" });
-    }
-    const expiredIds = expired!.map((item) => item.job_id as string);
-    const { error: reservationDeleteError } = await serviceClient
-      .from("audio_upload_reservations")
-      .delete()
-      .eq("user_id", userId)
-      .in("job_id", expiredIds);
-    if (reservationDeleteError) {
-      return jsonResponse(503, { error: "storage_cleanup_failed" });
-    }
-  }
-
   const { data: reservation, error: reservationError } = await serviceClient
     .rpc("reserve_voicebrief_upload", {
       p_user_id: userId,
@@ -162,13 +141,40 @@ Deno.serve(async (request) => {
   if (reservation?.state === "rate_limited") {
     return jsonResponse(429, { error: "upload_rate_limited" });
   }
-  if (reservation?.state !== "reserved" && reservation?.state !== "existing") {
+  if (
+    reservation?.state !== "reserved" && reservation?.state !== "existing"
+  ) {
     return jsonResponse(409, { error: "upload_reservation_failed" });
   }
 
   if (reservation.state === "existing") {
-    await serviceClient.storage.from(audioBucket).remove([storagePath]);
+    const { data: storedObject, error: storedObjectError } = await serviceClient
+      .storage.from(audioBucket).info(storagePath);
+    try {
+      if (
+        uploadedObjectMatchesReservation(
+          storedObject,
+          storedObjectError,
+          body.sizeBytes,
+          body.mimeType,
+        )
+      ) {
+        return jsonResponse(200, {
+          storagePath,
+          uploadedAlready: true,
+        });
+      }
+    } catch (error) {
+      if (error instanceof UploadTicketStorageError) {
+        return jsonResponse(
+          error.code === "uploaded_object_mismatch" ? 409 : 503,
+          { error: error.code },
+        );
+      }
+      return jsonResponse(503, { error: "storage_info_failed" });
+    }
   }
+
   const { data: signed, error: signedError } = await serviceClient.storage
     .from(audioBucket)
     .createSignedUploadUrl(storagePath, { upsert: false });
@@ -182,5 +188,6 @@ Deno.serve(async (request) => {
   return jsonResponse(200, {
     storagePath,
     uploadToken: signed.token,
+    uploadedAlready: false,
   });
 });

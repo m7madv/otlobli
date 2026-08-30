@@ -1,4 +1,5 @@
 import { BoundedBodyError, boundedFormData } from "./bounded_form.ts";
+import "./delete_account_form_test.ts";
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);

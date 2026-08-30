@@ -515,13 +515,31 @@ final class ShareViewController: UIViewController {
       case .failure(let failure):
         completion(.failure(failure))
       case .success(let values):
+        let uploadedAlready = values["uploadedAlready"] as? Bool ?? false
         guard self.isCurrent(session),
               let storagePath = values["storagePath"] as? String,
-              let uploadToken = values["uploadToken"] as? String,
-              storagePath == "\(session.userId)/\(jobId)/input.\(fileExtension)",
-              !uploadToken.isEmpty
+              storagePath == "\(session.userId)/\(jobId)/input.\(fileExtension)"
         else {
           completion(.failure(.authentication))
+          return
+        }
+        if uploadedAlready {
+          self.invokeProcessing(
+            session: session,
+            jobId: jobId,
+            storagePath: storagePath,
+            displayName: displayName,
+            mimeType: mimeType,
+            sizeBytes: sizeBytes,
+            durationSeconds: durationSeconds,
+            completion: completion
+          )
+          return
+        }
+        guard let uploadToken = values["uploadToken"] as? String,
+              !uploadToken.isEmpty
+        else {
+          completion(.failure(.serviceUnavailable))
           return
         }
         let encodedPath = storagePath

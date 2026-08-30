@@ -20,13 +20,15 @@ per audio minute, while `gpt-5.6-luna` is the cost-sensitive GPT-5.6 tier at
 2026-08-24. Recheck the official model pages before release because pricing
 and availability can change.
 
-The function accepts the current audio formats enforced in mobile/server/Storage, sends transcription multipart data, then uses the Responses API with strict JSON Schema. It retries only 429/5xx responses with bounded exponential delay, uses a 90-second attempt timeout, validates output, avoids content logs, and deletes audio in `finally`.
+The function accepts the current audio formats enforced in mobile/server/Storage, sends transcription multipart data, then uses the Responses API with strict JSON Schema. It retries only 429/5xx responses with bounded exponential delay, uses a 90-second attempt timeout, validates output, avoids content logs, and attempts audio deletion in `finally`. Remaining expired reservations are handled by the two-pass scheduled cleanup only after that function is deployed and verified.
 
 The mobile request supplies a validated Arabic/English system-language hint. The transcription prompt preserves spoken number/date wording. Privacy-safe timing logs record only a short job hash, model, and stage durations. Explicit Arabic day/month phrases and relative Arabic dates are normalized deterministically after structured generation. Free results retain `importantDates`; only paid key points and action items remain gated.
 
-## Production deployment — 2026-08-30
+## Current live deployment before build 18 — 2026-08-30
 
 The build 17 functions are deployed only to project `jyehqpdbayslhzebdycj`: `create-audio-upload` version 2, `process-audio` version 14, `legal` version 8, and `delete-account` version 9, all `ACTIVE`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
+
+Build 18 remains local until explicitly deployed. It adds retry-safe signed uploads with `upsert:false` and returns `uploadedAlready:true` only after the existing object's size and `Content-Type` match, sends `store:false` to Responses API calls, adds two-pass abandoned-audio cleanup, RevenueCat-first account deletion, bounded RevenueCat webhook JSON, and the public `/delete-account` request page. `store:false` disables ordinary Responses storage but is not a Zero Data Retention claim unless the OpenAI account is separately eligible and configured. Do not describe these changes as live until the migrations, Edge Functions, Vault entries, and `REVENUECAT_SECRET_API_KEY` have been applied and read back only on `jyehqpdbayslhzebdycj`.
 
 The final post-deploy Arabic smoke used the user's exact example converted to `29.208s` synthetic speech. It returned HTTP 200 in `16,141ms`, retained exactly two dates—tomorrow at five and the independent `2026-09-05` date without inventing a time—and required confirmation for both. A separate repeated-date smoke also returned only two events after version 14's deterministic de-duplication. Every temporary Auth user, Storage object, and entitlement event was removed.
 
@@ -69,6 +71,6 @@ production. Never put this key in `.env` consumed by Flutter or in CI logs.
 
 ## Verification
 
-The earlier English smoke and the 2026-08-30 Arabic smoke are complete. The Arabic test used a `24.096s` synthetic sample, preserved the tomorrow and day/month markers, produced separate `2026-08-31` and `2026-09-05` calendar dates, and required confirmation for both ambiguous-time/date-only cases. Its temporary Auth user, Storage object, and test entitlement event were deleted. Before store release, add mixed-language, failure-refund, replay/idempotency, and oversize/hostile-upload acceptance. Ordinary automated tests intentionally use fakes and spend no API credit.
+The earlier English smoke and an earlier `24.096s` Arabic synthetic smoke are complete. The final 2026-08-30 smoke used the user's exact example as a separate `29.208s` sample and produced the two results recorded above. Temporary Auth users, Storage objects, and test entitlement events were deleted after both. Before store release, add mixed-language, failure-refund, replay/idempotency, and oversize/hostile-upload acceptance. Ordinary automated tests intentionally use fakes and spend no API credit.
 
 Recheck official model availability, pricing, supported formats, and limits before each release; defaults are configurable precisely so a server rollout need not require a mobile update.

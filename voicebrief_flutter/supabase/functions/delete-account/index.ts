@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { bearerToken, jsonResponse, sha256 } from "../_shared/http.ts";
+import {
+  deleteAccountWithRevenueCatFirst,
+  deleteRevenueCatSubscriber,
+  RevenueCatSubscriberDeletionError,
+} from "./core.ts";
 
 async function allAudioPaths(
   bucket: ReturnType<ReturnType<typeof createClient>["storage"]["from"]>,
@@ -59,35 +64,54 @@ Deno.serve(async (request) => {
 
   const userId = data.user.id;
   const userHash = (await sha256(userId)).slice(0, 12);
+  const revenueCatSecret = Deno.env.get("REVENUECAT_SECRET_API_KEY") ?? "";
+  if (!revenueCatSecret) {
+    return jsonResponse(503, { error: "service_not_configured" });
+  }
+
   try {
-    await serviceClient.from("account_deletion_requests").insert({
-      user_id: userId,
-      status: "requested",
-    });
-    const bucket = serviceClient.storage.from("audio-temp");
-    const paths = await allAudioPaths(bucket, userId);
-    for (let offset = 0; offset < paths.length; offset += 100) {
-      const { error: removeError } = await bucket.remove(
-        paths.slice(offset, offset + 100),
-      );
-      if (removeError) throw new Error("storage_delete_failed");
-    }
-    const { data: remaining, error: verifyError } = await bucket.list(userId, {
-      limit: 1,
-    });
-    if (verifyError || (remaining?.length ?? 0) > 0) {
-      throw new Error("storage_delete_incomplete");
-    }
-    const { error: deleteError } = await serviceClient.auth.admin.deleteUser(
-      userId,
-      false,
+    await deleteAccountWithRevenueCatFirst(
+      () => deleteRevenueCatSubscriber(userId, revenueCatSecret),
+      async () => {
+        await serviceClient.from("account_deletion_requests").insert({
+          user_id: userId,
+          status: "requested",
+        });
+        const bucket = serviceClient.storage.from("audio-temp");
+        const paths = await allAudioPaths(bucket, userId);
+        for (let offset = 0; offset < paths.length; offset += 100) {
+          const { error: removeError } = await bucket.remove(
+            paths.slice(offset, offset + 100),
+          );
+          if (removeError) throw new Error("storage_delete_failed");
+        }
+        const { data: remaining, error: verifyError } = await bucket.list(
+          userId,
+          { limit: 1 },
+        );
+        if (verifyError || (remaining?.length ?? 0) > 0) {
+          throw new Error("storage_delete_incomplete");
+        }
+        const { error: deleteError } = await serviceClient.auth.admin
+          .deleteUser(userId, false);
+        if (deleteError) throw new Error("auth_delete_failed");
+      },
     );
-    if (deleteError) throw new Error("auth_delete_failed");
     return jsonResponse(200, { deleted: true });
-  } catch {
+  } catch (error) {
+    const revenueCatFailure = error instanceof
+      RevenueCatSubscriberDeletionError;
     console.error(
-      JSON.stringify({ event: "account_delete_failed", user: userHash }),
+      JSON.stringify({
+        event: "account_delete_failed",
+        stage: revenueCatFailure ? "revenuecat" : "supabase",
+        code: revenueCatFailure ? error.code : "supabase_delete_failed",
+        user: userHash,
+      }),
     );
-    return jsonResponse(500, { error: "account_deletion_failed" });
+    return jsonResponse(
+      revenueCatFailure ? 502 : 500,
+      { error: "account_deletion_failed" },
+    );
   }
 });

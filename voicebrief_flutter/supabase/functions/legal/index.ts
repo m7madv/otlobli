@@ -1,10 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 import { BoundedBodyError, boundedFormData } from "./bounded_form.ts";
+import {
+  deleteAccountValidationError,
+  type DeleteAccountValues,
+  deleteAccountValues,
+  deletionSubmission,
+} from "./delete_account_form.ts";
 
 type Language = "en" | "ar";
-type LegalRoute = "privacy" | "terms" | "support";
+type LegalRoute = "privacy" | "terms" | "support" | "delete-account";
 
-const policyDate = "2026-08-24";
+const policyDate = "2026-08-30";
 const maxBodyBytes = 32_768;
 
 const securityHeaders = {
@@ -71,7 +77,10 @@ function languageFor(request: Request, url: URL): Language {
 
 function routeFor(url: URL): LegalRoute | null {
   const route = url.pathname.split("/").filter(Boolean).at(-1);
-  if (route === "privacy" || route === "terms" || route === "support") {
+  if (
+    route === "privacy" || route === "terms" || route === "support" ||
+    route === "delete-account"
+  ) {
     return route;
   }
   return null;
@@ -79,8 +88,18 @@ function routeFor(url: URL): LegalRoute | null {
 
 function routeLabel(route: LegalRoute, lang: Language) {
   const labels = {
-    en: { privacy: "Privacy", terms: "Terms", support: "Support" },
-    ar: { privacy: "الخصوصية", terms: "الشروط", support: "الدعم" },
+    en: {
+      privacy: "Privacy",
+      terms: "Terms",
+      support: "Support",
+      "delete-account": "Delete Account",
+    },
+    ar: {
+      privacy: "الخصوصية",
+      terms: "الشروط",
+      support: "الدعم",
+      "delete-account": "حذف الحساب",
+    },
   } as const;
   return labels[lang][route];
 }
@@ -97,12 +116,17 @@ function shell(
   const otherLabel = lang === "ar" ? "English" : "العربية";
   const skipLabel = lang === "ar" ? "انتقل إلى المحتوى" : "Skip to content";
   const updatedLabel = lang === "ar" ? "آخر تحديث" : "Last updated";
-  const updatedText = lang === "ar" ? "24 أغسطس 2026" : "August 24, 2026";
+  const updatedText = lang === "ar" ? "30 أغسطس 2026" : "August 30, 2026";
   const footerText = lang === "ar"
     ? "VoiceBrief — رسائلك الصوتية، واضحة."
     : "VoiceBrief — Voice messages, made clear.";
 
-  const nav = (["privacy", "terms", "support"] as LegalRoute[])
+  const nav = ([
+    "privacy",
+    "terms",
+    "support",
+    "delete-account",
+  ] as LegalRoute[])
     .map(
       (item) =>
         `<a href="./${item}?lang=${lang}"${
@@ -160,6 +184,8 @@ function shell(
     .error { border-inline-start-color:#d70015; }
     form { display:grid; gap:18px; margin-top:26px; }
     label { display:grid; gap:8px; font-weight:650; }
+    .check { grid-template-columns:auto 1fr; align-items:start; font-weight:500; }
+    .check input { width:22px; min-height:22px; margin-top:3px; }
     input, select, textarea { width:100%; min-height:48px; border:1px solid var(--border); border-radius:12px; padding:12px 14px; background:var(--elevated); color:var(--text); font:inherit; }
     textarea { min-height:170px; resize:vertical; }
     .hint { color:var(--muted); font-size:14px; font-weight:400; }
@@ -199,23 +225,25 @@ function privacyContent(lang: Language) {
   if (lang === "ar") {
     return `
 <section><h2>نطاق هذه السياسة</h2><p>توضح هذه السياسة طريقة تعامل VoiceBrief مع البيانات عند إنشاء حساب أو مشاركة تسجيل صوتي أو شراء اشتراك أو التواصل مع الدعم.</p></section>
-<section><h2>البيانات التي نعالجها</h2><ul><li><strong>بيانات الحساب:</strong> البريد الإلكتروني، معرّف الحساب، ومعلومات مزود تسجيل الدخول.</li><li><strong>المحتوى الصوتي:</strong> الملف الذي تختار مشاركته أو استيراده أو تسجيله لمعالجته.</li><li><strong>النتائج:</strong> النص المكتوب والملخص والمهام والردود المقترحة التي ينشئها التطبيق.</li><li><strong>الاشتراك والاستخدام:</strong> حالة الاستحقاق، مدة الاشتراك، والدقائق المستخدمة.</li><li><strong>الدعم والتشخيص:</strong> المعلومات التي ترسلها في نموذج الدعم ورموز أخطاء تشغيلية منقحة.</li></ul></section>
-<section><h2>طريقة معالجة الصوت</h2><p>لا يبدأ الرفع إلا بعد أن تختار ملفًا أو تسجيلًا. يُرفع الصوت إلى مساحة خاصة مؤقتة في Supabase، ثم يُرسل إلى OpenAI لتحويله إلى نص وإنشاء النتيجة. يُحذف الملف المؤقت بعد اكتمال المعالجة أو فشلها. لا يستخدم VoiceBrief خدمة Gemini لمعالجة الصوت أو تلخيصه.</p><p>لا يُحفظ النص أو الملخص في سجل الجهاز إلا عندما تختار الحفظ. قد يُحتفظ ببيانات عمل تقنية محدودة لمدة تصل إلى 24 ساعة لمنع تكرار احتساب الطلب نفسه، من دون الاحتفاظ بنسخة دائمة من الصوت.</p></section>
-<section><h2>الخدمات التي نعتمد عليها</h2><ul><li><strong>Supabase:</strong> الحساب، قاعدة البيانات، التخزين المؤقت، وتشغيل المعالجة.</li><li><strong>OpenAI:</strong> تحويل الصوت إلى نص وإنشاء الملخص والمهام والردود.</li><li><strong>RevenueCat ومتجرا Apple وGoogle:</strong> إدارة الاشتراك وحالة الشراء عند تفعيل المنتجات.</li><li><strong>Apple أو Google:</strong> تسجيل الدخول فقط عندما تختار أحدهما وبعد تفعيله.</li></ul><p>يُفتح حدث التقويم في محرر النظام لتراجعه قبل الحفظ؛ لا يحفظ VoiceBrief تقويمك على خوادمه.</p></section>
+<section><h2>البيانات التي نعالجها</h2><ul><li><strong>بيانات الحساب:</strong> البريد الإلكتروني، معرّف الحساب، مزود تسجيل الدخول، والاسم أو صورة الملف الشخصي إذا وفرهما مزود تسجيل الدخول.</li><li><strong>المحتوى الصوتي:</strong> الملف الذي تختار مشاركته أو استيراده أو تسجيله لمعالجته.</li><li><strong>النتائج:</strong> النص المكتوب والملخص والنقاط والمهام والمواعيد والردود المقترحة التي ينشئها التطبيق.</li><li><strong>الاشتراك والاستخدام:</strong> المنتج وحالة الاستحقاق ومدة الاشتراك وسجل الشراء وحالة انتهاء الصلاحية والدقائق المستخدمة.</li><li><strong>الدعم والتشخيص:</strong> المعلومات التي ترسلها في نماذج الدعم أو حذف الحساب، ورموز أخطاء تشغيلية منقحة ومعرّفات مجزأة لمكافحة الإساءة.</li></ul></section>
+<section><h2>طريقة معالجة الصوت والنتائج</h2><p>لا يبدأ الرفع إلا بعد أن تختار ملفًا أو تسجيلًا. يُرفع الصوت إلى مساحة خاصة مؤقتة في Supabase، ثم يُرسل إلى OpenAI لتحويله إلى نص وإنشاء النتيجة. يحاول مسار المعالجة الطبيعي حذف النسخة المؤقتة عند اكتمال المعالجة أو فشلها. إذا منع انقطاعٌ الحذف الفوري، فقد تبقى النسخة في التخزين الخاص إلى أن تزيلها عملية تنظيف تشغيلية أو حذف الحساب؛ ولا يعرضها VoiceBrief كسجل صوتي دائم.</p><p>في المسار العادي داخل التطبيق، لا تُكتب النتيجة في السجل المحلي إلا عندما تختار «حفظ». أما نتيجة Share Extension فتُحفظ تلقائيًا ومحليًا على جهازك بعد استيرادها كي يستطيع إشعار الاكتمال فتحها. يمكنك حذف النتائج المحلية من التطبيق.</p><p>قد يحتوي سجل <code>processing_jobs.result</code> في Supabase على النتيجة المولدة كاملة، بما فيها النص والملخص والمهام والمواعيد والردود، لمدة تصل إلى 24 ساعة لدعم إعادة المحاولة ومنع احتساب الطلب نفسه مرتين.</p></section>
+<section><h2>معالجة OpenAI</h2><p>ترسل VoiceBrief طلبات OpenAI مع <code>store: false</code> حتى لا تُحفظ النتيجة كبيانات تطبيق مخزنة لدى واجهة Responses. رغم ذلك، قد تحتفظ OpenAI بمدخلات ومخرجات واجهة API في سجلات مراقبة إساءة الاستخدام لمدة تصل إلى 30 يومًا، ما لم يكن حساب VoiceBrief معتمدًا ومضبوطًا على Zero Data Retention أو Modified Abuse Monitoring. لا ندّعي حاليًا أن Zero Data Retention مفعّل.</p></section>
+<section><h2>الخدمات التي نعتمد عليها</h2><ul><li><strong>Supabase:</strong> الحساب، قاعدة البيانات، التخزين المؤقت، وتشغيل المعالجة.</li><li><strong>OpenAI:</strong> تحويل الصوت إلى نص وإنشاء الملخص والمهام والمواعيد والردود.</li><li><strong>RevenueCat ومتجرا Apple وGoogle:</strong> إدارة الاشتراك وحالة الشراء. يستخدم VoiceBrief معرّف حساب Supabase كمعرّف مستخدم RevenueCat، وقد يعالج هؤلاء المزودون المنتج والاستحقاق وتاريخ الشراء والانتهاء وسجل المعاملة وفق سياساتهم.</li><li><strong>Apple أو Google:</strong> تسجيل الدخول عندما تختار أحدهما، بما في ذلك بيانات الملف الشخصي التي يشاركها المزود.</li></ul><p>يُفتح حدث التقويم في محرر النظام لتراجعه قبل الحفظ؛ لا يحفظ VoiceBrief تقويمك على خوادمه.</p></section>
 <section><h2>ما لا نفعله</h2><p>لا نبيع بياناتك، ولا نستخدم شبكة إعلانات، ولا نضيف أدوات تتبع إعلاني. لا يصل VoiceBrief إلى صوت لم تختر مشاركته أو تسجيله.</p></section>
-<section><h2>الاحتفاظ والحذف</h2><p>تبقى بيانات الحساب والاستخدام اللازمة لتقديم الخدمة حتى حذف الحساب أو انتهاء الحاجة التشغيلية إليها. يمكنك حذف الحساب من الإعدادات؛ يشمل ذلك بيانات الحساب والتخزين المرتبط به. قد يتطلب إلغاء الاشتراك إجراءً منفصلًا داخل متجر Apple أو Google، وتخضع سجلات الدفع لسياسة المتجر والمتطلبات النظامية.</p><p>نحتفظ بطلبات الدعم فقط للمدة اللازمة للرد وحماية الخدمة، ثم نحذفها وفق سياسة الاحتفاظ التشغيلية.</p></section>
+<section><h2>الاحتفاظ والحذف</h2><p>تبقى بيانات الحساب والاستخدام اللازمة لتقديم الخدمة حتى حذف الحساب أو انتهاء الحاجة التشغيلية إليها. يمكنك حذف حساب VoiceBrief من الإعدادات أو إرسال طلب عبر <a href="./delete-account?lang=ar">صفحة حذف الحساب</a>. إلغاء اشتراك App Store أو Google Play إجراء منفصل لا ينفذه حذف حساب VoiceBrief، وقد تبقى سجلات المعاملة لدى المتجر أو RevenueCat وفق متطلبات قانونية وتشغيلية. وقد يحتاج مستخدم «تسجيل الدخول باستخدام Apple» إلى سحب وصول VoiceBrief يدويًا من إعدادات حساب Apple بعد الحذف.</p><p>لا نحدد حاليًا مدة ثابتة لطلبات الدعم وطلبات الحذف؛ نحتفظ بها حسب الحاجة للرد، والتحقق من الملكية، والتحقيق في الإساءة، وحماية الخدمة، والوفاء بالالتزامات القانونية.</p></section>
 <section><h2>اختياراتك وأمان البيانات</h2><p>يمكنك الامتناع عن رفع الصوت، حذف النتائج المحلية، تسجيل الخروج، إلغاء أذونات النظام، وحذف الحساب. نستخدم اتصالًا مشفرًا وصلاحيات وصول مقيدة، لكن لا توجد خدمة إلكترونية خالية تمامًا من المخاطر.</p></section>
-<section><h2>التغييرات والتواصل</h2><p>قد نحدّث هذه السياسة عندما تتغير الخدمة أو المتطلبات. سنحدّث التاريخ أعلى الصفحة عند إجراء تغيير جوهري. لأسئلة الخصوصية أو طلبات البيانات، استخدم <a href="./support?lang=ar">صفحة الدعم</a>.</p></section>`;
+<section><h2>التغييرات والتواصل</h2><p>قد نحدّث هذه السياسة عندما تتغير الخدمة أو المتطلبات. سنحدّث التاريخ أعلى الصفحة عند إجراء تغيير جوهري. لأسئلة الخصوصية أو طلبات البيانات، استخدم <a href="./support?lang=ar">صفحة الدعم</a>، ولحذف الحساب استخدم <a href="./delete-account?lang=ar">صفحة حذف الحساب</a>.</p></section>`;
   }
   return `
 <section><h2>Scope</h2><p>This policy explains how VoiceBrief handles data when you create an account, share audio, purchase a subscription, or contact support.</p></section>
-<section><h2>Data We Process</h2><ul><li><strong>Account data:</strong> email address, account identifier, and sign-in provider information.</li><li><strong>Audio content:</strong> the file you choose to share, import, or record for processing.</li><li><strong>Generated results:</strong> transcript, summary, tasks, dates, and suggested replies.</li><li><strong>Subscription and usage:</strong> entitlement status, subscription period, and processing minutes used.</li><li><strong>Support and diagnostics:</strong> information you submit through the support form and redacted operational error codes.</li></ul></section>
-<section><h2>How Audio Is Processed</h2><p>Uploading starts only after you select or record audio. The audio is uploaded to private temporary storage in Supabase, then sent to OpenAI for transcription and result generation. The temporary audio is deleted after processing succeeds or fails. VoiceBrief does not use Gemini to process or summarize your audio.</p><p>Transcripts and briefs are saved in local history only when you choose Save. Limited job metadata may remain for up to 24 hours to prevent duplicate billing, without keeping a permanent copy of the audio.</p></section>
-<section><h2>Service Providers</h2><ul><li><strong>Supabase:</strong> authentication, database, temporary storage, and server processing.</li><li><strong>OpenAI:</strong> audio transcription and generation of summaries, tasks, and suggested replies.</li><li><strong>RevenueCat, Apple, and Google:</strong> subscription and purchase status when store products are enabled.</li><li><strong>Apple or Google:</strong> sign-in only when you choose that option and it is enabled.</li></ul><p>Calendar events open in your device’s system editor for review before saving. VoiceBrief does not store your calendar on its servers.</p></section>
+<section><h2>Data We Process</h2><ul><li><strong>Account data:</strong> email address, account identifier, sign-in provider, and a name or profile image when supplied by that provider.</li><li><strong>Audio content:</strong> the file you choose to share, import, or record for processing.</li><li><strong>Generated results:</strong> transcript, summary, key points, tasks, dates, and suggested replies.</li><li><strong>Subscription and usage:</strong> product, entitlement status, subscription period, purchase history, expiration status, and processing minutes used.</li><li><strong>Support and diagnostics:</strong> information submitted through support or deletion forms, redacted operational error codes, and hashed identifiers used to prevent abuse.</li></ul></section>
+<section><h2>How Audio and Results Are Processed</h2><p>Uploading starts only after you select or record audio. The audio is uploaded to private temporary storage in Supabase, then sent to OpenAI for transcription and result generation. The normal processing path attempts to delete the temporary copy when processing succeeds or fails. If an interruption prevents immediate deletion, the copy may remain in private storage until operational cleanup or account deletion removes it; VoiceBrief does not present it as permanent audio history.</p><p>In the ordinary in-app flow, a result is written to local history only when you choose Save. A Share Extension result is automatically saved locally on your device after import so the completion notification can open it. You can delete local results in the app.</p><p>The Supabase <code>processing_jobs.result</code> record may contain the complete generated result—including transcript, summary, tasks, dates, and replies—for up to 24 hours to support safe retries and prevent duplicate charging.</p></section>
+<section><h2>OpenAI Processing</h2><p>VoiceBrief sends OpenAI requests with <code>store: false</code>, so Responses output is not retained as stored application data through that API feature. OpenAI may nevertheless retain API inputs and outputs in abuse-monitoring logs for up to 30 days unless the VoiceBrief account has been approved and configured for Zero Data Retention or Modified Abuse Monitoring. We do not currently claim that Zero Data Retention is enabled.</p></section>
+<section><h2>Service Providers</h2><ul><li><strong>Supabase:</strong> authentication, database, temporary storage, and server processing.</li><li><strong>OpenAI:</strong> audio transcription and generation of summaries, tasks, dates, and suggested replies.</li><li><strong>RevenueCat, Apple, and Google:</strong> subscription and purchase status. VoiceBrief uses the Supabase account ID as the RevenueCat App User ID, and these providers may process product, entitlement, purchase date, expiration, and transaction history under their policies.</li><li><strong>Apple or Google:</strong> sign-in when you choose that option, including profile data shared by the provider.</li></ul><p>Calendar events open in your device’s system editor for review before saving. VoiceBrief does not store your calendar on its servers.</p></section>
 <section><h2>What We Do Not Do</h2><p>We do not sell your data, use an advertising network, or include advertising-tracking tools. VoiceBrief cannot access audio you did not choose to share or record.</p></section>
-<section><h2>Retention and Deletion</h2><p>Account and usage data needed to provide the service remains until you delete the account or it is no longer operationally required. You can delete your account in Settings; this removes the account data and associated storage controlled by VoiceBrief. Canceling a subscription may require a separate action in the Apple or Google store, and payment records remain subject to store policies and legal requirements.</p><p>Support requests are kept only as long as needed to respond and protect the service, then removed under the operational retention process.</p></section>
+<section><h2>Retention and Deletion</h2><p>Account and usage data needed to provide the service remains until account deletion or until it is no longer operationally required. You can delete a VoiceBrief account in Settings or submit a request on the <a href="./delete-account?lang=en">Delete Account page</a>. Canceling an App Store or Google Play subscription is a separate action and is not performed by deleting the VoiceBrief account. Transaction records may remain with the store or RevenueCat for legal or operational reasons. A Sign in with Apple user may also need to revoke VoiceBrief access manually in Apple Account settings after deletion.</p><p>We do not currently promise a fixed retention period for support and deletion requests. They are kept as needed to respond, verify account ownership, investigate abuse, protect the service, and satisfy legal obligations.</p></section>
 <section><h2>Your Choices and Data Security</h2><p>You can choose not to upload audio, delete local results, sign out, revoke system permissions, and delete your account. We use encrypted transport and restricted access, but no online service is completely risk-free.</p></section>
-<section><h2>Changes and Contact</h2><p>This policy may change when the service or requirements change. The date at the top will be updated for material changes. For privacy questions or data requests, use the <a href="./support?lang=en">Support page</a>.</p></section>`;
+<section><h2>Changes and Contact</h2><p>This policy may change when the service or requirements change. The date at the top will be updated for material changes. For privacy questions or data requests, use the <a href="./support?lang=en">Support page</a>. To delete an account, use the <a href="./delete-account?lang=en">Delete Account page</a>.</p></section>`;
 }
 
 function termsContent(lang: Language) {
@@ -241,6 +269,82 @@ function termsContent(lang: Language) {
 <section><h2>Availability and Ending Use</h2><p>The service may be temporarily unavailable for maintenance or because of a provider. Access may be limited for abuse or security risk. You can stop using VoiceBrief and delete your account at any time.</p></section>
 <section><h2>Disclaimers, Liability, and Changes</h2><p>The service is provided as available and to the extent permitted by applicable law. We do not promise that every result is complete or error-free. These Terms may change when the service or law changes; the date at the top will show the latest material update.</p></section>
 <section><h2>Contact</h2><p>For questions about these Terms, use the <a href="./support?lang=en">Support page</a>.</p></section>`;
+}
+
+function deleteAccountContent(
+  lang: Language,
+  url: URL,
+  values: DeleteAccountValues = {
+    email: "",
+    provider: "",
+    note: "",
+    confirmed: false,
+  },
+  error = "",
+) {
+  const sent = url.searchParams.get("sent") === "1";
+  const action = `${url.pathname}?lang=${lang}`;
+  const appleSelected = values.provider === "apple" ? " selected" : "";
+  const googleSelected = values.provider === "google" ? " selected" : "";
+  const confirmed = values.confirmed ? " checked" : "";
+
+  if (lang === "ar") {
+    return `
+${
+      sent
+        ? '<div class="notice success" role="status"><strong>تم استلام طلب حذف الحساب.</strong><br>لم يُحذف الحساب تلقائيًا من إرسال النموذج وحده. دخل الطلب قائمة الدعم الخاصة، وسيُتحقق من ملكية الحساب قبل تنفيذ الحذف.</div>'
+        : ""
+    }
+${
+      error
+        ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
+        : ""
+    }
+<section><h2>الحذف من داخل التطبيق</h2><p>إذا كان بإمكانك تسجيل الدخول، فالطريقة الأسرع هي فتح «الإعدادات» في VoiceBrief ثم اختيار «حذف الحساب». هذا يحذف حساب VoiceBrief والبيانات الخاضعة لسيطرته، ويحذف النتائج المحلية على ذلك الجهاز.</p></section>
+<section><h2>طلب حذف مباشر</h2><p>إذا تعذر عليك دخول التطبيق، أرسل الطلب أدناه باستخدام البريد المرتبط بحساب VoiceBrief. إذا استخدمت «إخفاء بريدي الإلكتروني» مع Apple، فاكتب عنوان الترحيل الظاهر لحساب VoiceBrief، إن أمكن.</p>
+<form method="post" action="${escapeHtml(action)}">
+  <label>البريد المرتبط بالحساب<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
+      escapeHtml(values.email)
+    }"><span class="hint">لا ترسل كلمة المرور أو رمز تسجيل الدخول.</span></label>
+  <label>طريقة تسجيل الدخول<select name="provider" required><option value="">اختر</option><option value="apple"${appleSelected}>Apple</option><option value="google"${googleSelected}>Google</option></select></label>
+  <label>ملاحظة اختيارية<textarea name="note" autocomplete="off" maxlength="1000">${
+      escapeHtml(values.note)
+    }</textarea><span class="hint">يمكنك ذكر معلومة غير سرية تساعد على تمييز الحساب. لا ترسل تسجيلات أو بيانات دفع.</span></label>
+  <label class="check"><input type="checkbox" name="confirm" value="delete" required${confirmed}><span>أؤكد أنني أطلب حذف حساب VoiceBrief والبيانات المرتبطة به نهائيًا.</span></label>
+  <label class="trap" aria-hidden="true">الموقع<input type="text" name="website" autocomplete="off" tabindex="-1"></label>
+  <button type="submit">إرسال طلب الحذف</button>
+</form></section>
+<section><h2>كيف نتحقق من الطلب</h2><ol><li>يدخل الطلب قائمة الدعم الخاصة، ولا يؤدي إرسال النموذج وحده إلى حذف فوري.</li><li>يطابق المراجع البريد ومزود تسجيل الدخول مع سجل الحساب. إذا لم تكفِ المطابقة، يرسل طلب تحقق إلى البريد نفسه؛ لن نطلب كلمة مرور أو رمز دخول.</li><li>بعد التحقق، يُنفذ حذف البيانات الخاضعة لسيطرة VoiceBrief، وتُتابع معرّفات المعالجين المرتبطة بالحساب حيث ينطبق. قد نحتفظ بسجل محدود للطلب حسب الحاجة للأمان أو الالتزامات القانونية.</li></ol></section>
+<section><h2>الاشتراك والوصول عبر Apple</h2><p><strong>إلغاء اشتراك المتجر منفصل عن حذف الحساب.</strong> احذف أو ألغِ اشتراك App Store أو Google Play من إعدادات المتجر؛ حذف حساب VoiceBrief لا يوقف الفوترة تلقائيًا.</p><p>قد يبقى تفويض «تسجيل الدخول باستخدام Apple» بعد حذف بيانات VoiceBrief. إذا بقي، يمكنك سحب الوصول يدويًا من إعدادات حساب Apple ضمن التطبيقات التي تستخدم Apple ID.</p></section>`;
+  }
+
+  return `
+${
+    sent
+      ? '<div class="notice success" role="status"><strong>Account deletion request received.</strong><br>Submitting this form did not delete the account automatically. The request entered the private support queue, and ownership will be verified before deletion.</div>'
+      : ""
+  }
+${
+    error
+      ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
+      : ""
+  }
+<section><h2>Delete in the App</h2><p>If you can sign in, the fastest path is VoiceBrief Settings → Delete Account. This removes the VoiceBrief account and data controlled by VoiceBrief, and clears local results on that device.</p></section>
+<section><h2>Submit a Direct Deletion Request</h2><p>If you cannot access the app, submit this form using the email associated with your VoiceBrief account. If you used Apple Hide My Email, enter the relay address shown for VoiceBrief when possible.</p>
+<form method="post" action="${escapeHtml(action)}">
+  <label>Account Email<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
+    escapeHtml(values.email)
+  }"><span class="hint">Never send a password or sign-in code.</span></label>
+  <label>Sign-in Provider<select name="provider" required><option value="">Choose one</option><option value="apple"${appleSelected}>Apple</option><option value="google"${googleSelected}>Google</option></select></label>
+  <label>Optional Note<textarea name="note" autocomplete="off" maxlength="1000">${
+    escapeHtml(values.note)
+  }</textarea><span class="hint">You may include non-secret information that helps identify the account. Do not send audio or payment details.</span></label>
+  <label class="check"><input type="checkbox" name="confirm" value="delete" required${confirmed}><span>I confirm that I am requesting permanent deletion of my VoiceBrief account and associated data.</span></label>
+  <label class="trap" aria-hidden="true">Website<input type="text" name="website" autocomplete="off" tabindex="-1"></label>
+  <button type="submit">Submit Deletion Request</button>
+</form></section>
+<section><h2>How We Verify the Request</h2><ol><li>The request enters the private support queue; submitting the form alone does not trigger immediate deletion.</li><li>A reviewer matches the email and sign-in provider against the account record. If that is insufficient, a verification request is sent to the same address. We will not ask for a password or sign-in code.</li><li>After verification, data controlled by VoiceBrief is deleted and associated processor identifiers are addressed where applicable. A limited request record may remain as needed for security or legal obligations.</li></ol></section>
+<section><h2>Store Subscription and Apple Access</h2><p><strong>Canceling a store subscription is separate from deleting the account.</strong> Manage or cancel an App Store or Google Play subscription in the store settings; deleting a VoiceBrief account does not stop store billing automatically.</p><p>Sign in with Apple authorization may remain after VoiceBrief data is deleted. If it does, revoke VoiceBrief manually in Apple Account settings under apps using your Apple ID.</p></section>`;
 }
 
 interface SupportValues {
@@ -299,7 +403,7 @@ ${
         ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
         : ""
     }
-<section><h2>مساعدة سريعة</h2><ul><li><strong>لم تتم معالجة الصوت:</strong> تأكد أن الاتصال مستقر وأن الملف مدعوم، ثم أعد المحاولة.</li><li><strong>لم يظهر الاشتراك:</strong> استخدم «استعادة المشتريات» بالحساب نفسه الذي اشترى الاشتراك.</li><li><strong>حذف الحساب:</strong> افتح الإعدادات ثم اختر حذف الحساب. ألغِ اشتراك المتجر بصورة منفصلة إذا كان نشطًا.</li></ul></section>
+<section><h2>مساعدة سريعة</h2><ul><li><strong>لم تتم معالجة الصوت:</strong> تأكد أن الاتصال مستقر وأن الملف مدعوم، ثم أعد المحاولة.</li><li><strong>لم يظهر الاشتراك:</strong> استخدم «استعادة المشتريات» بالحساب نفسه الذي اشترى الاشتراك.</li><li><strong>حذف الحساب:</strong> افتح الإعدادات ثم اختر حذف الحساب، أو استخدم <a href="./delete-account?lang=ar">صفحة حذف الحساب</a> إذا تعذر الدخول. ألغِ اشتراك المتجر بصورة منفصلة إذا كان نشطًا.</li></ul></section>
 <section><h2>أرسل طلب دعم</h2><p>اكتب التفاصيل اللازمة فقط. لا ترسل كلمة مرور أو مفتاح API أو رقم بطاقة أو تسجيلًا صوتيًا حساسًا.</p>
 <form method="post" action="${escapeHtml(action)}">
   <label>البريد الإلكتروني<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
@@ -328,7 +432,7 @@ ${
       ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
       : ""
   }
-<section><h2>Quick Help</h2><ul><li><strong>Audio did not process:</strong> Check that your connection is stable and the file type is supported, then try again.</li><li><strong>Subscription is missing:</strong> Use Restore Purchases with the same store account that made the purchase.</li><li><strong>Delete your account:</strong> Open Settings and choose Delete Account. Cancel an active store subscription separately.</li></ul></section>
+<section><h2>Quick Help</h2><ul><li><strong>Audio did not process:</strong> Check that your connection is stable and the file type is supported, then try again.</li><li><strong>Subscription is missing:</strong> Use Restore Purchases with the same store account that made the purchase.</li><li><strong>Delete your account:</strong> Open Settings and choose Delete Account, or use the <a href="./delete-account?lang=en">Delete Account page</a> if you cannot sign in. Cancel an active store subscription separately.</li></ul></section>
 <section><h2>Send a Support Request</h2><p>Include only the details needed to help. Never send a password, API key, payment-card number, or sensitive audio.</p>
 <form method="post" action="${escapeHtml(action)}">
   <label>Email Address<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
@@ -400,6 +504,44 @@ async function sha256(value: string) {
     .join("");
 }
 
+type StoredRequestResult =
+  | "accepted"
+  | "rate_limited"
+  | "unavailable"
+  | "failed";
+
+async function storeSupportRequest(
+  request: Request,
+  lang: Language,
+  values: SupportValues,
+): Promise<StoredRequestResult> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const hashSecret = Deno.env.get("SUPPORT_HASH_SECRET") ?? "";
+  if (!supabaseUrl || !serviceKey || !hashSecret) return "unavailable";
+
+  const forwarded =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const fingerprint = await sha256(`${hashSecret}:${forwarded}`);
+  const client = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false },
+  });
+  const { data: submission, error } = await client.rpc(
+    "submit_voicebrief_support_request",
+    {
+      p_request_key_hash: fingerprint,
+      p_email: values.email,
+      p_category: values.category,
+      p_subject: values.subject,
+      p_message: values.message,
+      p_language: lang,
+    },
+  );
+  if (error) return "unavailable";
+  if (submission === "rate_limited") return "rate_limited";
+  return submission === "accepted" ? "accepted" : "failed";
+}
+
 async function submitSupport(request: Request, url: URL, lang: Language) {
   const wantsJson =
     request.headers.get("accept")?.includes("application/json") ?? false;
@@ -425,7 +567,7 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
           supportContent(lang, url, values, message),
         ),
         status,
-        extraHeaders,
+        { "cache-control": "no-store", ...extraHeaders },
       );
   let form: FormData;
   try {
@@ -449,7 +591,10 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
   if (String(form.get("website") ?? "").trim().length > 0) {
     return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
       status: 303,
-      headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
+      headers: {
+        "cache-control": "no-store",
+        location: `${url.pathname}?sent=1&lang=${lang}`,
+      },
     });
   }
   const invalid = validationError(values, lang);
@@ -457,34 +602,8 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
     return failure(400, invalid, values);
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const hashSecret = Deno.env.get("SUPPORT_HASH_SECRET") ?? "";
-  if (!supabaseUrl || !serviceKey || !hashSecret) {
-    const message = lang === "ar"
-      ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
-      : "Support is temporarily unavailable. Try again later.";
-    return failure(503, message, values);
-  }
-
-  const forwarded =
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  const fingerprint = await sha256(`${hashSecret}:${forwarded}`);
-  const client = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
-  });
-  const { data: submission, error } = await client.rpc(
-    "submit_voicebrief_support_request",
-    {
-      p_request_key_hash: fingerprint,
-      p_email: values.email,
-      p_category: values.category,
-      p_subject: values.subject,
-      p_message: values.message,
-      p_language: lang,
-    },
-  );
-  if (error) {
+  const submission = await storeSupportRequest(request, lang, values);
+  if (submission === "unavailable") {
     const message = lang === "ar"
       ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
       : "Support is temporarily unavailable. Try again later.";
@@ -505,7 +624,106 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
   }
   return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
     status: 303,
-    headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
+    headers: {
+      "cache-control": "no-store",
+      location: `${url.pathname}?sent=1&lang=${lang}`,
+    },
+  });
+}
+
+async function submitDeleteAccount(
+  request: Request,
+  url: URL,
+  lang: Language,
+) {
+  const wantsJson =
+    request.headers.get("accept")?.includes("application/json") ?? false;
+  const failure = (
+    status: number,
+    message: string,
+    values: DeleteAccountValues = {
+      email: "",
+      provider: "",
+      note: "",
+      confirmed: false,
+    },
+    extraHeaders = {},
+  ) =>
+    wantsJson
+      ? jsonResponse(status, { error: message }, extraHeaders)
+      : htmlResponse(
+        shell(
+          "delete-account",
+          lang,
+          routeLabel("delete-account", lang),
+          message,
+          deleteAccountContent(lang, url, values, message),
+        ),
+        status,
+        { "cache-control": "no-store", ...extraHeaders },
+      );
+
+  let form: FormData;
+  try {
+    form = await boundedFormData(request, maxBodyBytes);
+  } catch (error) {
+    const status = error instanceof BoundedBodyError ? error.status : 400;
+    const message = status === 413
+      ? lang === "ar"
+        ? "طلب الحذف أكبر من الحد المسموح."
+        : "The deletion request is larger than allowed."
+      : status === 415
+      ? lang === "ar"
+        ? "نوع الطلب غير مدعوم."
+        : "The request type is not supported."
+      : lang === "ar"
+      ? "تعذر قراءة طلب الحذف. أعد المحاولة."
+      : "Unable to read the deletion request. Try again.";
+    return failure(status, message);
+  }
+
+  const values = deleteAccountValues(form);
+  if (String(form.get("website") ?? "").trim().length > 0) {
+    return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
+      status: 303,
+      headers: {
+        "cache-control": "no-store",
+        location: `${url.pathname}?sent=1&lang=${lang}`,
+      },
+    });
+  }
+  const invalid = deleteAccountValidationError(values, lang);
+  if (invalid) return failure(400, invalid, values);
+
+  const submission = await storeSupportRequest(
+    request,
+    lang,
+    deletionSubmission(values, lang),
+  );
+  if (submission === "unavailable") {
+    const message = lang === "ar"
+      ? "إرسال طلب الحذف غير متاح مؤقتًا. حاول لاحقًا."
+      : "Account deletion requests are temporarily unavailable. Try again later.";
+    return failure(503, message, values);
+  }
+  if (submission === "rate_limited") {
+    const message = lang === "ar"
+      ? "وصلت إلى حد الطلبات اليومي. حاول بعد 24 ساعة."
+      : "The daily request limit has been reached. Try again in 24 hours.";
+    return failure(429, message, values, { "retry-after": "86400" });
+  }
+  if (submission !== "accepted") {
+    const message = lang === "ar"
+      ? "تعذر إرسال طلب الحذف. حاول مرة أخرى."
+      : "Unable to submit the deletion request. Try again.";
+    return failure(500, message, values);
+  }
+  return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
+    status: 303,
+    headers: {
+      "cache-control": "no-store",
+      location: `${url.pathname}?sent=1&lang=${lang}`,
+    },
   });
 }
 
@@ -525,10 +743,17 @@ Deno.serve(async (request) => {
   if (request.method === "POST" && route === "support") {
     return await submitSupport(request, url, lang);
   }
+  if (request.method === "POST" && route === "delete-account") {
+    return await submitDeleteAccount(request, url, lang);
+  }
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method not allowed", {
       status: 405,
-      headers: { allow: route === "support" ? "GET, HEAD, POST" : "GET, HEAD" },
+      headers: {
+        allow: route === "support" || route === "delete-account"
+          ? "GET, HEAD, POST"
+          : "GET, HEAD",
+      },
     });
   }
 
@@ -536,17 +761,21 @@ Deno.serve(async (request) => {
     ? privacyContent(lang)
     : route === "terms"
     ? termsContent(lang)
-    : supportContent(lang, url);
+    : route === "support"
+    ? supportContent(lang, url)
+    : deleteAccountContent(lang, url);
   const descriptions = lang === "ar"
     ? {
       privacy: "كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.",
       terms: "القواعد الواضحة لاستخدام VoiceBrief.",
       support: "مساعدة VoiceBrief وطلبات الدعم.",
+      "delete-account": "حذف حساب VoiceBrief وبياناته المرتبطة.",
     }
     : {
       privacy: "How VoiceBrief handles your data and the audio you choose.",
       terms: "Clear rules for using VoiceBrief.",
       support: "VoiceBrief help and support requests.",
+      "delete-account": "Delete a VoiceBrief account and associated data.",
     };
   const page = shell(
     route,

@@ -3,11 +3,11 @@
 ## Source and local QA
 
 - [x] Feature-first Flutter application, mocks, themes, localization foundation, design components.
-- [x] Independent live Supabase project, four migrations, RLS probes, and five Edge Functions deployed.
+- [x] Independent live Supabase project with build 17 migrations/functions deployed; build 18 cleanup, RevenueCat deletion, and legal updates remain local until their release checks pass.
 - [x] Server-only usage mutation and conservative 500-audio-minute monthly launch budget implemented for the initial `$10` OpenAI balance.
 - [x] Android receiver and iOS `VoiceBriefShare` source/target, including WhatsApp Opus normalization.
 - [x] Icons and native splash generated.
-- [x] Formatting, static analysis, 30 unit/widget tests, and eleven reviewed golden baselines, including provider-only Arabic RTL authentication, Settings, and Recorder views.
+- [x] Build 18 formatting, static analysis, 45 unit/widget tests, 12 reviewed golden baselines, and 42 Deno tests pass.
 - [x] Complete Arabic/English UI selected from the system locale, including RTL semantics and localized dates/errors/actions.
 - [x] Physical Note 8 Arabic visual acceptance at 1080x2220, centered Home/History empty states, correct initial `10/10` free allowance, just-in-time microphone permission, sound-reactive dBFS waveform, and cleanup of the newly canceled test recording.
 - [x] Physical Note 8 imported-audio acceptance: extensionless MP3 detection, asynchronous real waveform, slider and waveform seeking, range selection, native trim to M4A, one-step Back navigation, optimistic History deletion, and Undo restore.
@@ -21,7 +21,7 @@
 - [x] Native Google exchange supplies the required ID and access tokens on Android and iOS, and the iOS source declares the Apple sign-in entitlement while keeping the App Group entitlement.
 - [x] Hosted email/password auth is disabled and the shipped application contains only Apple and Google entry points.
 
-## Production-signed Android artifacts — 2026-08-25
+## Initial historical build 1 Android artifacts — 2026-08-25
 
 - AAB: `output/voicebrief/VoiceBrief-0.1.0-build1-production-signed.aab`, 58,905,864 bytes, SHA-256 `08FE3948C581BCCA2D0C52AF781E4299C69EC9F09BA9D1FC7EDEF4165954EB44`.
 - APK: `output/voicebrief/VoiceBrief-0.1.0-build1-production-signed.apk`, 68,643,138 bytes, SHA-256 `7A9DB99D12781D0CC3AD8AD178CEB2118A1D53531230DAF71726FFCF2D54CD03`.
@@ -115,21 +115,33 @@
 - Source version is `0.1.0+17`. Theme and last server-confirmed quota persist across process death; the repository refreshes quota from RLS-protected usage tables. App Group share data is account/generation bound. Signed upload reservations replace direct authenticated Storage INSERT, and server-parsed audio metadata controls billing.
 - Codex Security scan `a3c7b83e-9d4b-4870-a335-4e3a784b1b50` found six reportable issues in `9f228c1`; canonical report artifacts are in `docs/security/build17/`. Source remediations exist, but live backend deployment, macOS Swift build, scheduled-cleanup readback, and physical-iPhone account-switch/share acceptance are not yet complete.
 - Local checks passed: format 78 files, analyzer, 42 non-golden, 12 golden, 16 Deno tests, Edge lint/check, and Android debug. APK SHA-256 is `DF67F60678B42A38A0FAC415FC79ECA224F3BDA772123726C153D1FA0C6AE64E`.
-- Migration `20260830190000_security_hardening.sql` and the updated Edge Functions are confirmed live only on `jyehqpdbayslhzebdycj`; TestFlight 17 may now be uploaded to the internal group. Do not publicly publish Apple or Google releases until the owner accepts the TestFlight build.
-- Four 13-inch iPad PNG screenshots are ready under `store_assets/app_store_ipad/`, each `2048x2732` and 24-bit RGB. They were derived from the actual Android screens without added features; they are not uploaded yet.
+- Migration `20260830190000_security_hardening.sql` and the build 17 Edge Functions are confirmed live only on `jyehqpdbayslhzebdycj`. TestFlight run `33327898649` uploaded build 17, and status run `33327898729` confirmed it `VALID` in `VoiceBrief Internal`.
+- Four 13-inch iPad PNG screenshots under `store_assets/app_store_ipad/`, each `2048x2732` and 24-bit RGB, were derived from actual Android screens without added features and uploaded to App Store Connect with four iPhone screenshots.
+
+## Build 18 release candidate — 2026-08-30
+
+- Source version is `0.1.0+18`. It adds retry-safe signed upload continuation, two-pass abandoned-audio cleanup, RevenueCat-first account deletion, anonymized late webhook events, a public bilingual account-deletion request page, bounded webhook JSON, and `store:false` on Responses API calls.
+- Local verification passed: Flutter analyzer, 45 non-golden tests, 12 reviewed golden tests, 42 Deno tests, and Edge format/lint/check.
+- Signed Android AAB `VoiceBrief-0.1.0-build18-production-signed.aab` is `59,195,892` bytes with SHA-256 `AEC8B94AA105FA083372FC7B65419A602AC2A3452DA8F98161CE59E53E262AAD`. Signed APK is `69,446,598` bytes with SHA-256 `BA2971E1C656EF7BB5D7E340F25A5455C9B313D4D35CD6A6DBE588858B9A06B0`; package `app.voicebrief.mobile`, version code `18`, target SDK `36`, upload certificate SHA-256 `81AA4DA6E425794E880C8DDE0A7568F68CEE774A3C1889170221AD0446EE8FD9`.
+- [x] Build 18 security diff scan `a6a51d74-8bdb-4d43-8c39-a4634125cc8d` completed. Its one low-severity sliding-reservation finding is fixed with a two-hour retry window and database-enforced four-hour hard expiry; no critical, high, or medium finding remains. A long-running signed `PUT` race remains explicitly deferred to live Supabase verification.
+- [ ] Commit and push only scoped files, then record CI/TestFlight/App Store status run IDs and IPA/artifact hashes. CI and TestFlight bundle-version assertions now expect build 18 rather than 17.
+- [ ] Log into the owner RevenueCat account, create the private deletion key, and set `REVENUECAT_SECRET_API_KEY` without exposing it. Log into the correct Supabase account, create the cleanup key/Vault entries, deploy both migrations and all changed functions only to `jyehqpdbayslhzebdycj`, then run live cleanup, account-deletion, retry-upload, and Arabic-date checks.
+- [x] Four iPhone and four iPad screenshots are uploaded to App Store Connect. Google Play icon, feature graphic, and four phone screenshots are staged locally; the listing form has not been saved or submitted.
+- [ ] Link `All Apps - Closed Testers` (12 members) to the Google closed track after action confirmation. Membership is not participation: the current opted-in count is 0, and Google production access requires 12 opted-in testers for 14 continuous days before an application can be submitted.
+- [ ] Apple public submission still needs final version/contact/copyright/privacy/review metadata and build 18 selection. Do not claim public release until App Store Connect reports submission/review state.
 
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
 - [x] Confirm final application IDs/App Group availability and increment the iOS store build to `0.1.0+7`.
-- [x] Supabase migrations/functions deployed to `jyehqpdbayslhzebdycj`; anonymous server-RPC access denied and service cap live.
+- [x] Build 17 Supabase migrations/functions deployed to `jyehqpdbayslhzebdycj`; anonymous server-RPC access denied and service cap live. Build 18 cleanup/RevenueCat migrations and changed functions remain local.
 - [x] OpenAI balance displays `$10.00`, automatic recharge is disabled, the dedicated service-account key is active, and the live smoke consumed one rounded service-ledger minute with zero reservation left behind.
 - [x] Google dashboard clients, branding/legal URLs, Supabase provider, production audience, and iOS nonce compatibility configured.
 - [ ] Add Google Play App Signing SHA after first Play setup and complete a post-fix Google exchange on Play-signed Android; signed-iPhone Google acceptance passed.
 - [x] Enable the Apple provider in the VoiceBrief Supabase project, configure native client ID `app.voicebrief.mobile`, key `N4FK6753YL`, and a client secret expiring `2027-02-21T22:07:34Z`.
 - [x] Complete a post-fix Apple exchange on the signed physical iPhone.
 - [ ] Rotate the VoiceBrief Apple client secret before `2027-02-21T22:07:34Z`.
-- [x] App Store subscription group and monthly/annual products created, localized, priced, and made available regionally; first-version submission and review screenshots remain.
+- [x] App Store subscription group and monthly/annual products created, localized, priced, and made available regionally; four iPhone and four iPad screenshots are uploaded, while final version/contact/privacy/review metadata and submission remain.
 - [x] Google Play app, internal-release draft, and monthly/annual subscription products created under developer account `8441225038702199576`.
 - [x] VoiceBrief-only service-account access granted for financial viewing, order/subscription management, and store-presence/product management; subscription reads now return `200`.
 - [ ] Google Play monthly/annual base plans saved and activated. A final owner-session retry selected all 177 regions and converted Qatar to the exact `29.00 QAR`, but Save still returned `تعذَّر حفظ التغييرات.`; service-account price conversion/writes also return `The caller does not have permission`. This is an unresolved Google account-side monetization/save condition, not invalid product data. The idempotent activation script and local reports are ready under `scripts/` and `build/google-play-subscriptions/`; retry after permission propagation, then escalate to Play Support if the owner-session failure persists.
@@ -138,7 +150,7 @@
 - [ ] Send a RevenueCat test event, confirm the RevenueCat account email, and complete sandbox purchase/restore checks. Google purchase acceptance additionally waits for Google to save and activate the missing `monthly` and `annual` base plans.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
 - [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
-- [x] Privacy policy, Terms, and Support pages published; owner/legal approval plus Apple Privacy, Google Data Safety, and reviewer notes remain.
+- [x] Existing Privacy, Terms, and Support pages are published. Build 18's revised privacy text and `/delete-account` route remain local until `legal` is deployed; owner/legal approval plus Apple Privacy, Google Data Safety, and reviewer notes remain.
 
 ## Device acceptance
 
@@ -152,6 +164,6 @@
 - [ ] Signed physical-iPhone build 16 AlarmKit permission, near-future alarm UI/system-default or imported sound in silent and Focus modes, audio/video import, in-app list/refresh/cancellation, appointment card, ambiguous-time confirmation, calendar action, cold/warm/terminated notification routing, session refresh/sign-out, App Group cleanup, and playback/seek/trim acceptance. Build 13's appointment card and calendar action passed; its local-notification alarm substitute failed product acceptance.
 - [ ] VoiceOver, all accessibility text sizes, recording interruptions, Apple sign-in, and full Google token exchange. Google picker/cancel passed on API 35 and physical Android 9; Note 8 currently has `mhm1981d@gmail.com`, not the configured test account `mhm1981x@gmail.com`.
 - [ ] Monthly/annual purchase, renewal/cancellation, restore, reinstall/device change.
-- [ ] Account deletion removes Auth/database/Storage/local data while explaining store cancellation.
+- [ ] Account deletion removes RevenueCat first, then Auth/database/Storage/local data, while explaining store cancellation. This still needs `REVENUECAT_SECRET_API_KEY`, migration/function deployment, and a live failure-closed deletion test.
 
 Never upload a build signed with the debug Android key. Back up the owned upload key before the first store upload. Never mark device-only checks complete based on source, analyzer, emulator, or golden results.

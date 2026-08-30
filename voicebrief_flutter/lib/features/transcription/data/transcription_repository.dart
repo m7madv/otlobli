@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/features/audio_import/domain/audio_input.dart';
+import 'package:voicebrief/features/transcription/data/upload_ticket.dart';
 import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/features/transcription/domain/processing_options.dart';
 
@@ -104,6 +105,7 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
     onStage?.call('preparing');
     late final String storagePath;
     late final String uploadToken;
+    late final bool uploadedAlready;
     try {
       final ticketResponse = await _client.functions.invoke(
         'create-audio-upload',
@@ -124,9 +126,15 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
           Map<String, Object?>.from(ticket['result']! as Map),
         );
       }
-      storagePath = ticket['storagePath'] as String? ?? '';
-      uploadToken = ticket['uploadToken'] as String? ?? '';
-      if (storagePath != expectedStoragePath || uploadToken.isEmpty) {
+      try {
+        final parsed = AudioUploadTicket.fromJson(
+          ticket,
+          expectedStoragePath: expectedStoragePath,
+        );
+        storagePath = parsed.storagePath;
+        uploadToken = parsed.uploadToken;
+        uploadedAlready = parsed.uploadedAlready;
+      } on FormatException {
         throw const AppFailure(AppFailureCode.invalidResponse);
       }
     } on FunctionException catch (error) {
@@ -138,17 +146,19 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
       );
     }
     onStage?.call('uploading');
-    try {
-      await _client.storage
-          .from('audio-temp')
-          .uploadToSignedUrl(
-            storagePath,
-            uploadToken,
-            File(audio.path),
-            FileOptions(contentType: audio.mimeType, upsert: false),
-          );
-    } on StorageException {
-      throw const AppFailure(AppFailureCode.uploadInterrupted);
+    if (!uploadedAlready) {
+      try {
+        await _client.storage
+            .from('audio-temp')
+            .uploadToSignedUrl(
+              storagePath,
+              uploadToken,
+              File(audio.path),
+              FileOptions(contentType: audio.mimeType, upsert: false),
+            );
+      } on StorageException {
+        throw const AppFailure(AppFailureCode.uploadInterrupted);
+      }
     }
     onStage?.call('transcribing');
     try {

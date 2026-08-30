@@ -500,6 +500,7 @@ Deno.serve(async (request) => {
         },
         body: JSON.stringify({
           model: summaryModel,
+          store: false,
           input: prompt,
           reasoning: { effort: "low" },
           text: {

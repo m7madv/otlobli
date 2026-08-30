@@ -1,6 +1,12 @@
 # Security review
 
-Reviewed: 2026-08-24. No critical or high-severity source finding remains after the fixes below.
+Reviewed: 2026-08-31. No critical, high, or medium-severity source finding remains after the fixes below.
+
+## Build 18 diff review
+
+- Codex Security scan `a6a51d74-8bdb-4d43-8c39-a4634125cc8d` reviewed 30 changed-file receipts. It reported one low-severity resource-control issue: an authenticated user could repeatedly slide the expiry of the same upload reservation without consuming a new daily issuance.
+- The release source now permits retry issuance only during the reservation's first two hours, caps `expires_at` at `created_at + 4 hours`, and enforces that ceiling with a database constraint in both migration `20260830230000_independent_audio_cleanup.sql` and canonical `schema.sql`.
+- A theoretical upload that starts before signed-token expiry and remains in flight beyond both cleanup removals is deferred because Supabase Storage request timeout/token-expiry behavior was not available for live proof. The 25 MB limit and two independent removals reduce the window, but production verification must remain explicit.
 
 ## Controls verified
 
@@ -35,7 +41,7 @@ Reviewed: 2026-08-24. No critical or high-severity source finding remains after 
 ## Remaining operational risks/gates
 
 - Three migrations and four functions are deployed to the independent live VoiceBrief project. A dedicated OpenAI service-account key is stored only as a Supabase secret. A live synthetic-audio test passed transcription, strict structured output, date resolution, remote audio cleanup, and temporary account deletion; the ledger ended at one used and zero reserved minute.
-- Add a scheduled cleanup for expired 24-hour `processing_jobs` and a Storage lifecycle safety net.
+- Source now schedules both expired-job redaction/refund and an independent abandoned-audio sweep. The audio sweep claims rows atomically, waits a 15-minute post-expiry safety grace, deletes only through the Storage API, and uses a recoverable 30-minute lease. A consumed upload keeps a non-active reservation tombstone through signed-URL expiry; the first successful removal keeps that tombstone, and a later claim repeats removal after at least another 15 minutes before retiring it. Retry issuance closes after two hours and the reservation has an enforced four-hour hard ceiling. This two-pass design covers tested delayed uploads between passes, while operational run history remains necessary rather than treating every possible network duration as proven. Migration `20260830230000_independent_audio_cleanup.sql`, Vault values, `cleanup-expired-audio`, and the updated `create-audio-upload` still require live deployment and verification on `jyehqpdbayslhzebdycj`.
 - Run dependency/SBOM/vulnerability scanning in CI and review advisories before release.
 - Pen-test OAuth redirect, webhook configuration, signed entitlements, and hostile content providers/extensions on release builds.
 - Confirm the production-candidate IDs in both stores, back up the upload key/password separately, obtain owner approval of the live legal drafts, and configure OAuth/RevenueCat/Apple signing.

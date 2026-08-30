@@ -20,10 +20,10 @@ Build both signed artifacts with:
 
 ```powershell
 & 'C:\Users\MOHAMMAD\.voicebrief\android\build-voicebrief-release.ps1' `
-  -ProjectPath 'C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA\voicebrief_flutter'
+  -ProjectPath 'C:\Users\MOHAMMAD\Projects\VoiceBriefAuthRepair\voicebrief_flutter'
 ```
 
-The script loads the DPAPI credential, sets signing variables only for the build process, clears them in `finally`, and copies clearly named outputs to `output/voicebrief/`.
+The script loads the DPAPI credential, sets signing variables only for the build process, clears them in `finally`, reads the marketing/build numbers from `pubspec.yaml`, and copies clearly named outputs to `output/voicebrief/`.
 
 ## Upload certificate
 

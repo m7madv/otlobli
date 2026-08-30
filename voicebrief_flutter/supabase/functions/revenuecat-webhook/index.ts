@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { boundedJson, BoundedJsonError } from "../_shared/bounded_json.ts";
 import { constantTimeEqual, jsonResponse } from "../_shared/http.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_WEBHOOK_BODY_BYTES = 262_144;
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
@@ -13,15 +15,23 @@ Deno.serve(async (request) => {
   if (!expected || !constantTimeEqual(provided, `Bearer ${expected}`)) {
     return jsonResponse(401, { error: "invalid_webhook_authorization" });
   }
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (contentLength > 262_144) {
-    return jsonResponse(413, { error: "request_too_large" });
-  }
-
   let payload: Record<string, unknown>;
   try {
-    payload = await request.json();
-  } catch {
+    const parsed = await boundedJson(request, MAX_WEBHOOK_BODY_BYTES);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return jsonResponse(400, { error: "invalid_json" });
+    }
+    payload = parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof BoundedJsonError) {
+      return jsonResponse(error.status, {
+        error: error.status === 413
+          ? "request_too_large"
+          : error.status === 415
+          ? "unsupported_media_type"
+          : "invalid_json",
+      });
+    }
     return jsonResponse(400, { error: "invalid_json" });
   }
   const event = payload.event as Record<string, unknown> | undefined;
@@ -63,6 +73,15 @@ Deno.serve(async (request) => {
   const serviceClient = createClient(url, serviceRoleKey, {
     auth: { persistSession: false },
   });
+  const { data: profile, error: profileError } = await serviceClient
+    .from("profiles")
+    .select("user_id")
+    .eq("user_id", appUserId)
+    .maybeSingle();
+  if (profileError) {
+    return jsonResponse(500, { error: "webhook_processing_failed" });
+  }
+
   const { data, error } = await serviceClient.rpc("apply_revenuecat_event", {
     p_event_id: eventId,
     p_event_type: eventType,
@@ -75,5 +94,29 @@ Deno.serve(async (request) => {
     p_period_end: new Date(expirationMs || purchasedMs).toISOString(),
   });
   if (error) return jsonResponse(500, { error: "webhook_processing_failed" });
-  return jsonResponse(200, { received: true, duplicate: data === false });
+
+  const { data: auditEvent, error: auditError } = await serviceClient
+    .from("revenuecat_webhook_events")
+    .select("app_user_id, handling_status")
+    .eq("event_id", eventId.slice(0, 200))
+    .maybeSingle();
+  if (auditError || !auditEvent) {
+    return jsonResponse(500, { error: "webhook_processing_failed" });
+  }
+  const ignored = auditEvent.handling_status === "ignored_missing_profile";
+  const anonymized = auditEvent.app_user_id == null;
+  if (profile == null || ignored || anonymized) {
+    console.info(
+      JSON.stringify({
+        event: "revenuecat_event_anonymized",
+        reason: ignored ? "missing_profile" : "deleted_profile",
+      }),
+    );
+  }
+  return jsonResponse(200, {
+    received: true,
+    duplicate: data === false,
+    ignored,
+    anonymized,
+  });
 });
