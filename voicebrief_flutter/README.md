@@ -18,11 +18,11 @@ The sample configuration intentionally enables mocks and contains no private cre
 ## Important boundaries
 
 - OpenAI and Supabase service-role credentials exist only in Supabase Edge Function secrets.
-- Original audio is copied to private temporary storage and deleted locally and remotely after processing.
+- Production uploads require a short-lived signed token bound to one authenticated user, job, exact path, MIME type, and byte size. Active and daily reservations are capped; direct authenticated insertion into `audio-temp` is denied. Reached audio is deleted locally and remotely after processing, while expired abandoned reservations are cleaned on the user's next ticket and remain an operational cleanup item.
 - Android shared audio is adopted into the app's private handoff file without a second copy; waveform extraction stays asynchronous so playback and navigation remain responsive.
 - Trimming exports a real private AAC/M4A on Android and iOS before upload. The transcript is automatic and displayed as an optional collapsed word-for-word reference, not as a second summary choice.
 - Results created inside Runner are stored in Drift only when the user explicitly saves them. A completed iOS Share Extension result is persisted automatically so its ready notification can open the exact brief without reprocessing.
-- Server usage reservation and charging are atomic and idempotent by client job ID.
+- Server usage reservation and charging are atomic and idempotent by client job ID. Billable duration is derived from server-parsed media metadata rather than trusted from the client.
 - Android receives `audio/*` through native Kotlin. On iOS, Runner registers as a `public.audio` document opener where source apps support document-open. For apps such as WhatsApp that expose only a Share Extension, `VoiceBriefShare` securely copies, uploads, and processes while its window remains open, then persists the result and posts a local ready notification. Tapping that notification launches Runner directly into the full result, including dates and calendar actions.
 - Confirmed dates can be added through the platform calendar editor. On iOS 26.1 and newer, `Set alarm` requests AlarmKit authorization and creates a real one-shot system alarm; iOS 14–26.0 retain a local-notification fallback. VoiceBrief uses Apple's default alarm sound or the first 29 seconds imported from an audio/video file, and has an in-app list for viewing or cancelling its app-owned alarms because Apple does not place third-party AlarmKit alarms in the Clock app. Android delegates alarm creation to the system alarm app.
 

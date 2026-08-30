@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voicebrief/app/app_controller.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/app/providers.dart';
+import 'package:voicebrief/core/storage/app_preferences.dart';
 import 'package:voicebrief/features/audio_import/data/audio_import_service.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/auth/domain/auth_user.dart';
@@ -93,6 +94,7 @@ AppController createTestController({
   HistoryRepository? historyRepository,
   AuthRepository? authRepository,
   SharedAudioInbox? sharedAudioInbox,
+  AppPreferences? preferences,
 }) {
   return AppController(
     authRepository: authRepository ?? TestAuthRepository(),
@@ -101,6 +103,7 @@ AppController createTestController({
     historyRepository: historyRepository ?? MemoryHistoryRepository(),
     audioImportService: const AudioImportService(),
     sharedAudioInbox: sharedAudioInbox ?? TestSharedAudioInbox(),
+    preferences: preferences ?? MemoryAppPreferences(),
   );
 }
 

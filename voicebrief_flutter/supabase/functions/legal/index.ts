@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { BoundedBodyError, boundedFormData } from "./bounded_form.ts";
 
 type Language = "en" | "ar";
 type LegalRoute = "privacy" | "terms" | "support";
 
 const policyDate = "2026-08-24";
 const maxBodyBytes = 32_768;
-const maxRequestsPerDay = 5;
 
 const securityHeaders = {
   "access-control-allow-headers": "content-type",
@@ -63,8 +63,8 @@ function languageFor(request: Request, url: URL): Language {
   const requested = url.searchParams.get("lang");
   if (requested === "ar" || requested === "en") return requested;
   return (request.headers.get("accept-language") ?? "")
-    .toLowerCase()
-    .startsWith("ar")
+      .toLowerCase()
+      .startsWith("ar")
     ? "ar"
     : "en";
 }
@@ -98,15 +98,16 @@ function shell(
   const skipLabel = lang === "ar" ? "انتقل إلى المحتوى" : "Skip to content";
   const updatedLabel = lang === "ar" ? "آخر تحديث" : "Last updated";
   const updatedText = lang === "ar" ? "24 أغسطس 2026" : "August 24, 2026";
-  const footerText =
-    lang === "ar"
-      ? "VoiceBrief — رسائلك الصوتية، واضحة."
-      : "VoiceBrief — Voice messages, made clear.";
+  const footerText = lang === "ar"
+    ? "VoiceBrief — رسائلك الصوتية، واضحة."
+    : "VoiceBrief — Voice messages, made clear.";
 
   const nav = (["privacy", "terms", "support"] as LegalRoute[])
     .map(
       (item) =>
-        `<a href="./${item}?lang=${lang}"${item === route ? ' aria-current="page"' : ""}>${routeLabel(item, lang)}</a>`,
+        `<a href="./${item}?lang=${lang}"${
+          item === route ? ' aria-current="page"' : ""
+        }>${routeLabel(item, lang)}</a>`,
     )
     .join("");
 
@@ -177,7 +178,9 @@ function shell(
   <header>
     <div class="topbar">
       <a class="brand" href="./privacy?lang=${lang}" translate="no">VoiceBrief</a>
-      <nav aria-label="${lang === "ar" ? "روابط قانونية" : "Legal navigation"}">${nav}<a class="language" lang="${otherLanguage}" href="./${route}?lang=${otherLanguage}">${otherLabel}</a></nav>
+      <nav aria-label="${
+    lang === "ar" ? "روابط قانونية" : "Legal navigation"
+  }">${nav}<a class="language" lang="${otherLanguage}" href="./${route}?lang=${otherLanguage}">${otherLabel}</a></nav>
     </div>
   </header>
   <main id="content">
@@ -259,56 +262,85 @@ function supportContent(
   error = "",
 ) {
   const sent = url.searchParams.get("sent") === "1";
-  const categories =
-    lang === "ar"
-      ? {
-          account: "الحساب",
-          audio: "معالجة الصوت",
-          billing: "الاشتراك والدفع",
-          privacy: "الخصوصية والبيانات",
-          other: "أخرى",
-        }
-      : {
-          account: "Account",
-          audio: "Audio processing",
-          billing: "Subscription and billing",
-          privacy: "Privacy and data",
-          other: "Other",
-        };
+  const categories = lang === "ar"
+    ? {
+      account: "الحساب",
+      audio: "معالجة الصوت",
+      billing: "الاشتراك والدفع",
+      privacy: "الخصوصية والبيانات",
+      other: "أخرى",
+    }
+    : {
+      account: "Account",
+      audio: "Audio processing",
+      billing: "Subscription and billing",
+      privacy: "Privacy and data",
+      other: "Other",
+    };
   const options = Object.entries(categories)
     .map(
       ([value, label]) =>
-        `<option value="${value}"${values.category === value ? " selected" : ""}>${label}</option>`,
+        `<option value="${value}"${
+          values.category === value ? " selected" : ""
+        }>${label}</option>`,
     )
     .join("");
   const action = `${url.pathname}?lang=${lang}`;
 
   if (lang === "ar") {
     return `
-${sent ? '<div class="notice success" role="status"><strong>تم إرسال طلبك.</strong><br>احتفظ بهذه الصفحة، وسيراجع فريق VoiceBrief الرسالة من لوحة الدعم.</div>' : ""}
-${error ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>` : ""}
+${
+      sent
+        ? '<div class="notice success" role="status"><strong>تم إرسال طلبك.</strong><br>احتفظ بهذه الصفحة، وسيراجع فريق VoiceBrief الرسالة من لوحة الدعم.</div>'
+        : ""
+    }
+${
+      error
+        ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
+        : ""
+    }
 <section><h2>مساعدة سريعة</h2><ul><li><strong>لم تتم معالجة الصوت:</strong> تأكد أن الاتصال مستقر وأن الملف مدعوم، ثم أعد المحاولة.</li><li><strong>لم يظهر الاشتراك:</strong> استخدم «استعادة المشتريات» بالحساب نفسه الذي اشترى الاشتراك.</li><li><strong>حذف الحساب:</strong> افتح الإعدادات ثم اختر حذف الحساب. ألغِ اشتراك المتجر بصورة منفصلة إذا كان نشطًا.</li></ul></section>
 <section><h2>أرسل طلب دعم</h2><p>اكتب التفاصيل اللازمة فقط. لا ترسل كلمة مرور أو مفتاح API أو رقم بطاقة أو تسجيلًا صوتيًا حساسًا.</p>
 <form method="post" action="${escapeHtml(action)}">
-  <label>البريد الإلكتروني<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${escapeHtml(values.email)}"><span class="hint">سنستخدمه للرد على هذا الطلب فقط.</span></label>
+  <label>البريد الإلكتروني<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
+      escapeHtml(values.email)
+    }"><span class="hint">سنستخدمه للرد على هذا الطلب فقط.</span></label>
   <label>نوع المشكلة<select name="category" required>${options}</select></label>
-  <label>العنوان<input type="text" name="subject" autocomplete="off" minlength="3" maxlength="120" required value="${escapeHtml(values.subject)}"></label>
-  <label>التفاصيل<textarea name="message" autocomplete="off" minlength="20" maxlength="4000" required>${escapeHtml(values.message)}</textarea><span class="hint">اشرح ما حدث وما الذي كنت تتوقعه، من دون بيانات سرية.</span></label>
+  <label>العنوان<input type="text" name="subject" autocomplete="off" minlength="3" maxlength="120" required value="${
+      escapeHtml(values.subject)
+    }"></label>
+  <label>التفاصيل<textarea name="message" autocomplete="off" minlength="20" maxlength="4000" required>${
+      escapeHtml(values.message)
+    }</textarea><span class="hint">اشرح ما حدث وما الذي كنت تتوقعه، من دون بيانات سرية.</span></label>
   <label class="trap" aria-hidden="true">الموقع<input type="text" name="website" autocomplete="off" tabindex="-1"></label>
   <button type="submit">إرسال طلب الدعم</button>
 </form></section>
 <section><h2>الخصوصية في الدعم</h2><p>نحفظ بريدك ورسالتك وبيانات محدودة لمنع الإغراق بالطلبات، ونستخدمها للرد وحماية الخدمة. راجع <a href="./privacy?lang=ar">سياسة الخصوصية</a>.</p></section>`;
   }
   return `
-${sent ? '<div class="notice success" role="status"><strong>Support request sent.</strong><br>Keep this page for reference. The VoiceBrief team can review your message in the support dashboard.</div>' : ""}
-${error ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>` : ""}
+${
+    sent
+      ? '<div class="notice success" role="status"><strong>Support request sent.</strong><br>Keep this page for reference. The VoiceBrief team can review your message in the support dashboard.</div>'
+      : ""
+  }
+${
+    error
+      ? `<div class="notice error" role="alert">${escapeHtml(error)}</div>`
+      : ""
+  }
 <section><h2>Quick Help</h2><ul><li><strong>Audio did not process:</strong> Check that your connection is stable and the file type is supported, then try again.</li><li><strong>Subscription is missing:</strong> Use Restore Purchases with the same store account that made the purchase.</li><li><strong>Delete your account:</strong> Open Settings and choose Delete Account. Cancel an active store subscription separately.</li></ul></section>
 <section><h2>Send a Support Request</h2><p>Include only the details needed to help. Never send a password, API key, payment-card number, or sensitive audio.</p>
 <form method="post" action="${escapeHtml(action)}">
-  <label>Email Address<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${escapeHtml(values.email)}"><span class="hint">Used only to reply to this request.</span></label>
+  <label>Email Address<input type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" required value="${
+    escapeHtml(values.email)
+  }"><span class="hint">Used only to reply to this request.</span></label>
   <label>Issue Type<select name="category" required>${options}</select></label>
-  <label>Subject<input type="text" name="subject" autocomplete="off" minlength="3" maxlength="120" required value="${escapeHtml(values.subject)}"></label>
-  <label>Details<textarea name="message" autocomplete="off" minlength="20" maxlength="4000" required>${escapeHtml(values.message)}</textarea><span class="hint">Describe what happened and what you expected, without including secrets.</span></label>
+  <label>Subject<input type="text" name="subject" autocomplete="off" minlength="3" maxlength="120" required value="${
+    escapeHtml(values.subject)
+  }"></label>
+  <label>Details<textarea name="message" autocomplete="off" minlength="20" maxlength="4000" required>${
+    escapeHtml(values.message)
+  }</textarea><span class="hint">Describe what happened and what you expected, without including secrets.</span></label>
   <label class="trap" aria-hidden="true">Website<input type="text" name="website" autocomplete="off" tabindex="-1"></label>
   <button type="submit">Send Support Request</button>
 </form></section>
@@ -385,43 +417,40 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
     wantsJson
       ? jsonResponse(status, { error: message }, extraHeaders)
       : htmlResponse(
-          shell(
-            "support",
-            lang,
-            routeLabel("support", lang),
-            message,
-            supportContent(lang, url, values, message),
-          ),
-          status,
-          extraHeaders,
-        );
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (contentLength > maxBodyBytes) {
-    const message =
-      lang === "ar"
-        ? "الطلب أكبر من الحد المسموح."
-        : "The request is larger than allowed.";
-    return failure(413, message);
-  }
-
+        shell(
+          "support",
+          lang,
+          routeLabel("support", lang),
+          message,
+          supportContent(lang, url, values, message),
+        ),
+        status,
+        extraHeaders,
+      );
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    const message =
-      lang === "ar"
-        ? "تعذر قراءة الطلب. أعد المحاولة."
-        : "Unable to read the request. Try again.";
-    return failure(400, message);
+    form = await boundedFormData(request, maxBodyBytes);
+  } catch (error) {
+    const status = error instanceof BoundedBodyError ? error.status : 400;
+    const message = status === 413
+      ? lang === "ar"
+        ? "الطلب أكبر من الحد المسموح."
+        : "The request is larger than allowed."
+      : status === 415
+      ? lang === "ar"
+        ? "نوع الطلب غير مدعوم."
+        : "The request type is not supported."
+      : lang === "ar"
+      ? "تعذر قراءة الطلب. أعد المحاولة."
+      : "Unable to read the request. Try again.";
+    return failure(status, message);
   }
   const values = supportValues(form);
   if (String(form.get("website") ?? "").trim().length > 0) {
-    return wantsJson
-      ? jsonResponse(201, { ok: true })
-      : new Response(null, {
-          status: 303,
-          headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
-        });
+    return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
+      status: 303,
+      headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
+    });
   }
   const invalid = validationError(values, lang);
   if (invalid) {
@@ -432,10 +461,9 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const hashSecret = Deno.env.get("SUPPORT_HASH_SECRET") ?? "";
   if (!supabaseUrl || !serviceKey || !hashSecret) {
-    const message =
-      lang === "ar"
-        ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
-        : "Support is temporarily unavailable. Try again later.";
+    const message = lang === "ar"
+      ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
+      : "Support is temporarily unavailable. Try again later.";
     return failure(503, message, values);
   }
 
@@ -445,48 +473,40 @@ async function submitSupport(request: Request, url: URL, lang: Language) {
   const client = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
   });
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count, error: countError } = await client
-    .from("support_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("request_key_hash", fingerprint)
-    .gte("created_at", since);
-  if (countError) {
-    const message =
-      lang === "ar"
-        ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
-        : "Support is temporarily unavailable. Try again later.";
+  const { data: submission, error } = await client.rpc(
+    "submit_voicebrief_support_request",
+    {
+      p_request_key_hash: fingerprint,
+      p_email: values.email,
+      p_category: values.category,
+      p_subject: values.subject,
+      p_message: values.message,
+      p_language: lang,
+    },
+  );
+  if (error) {
+    const message = lang === "ar"
+      ? "الدعم غير متاح مؤقتًا. حاول لاحقًا."
+      : "Support is temporarily unavailable. Try again later.";
     return failure(503, message, values);
   }
-  if ((count ?? 0) >= maxRequestsPerDay) {
-    const message =
-      lang === "ar"
-        ? "وصلت إلى حد طلبات الدعم اليومي. حاول بعد 24 ساعة."
-        : "The daily support-request limit has been reached. Try again in 24 hours.";
+  if (submission === "rate_limited") {
+    const message = lang === "ar"
+      ? "وصلت إلى حد طلبات الدعم اليومي. حاول بعد 24 ساعة."
+      : "The daily support-request limit has been reached. Try again in 24 hours.";
     return failure(429, message, values, { "retry-after": "86400" });
   }
 
-  const { error } = await client.from("support_requests").insert({
-    email: values.email,
-    category: values.category,
-    subject: values.subject,
-    message: values.message,
-    language: lang,
-    request_key_hash: fingerprint,
-  });
-  if (error) {
-    const message =
-      lang === "ar"
-        ? "تعذر إرسال الطلب. حاول مرة أخرى."
-        : "Unable to send the request. Try again.";
+  if (submission !== "accepted") {
+    const message = lang === "ar"
+      ? "تعذر إرسال الطلب. حاول مرة أخرى."
+      : "Unable to send the request. Try again.";
     return failure(500, message, values);
   }
-  return wantsJson
-    ? jsonResponse(201, { ok: true })
-    : new Response(null, {
-        status: 303,
-        headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
-      });
+  return wantsJson ? jsonResponse(201, { ok: true }) : new Response(null, {
+    status: 303,
+    headers: { location: `${url.pathname}?sent=1&lang=${lang}` },
+  });
 }
 
 Deno.serve(async (request) => {
@@ -512,24 +532,22 @@ Deno.serve(async (request) => {
     });
   }
 
-  const content =
-    route === "privacy"
-      ? privacyContent(lang)
-      : route === "terms"
-        ? termsContent(lang)
-        : supportContent(lang, url);
-  const descriptions =
-    lang === "ar"
-      ? {
-          privacy: "كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.",
-          terms: "القواعد الواضحة لاستخدام VoiceBrief.",
-          support: "مساعدة VoiceBrief وطلبات الدعم.",
-        }
-      : {
-          privacy: "How VoiceBrief handles your data and the audio you choose.",
-          terms: "Clear rules for using VoiceBrief.",
-          support: "VoiceBrief help and support requests.",
-        };
+  const content = route === "privacy"
+    ? privacyContent(lang)
+    : route === "terms"
+    ? termsContent(lang)
+    : supportContent(lang, url);
+  const descriptions = lang === "ar"
+    ? {
+      privacy: "كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.",
+      terms: "القواعد الواضحة لاستخدام VoiceBrief.",
+      support: "مساعدة VoiceBrief وطلبات الدعم.",
+    }
+    : {
+      privacy: "How VoiceBrief handles your data and the audio you choose.",
+      terms: "Clear rules for using VoiceBrief.",
+      support: "VoiceBrief help and support requests.",
+    };
   const page = shell(
     route,
     lang,

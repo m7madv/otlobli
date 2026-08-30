@@ -110,6 +110,14 @@
 - Build 15 is historical and `VALID` in `VoiceBrief Internal`, but its three generated sounds were rejected by the user. Build 16 removes those resources, restores AlarmKit's real `.default` system sound, adds on-demand audio/video import to `Library/Sounds`, and redesigns the Arabic alarms screen. Local format, analysis, 37 non-golden tests, 12 reviewed goldens, and Android debug pass. The APK is `177,642,309` bytes with SHA-256 `5C285160AB09649C7409DF25AA28E2923EF768A8F822A28BF12E709D71FB50F0`.
 - Build 16 CI run [33319637732](https://github.com/m7madv/otlobli/actions/runs/33319637732) passed all jobs. TestFlight run [33319637699](https://github.com/m7madv/otlobli/actions/runs/33319637699) archived, signed, verified, validated, and uploaded the `34,612,519`-byte IPA with SHA-256 `C63AE9AD859F24A325095A954411D72A4501A96B44155098647AB432AD0BE32E`; delivery UUID/build ID `1d2cc0f0-f375-4665-bd20-8b88f89dd431`; artifact `9734711162` with ZIP SHA-256 `1F09A8271A994C569D806A78831D9DAD2B792F59A94E7C19424EBEF2C0ECABA5`. Status run [33320659130](https://github.com/m7madv/otlobli/actions/runs/33320659130) confirms `VALID` and `VoiceBrief Internal`; physical imported/default-sound acceptance remains pending.
 
+## Build 17 security and persistence candidate — 2026-08-30
+
+- Source version is `0.1.0+17`. Theme and last server-confirmed quota persist across process death; the repository refreshes quota from RLS-protected usage tables. App Group share data is account/generation bound. Signed upload reservations replace direct authenticated Storage INSERT, and server-parsed audio metadata controls billing.
+- Codex Security scan `a3c7b83e-9d4b-4870-a335-4e3a784b1b50` found six reportable issues in `9f228c1`; canonical report artifacts are in `docs/security/build17/`. Source remediations exist, but live backend deployment, macOS Swift build, scheduled-cleanup readback, and physical-iPhone account-switch/share acceptance are not yet complete.
+- Local checks passed: format 78 files, analyzer, 42 non-golden, 12 golden, 16 Deno tests, Edge lint/check, and Android debug. APK SHA-256 is `DF67F60678B42A38A0FAC415FC79ECA224F3BDA772123726C153D1FA0C6AE64E`.
+- Do not upload TestFlight 17 until migration `20260830190000_security_hardening.sql` and the updated Edge Functions are deployed to `jyehqpdbayslhzebdycj` only. Do not publicly publish Apple or Google releases until the owner accepts the TestFlight build.
+- Four 13-inch iPad PNG screenshots are ready under `store_assets/app_store_ipad/`, each `2048x2732` and 24-bit RGB. They were derived from the actual Android screens without added features; they are not uploaded yet.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.

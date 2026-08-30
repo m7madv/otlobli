@@ -1,6 +1,36 @@
 import { createClient } from "@supabase/supabase-js";
 import { bearerToken, jsonResponse, sha256 } from "../_shared/http.ts";
 
+async function allAudioPaths(
+  bucket: ReturnType<ReturnType<typeof createClient>["storage"]["from"]>,
+  userId: string,
+): Promise<string[]> {
+  const paths: string[] = [];
+  const folders = [userId];
+  const pageSize = 100;
+  while (folders.length > 0) {
+    const folder = folders.pop()!;
+    let offset = 0;
+    while (true) {
+      const { data, error } = await bucket.list(folder, {
+        limit: pageSize,
+        offset,
+        sortBy: { column: "name", order: "asc" },
+      });
+      if (error) throw new Error("storage_list_failed");
+      const entries = data ?? [];
+      for (const entry of entries) {
+        const itemPath = `${folder}/${entry.name}`;
+        if (entry.id) paths.push(itemPath);
+        else folders.push(itemPath);
+      }
+      if (entries.length < pageSize) break;
+      offset += entries.length;
+    }
+  }
+  return paths;
+}
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return jsonResponse(405, { error: "method_not_allowed" });
@@ -34,27 +64,19 @@ Deno.serve(async (request) => {
       user_id: userId,
       status: "requested",
     });
-    const { data: jobFolders, error: listError } = await serviceClient.storage
-      .from("audio-temp")
-      .list(userId, { limit: 1000 });
-    if (listError) throw new Error("storage_list_failed");
-    const paths: string[] = [];
-    for (const folder of jobFolders ?? []) {
-      if (folder.id) {
-        paths.push(`${userId}/${folder.name}`);
-        continue;
-      }
-      const { data: files } = await serviceClient.storage.from("audio-temp")
-        .list(`${userId}/${folder.name}`, { limit: 1000 });
-      for (const file of files ?? []) {
-        paths.push(`${userId}/${folder.name}/${file.name}`);
-      }
-    }
-    if (paths.length > 0) {
-      const { error: removeError } = await serviceClient.storage.from(
-        "audio-temp",
-      ).remove(paths);
+    const bucket = serviceClient.storage.from("audio-temp");
+    const paths = await allAudioPaths(bucket, userId);
+    for (let offset = 0; offset < paths.length; offset += 100) {
+      const { error: removeError } = await bucket.remove(
+        paths.slice(offset, offset + 100),
+      );
       if (removeError) throw new Error("storage_delete_failed");
+    }
+    const { data: remaining, error: verifyError } = await bucket.list(userId, {
+      limit: 1,
+    });
+    if (verifyError || (remaining?.length ?? 0) > 0) {
+      throw new Error("storage_delete_incomplete");
     }
     const { error: deleteError } = await serviceClient.auth.admin.deleteUser(
       userId,

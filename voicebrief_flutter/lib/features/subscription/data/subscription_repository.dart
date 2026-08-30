@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart'
     hide SubscriptionOption;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/features/subscription/domain/subscription_models.dart';
@@ -68,6 +69,9 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
 }
 
 class RevenueCatSubscriptionRepository implements SubscriptionRepository {
+  RevenueCatSubscriptionRepository(this._client);
+
+  final SupabaseClient _client;
   final Map<String, Package> _packages = {};
 
   @override
@@ -95,8 +99,15 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
           ),
         );
       final customerInfo = await Purchases.getCustomerInfo();
-      return _mapStatus(customerInfo, offering.availablePackages);
+      return await _withServerUsage(
+        _mapStatus(customerInfo, offering.availablePackages),
+      );
     } on PlatformException catch (error) {
+      throw AppFailure(
+        AppFailureCode.subscriptionUnavailable,
+        debugContext: error.code,
+      );
+    } on PostgrestException catch (error) {
       throw AppFailure(
         AppFailureCode.subscriptionUnavailable,
         debugContext: error.code,
@@ -112,13 +123,20 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
     }
     try {
       final result = await Purchases.purchase(PurchaseParams.package(package));
-      return _mapStatus(result.customerInfo, _packages.values.toList());
+      return await _withServerUsage(
+        _mapStatus(result.customerInfo, _packages.values.toList()),
+      );
     } on PlatformException catch (error) {
       final code = PurchasesErrorHelper.getErrorCode(error);
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         throw const AppFailure(AppFailureCode.purchaseCanceled);
       }
       throw AppFailure(AppFailureCode.purchaseFailed, debugContext: code.name);
+    } on PostgrestException catch (error) {
+      throw AppFailure(
+        AppFailureCode.subscriptionUnavailable,
+        debugContext: error.code,
+      );
     }
   }
 
@@ -126,9 +144,16 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
   Future<SubscriptionStatus> restore() async {
     try {
       final info = await Purchases.restorePurchases();
-      return _mapStatus(info, _packages.values.toList());
+      return await _withServerUsage(
+        _mapStatus(info, _packages.values.toList()),
+      );
     } on PlatformException catch (error) {
       throw AppFailure(AppFailureCode.restoreFailed, debugContext: error.code);
+    } on PostgrestException catch (error) {
+      throw AppFailure(
+        AppFailureCode.subscriptionUnavailable,
+        debugContext: error.code,
+      );
     }
   }
 
@@ -163,6 +188,57 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
       totalMinutes: isPro ? 300 : 10,
       options: options,
       offeringsLoaded: true,
+    );
+  }
+
+  Future<SubscriptionStatus> _withServerUsage(
+    SubscriptionStatus storeStatus,
+  ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw const AppFailure(AppFailureCode.authentication);
+    final subscription = await _client
+        .from('subscription_state')
+        .select('entitlement')
+        .eq('user_id', user.id)
+        .maybeSingle();
+    if (subscription == null) {
+      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+    }
+    final periods = await _client
+        .from('usage_periods')
+        .select(
+          'plan, starts_at, ends_at, quota_minutes, used_minutes, reserved_minutes',
+        )
+        .eq('user_id', user.id)
+        .order('starts_at', ascending: false);
+    final entitlement = subscription['entitlement'] == 'pro'
+        ? SubscriptionTier.pro
+        : SubscriptionTier.free;
+    final expectedPlan = entitlement == SubscriptionTier.pro ? 'pro' : 'free';
+    final now = DateTime.now().toUtc();
+    Map<String, dynamic>? activePeriod;
+    for (final period in periods) {
+      if (period['plan'] != expectedPlan) continue;
+      final startsAt = DateTime.tryParse(period['starts_at'] as String? ?? '');
+      final endsAt = DateTime.tryParse(period['ends_at'] as String? ?? '');
+      if (startsAt == null || startsAt.toUtc().isAfter(now)) continue;
+      if (endsAt != null && !endsAt.toUtc().isAfter(now)) continue;
+      activePeriod = period;
+      break;
+    }
+    if (activePeriod == null) {
+      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+    }
+    final total = (activePeriod['quota_minutes'] as num?)?.toInt();
+    final used = (activePeriod['used_minutes'] as num?)?.toInt();
+    final reserved = (activePeriod['reserved_minutes'] as num?)?.toInt();
+    if (total == null || used == null || reserved == null || total <= 0) {
+      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+    }
+    return storeStatus.copyWith(
+      tier: entitlement,
+      remainingMinutes: (total - used - reserved).clamp(0, total).toInt(),
+      totalMinutes: total,
     );
   }
 }

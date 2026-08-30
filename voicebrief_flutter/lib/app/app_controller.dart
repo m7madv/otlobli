@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:voicebrief/app/app_state.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
+import 'package:voicebrief/core/storage/app_preferences.dart';
 import 'package:voicebrief/core/utils/quota_math.dart';
 import 'package:voicebrief/features/audio_import/data/audio_import_service.dart';
 import 'package:voicebrief/features/audio_import/domain/audio_input.dart';
@@ -18,6 +19,20 @@ import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/features/transcription/domain/processing_options.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
 
+AppState _initialAppState(
+  AuthRepository authRepository,
+  AppPreferences preferences,
+) {
+  final user = authRepository.currentUser;
+  return AppState(
+    user: user,
+    themeMode: preferences.themeMode,
+    subscription: user == null
+        ? const AppState().subscription
+        : preferences.subscriptionFor(user.id) ?? const AppState().subscription,
+  );
+}
+
 class AppController extends StateNotifier<AppState> {
   AppController({
     required AuthRepository authRepository,
@@ -26,13 +41,15 @@ class AppController extends StateNotifier<AppState> {
     required HistoryRepository historyRepository,
     required AudioImportService audioImportService,
     required SharedAudioInbox sharedAudioInbox,
+    required AppPreferences preferences,
   }) : _auth = authRepository,
        _subscriptions = subscriptionRepository,
        _transcription = transcriptionRepository,
        _history = historyRepository,
        _audioImport = audioImportService,
        _sharedInbox = sharedAudioInbox,
-       super(AppState(user: authRepository.currentUser)) {
+       _preferences = preferences,
+       super(_initialAppState(authRepository, preferences)) {
     if (state.user != null) unawaited(_activateAccount(state.user!));
     _sharedAudioSubscription = _sharedInbox.received.listen(
       (payload) => unawaited(_importShared(payload)),
@@ -44,7 +61,11 @@ class AppController extends StateNotifier<AppState> {
     );
     _sharedResultSubscription = _sharedInbox.processed.listen(
       (event) => unawaited(
-        _importSharedResult(event.result, openResult: event.openResult),
+        _importSharedResult(
+          event.result,
+          ownerUserId: event.ownerUserId,
+          openResult: event.openResult,
+        ),
       ),
       onError: (Object error, StackTrace stackTrace) {
         state = state.copyWith(
@@ -84,6 +105,7 @@ class AppController extends StateNotifier<AppState> {
   final HistoryRepository _history;
   final AudioImportService _audioImport;
   final SharedAudioInbox _sharedInbox;
+  final AppPreferences _preferences;
   static const _uuid = Uuid();
   StreamSubscription<List<BriefResult>>? _historySubscription;
   StreamSubscription<SharedAudioPayload>? _sharedAudioSubscription;
@@ -96,7 +118,10 @@ class AppController extends StateNotifier<AppState> {
   void setNavigationIndex(int index) =>
       state = state.copyWith(navigationIndex: index);
 
-  void setThemeMode(ThemeMode mode) => state = state.copyWith(themeMode: mode);
+  void setThemeMode(ThemeMode mode) {
+    state = state.copyWith(themeMode: mode);
+    unawaited(_preferences.setThemeMode(mode));
+  }
 
   void clearError() => state = state.copyWith(errorMessage: null);
 
@@ -137,7 +162,12 @@ class AppController extends StateNotifier<AppState> {
       );
       return false;
     }
-    state = state.copyWith(user: user, authBusy: false, errorMessage: null);
+    state = state.copyWith(
+      user: user,
+      authBusy: false,
+      subscription: _preferences.subscriptionFor(user.id) ?? state.subscription,
+      errorMessage: null,
+    );
     await _activateAccount(user);
     return true;
   }
@@ -159,25 +189,30 @@ class AppController extends StateNotifier<AppState> {
       await _subscriptions.logIn(accountId);
       final subscription = await _subscriptions.load();
       state = state.copyWith(subscription: subscription);
+      await _preferences.cacheSubscription(accountId, subscription);
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);
     }
   }
 
   Future<void> signOut() async {
+    final accountId = state.user?.id;
     final audio = state.selectedAudio;
     if (audio != null) await _audioImport.discard(audio);
     _activeJobId = null;
+    await _sharedInbox.invalidateSharedSession();
     await _subscriptions.logOut();
     await _auth.signOut();
     await _historySubscription?.cancel();
-    state = const AppState();
+    if (accountId != null) await _preferences.clearSubscription(accountId);
+    state = AppState(themeMode: _preferences.themeMode);
   }
 
   Future<bool> deleteAccount() async {
     final accountId = state.user?.id;
     if (accountId == null) return false;
     try {
+      await _sharedInbox.invalidateSharedSession();
       await _auth.deleteAccount();
       await _history.clear(accountId);
       final audio = state.selectedAudio;
@@ -185,7 +220,8 @@ class AppController extends StateNotifier<AppState> {
       _activeJobId = null;
       await _subscriptions.logOut();
       await _historySubscription?.cancel();
-      state = const AppState();
+      await _preferences.clearSubscription(accountId);
+      state = AppState(themeMode: _preferences.themeMode);
       return true;
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);
@@ -283,10 +319,11 @@ class AppController extends StateNotifier<AppState> {
 
   Future<void> _importSharedResult(
     BriefResult result, {
+    required String ownerUserId,
     required bool openResult,
   }) async {
     final accountId = state.user?.id;
-    if (accountId == null) {
+    if (accountId == null || ownerUserId != accountId) {
       state = state.copyWith(
         errorMessage: const AppFailure(AppFailureCode.authentication).message,
       );
@@ -418,6 +455,10 @@ class AppController extends StateNotifier<AppState> {
         selectedAudio: null,
         subscription: subscription,
       );
+      final accountId = state.user?.id;
+      if (accountId != null) {
+        await _preferences.cacheSubscription(accountId, subscription);
+      }
       _activeJobId = null;
       await _audioImport.discard(audio);
       return result;
@@ -521,6 +562,10 @@ class AppController extends StateNotifier<AppState> {
     try {
       final status = await _subscriptions.purchase(productId);
       state = state.copyWith(subscription: status);
+      final accountId = state.user?.id;
+      if (accountId != null) {
+        await _preferences.cacheSubscription(accountId, status);
+      }
       return true;
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);
@@ -532,6 +577,10 @@ class AppController extends StateNotifier<AppState> {
     try {
       final status = await _subscriptions.load();
       state = state.copyWith(subscription: status);
+      final accountId = state.user?.id;
+      if (accountId != null) {
+        await _preferences.cacheSubscription(accountId, status);
+      }
       return true;
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);
@@ -543,6 +592,10 @@ class AppController extends StateNotifier<AppState> {
     try {
       final status = await _subscriptions.restore();
       state = state.copyWith(subscription: status);
+      final accountId = state.user?.id;
+      if (accountId != null) {
+        await _preferences.cacheSubscription(accountId, status);
+      }
       return true;
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);

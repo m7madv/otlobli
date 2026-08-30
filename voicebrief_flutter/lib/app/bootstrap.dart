@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +10,17 @@ import 'package:voicebrief/app/app.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/app/providers.dart';
 import 'package:voicebrief/core/security/safe_log.dart';
+import 'package:voicebrief/core/storage/app_preferences.dart';
 
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final config = AppConfig.fromEnvironment();
+  final preferences = await DeviceAppPreferences.load();
   var appStarted = false;
+
+  if (kReleaseMode && !config.releaseReadyFor(isIOS: Platform.isIOS)) {
+    throw StateError('release_configuration_invalid');
+  }
 
   FlutterError.onError = (details) {
     SafeLog.event(
@@ -39,7 +45,6 @@ Future<void> bootstrap() async {
       ),
     );
     if (Platform.isIOS) {
-      await _restoreIosShareSession(Supabase.instance.client);
       await _syncIosShareSession(
         config,
         Supabase.instance.client.auth.currentSession,
@@ -56,7 +61,10 @@ Future<void> bootstrap() async {
 
   runApp(
     ProviderScope(
-      overrides: [appConfigProvider.overrideWithValue(config)],
+      overrides: [
+        appConfigProvider.overrideWithValue(config),
+        appPreferencesProvider.overrideWithValue(preferences),
+      ],
       child: const VoiceBriefApp(),
     ),
   );
@@ -72,24 +80,6 @@ Future<void> bootstrap() async {
 }
 
 const _iosShareChannel = MethodChannel('voicebrief/share');
-
-Future<void> _restoreIosShareSession(SupabaseClient client) async {
-  try {
-    final shared = await _iosShareChannel.invokeMapMethod<String, Object?>(
-      'getShareSession',
-    );
-    final refreshToken = shared?['refreshToken'] as String?;
-    if (refreshToken == null || refreshToken.isEmpty) return;
-    if (client.auth.currentSession?.refreshToken == refreshToken) return;
-    await client.auth.setSession(refreshToken);
-  } on MissingPluginException {
-    // The bridge is absent in unit tests and non-device builds.
-  } on PlatformException {
-    // Supabase can still restore its ordinary application-local session.
-  } on AuthException {
-    // A stale shared refresh token must not break normal application sign-in.
-  }
-}
 
 Future<void> _syncIosShareSession(AppConfig config, Session? session) async {
   try {

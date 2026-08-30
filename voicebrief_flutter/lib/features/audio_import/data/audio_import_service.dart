@@ -317,6 +317,7 @@ class SharedAudioInbox {
           _processed.add((
             result: result,
             openResult: envelope['openResult'] == true,
+            ownerUserId: envelope['ownerUserId'] as String? ?? '',
           ));
         }
         return;
@@ -340,6 +341,16 @@ class SharedAudioInbox {
   Stream<SharedProcessedResult> get processed => _processed.stream;
   Stream<void> get openProcessed => _openProcessed.stream;
 
+  Future<void> invalidateSharedSession() async {
+    try {
+      await _channel.invokeMethod<void>('syncShareSession');
+    } on MissingPluginException {
+      // Non-iOS platforms and tests do not install the share bridge.
+    } on PlatformException {
+      // Local sign-out must still proceed if the optional bridge is absent.
+    }
+  }
+
   Future<SharedAudioPayload?> takePending() async {
     final value = await _channel.invokeMapMethod<String, Object?>(
       'takePendingShare',
@@ -355,6 +366,7 @@ class SharedAudioInbox {
         _processed.add((
           result: result,
           openResult: value['openResult'] == true,
+          ownerUserId: value['ownerUserId'] as String? ?? '',
         ));
       }
       return null;
@@ -403,7 +415,11 @@ class SharedAudioInbox {
   }
 }
 
-typedef SharedProcessedResult = ({BriefResult result, bool openResult});
+typedef SharedProcessedResult = ({
+  BriefResult result,
+  bool openResult,
+  String ownerUserId,
+});
 
 typedef SharedAudioPayload = ({
   String path,

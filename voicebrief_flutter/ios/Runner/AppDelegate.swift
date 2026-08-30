@@ -25,6 +25,7 @@ final class VoiceBriefShareBridge {
   private let appGroup = "group.app.voicebrief.mobile"
   private let legacyPayloadKey = "VoiceBriefPendingShare"
   private let shareSessionKey = "VoiceBriefShareSession"
+  private let shareGenerationKey = "VoiceBriefSessionGeneration"
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private let importQueue = DispatchQueue(
@@ -92,6 +93,7 @@ final class VoiceBriefShareBridge {
         arguments: [
           "result": result,
           "openResult": payload["openResult"] as? Bool ?? false,
+          "ownerUserId": payload["ownerUserId"] as? String ?? "",
         ]
       )
     } else {
@@ -138,7 +140,7 @@ final class VoiceBriefShareBridge {
          let object = try? JSONSerialization.jsonObject(with: data),
          let payload = object as? [String: Any] {
         try? FileManager.default.removeItem(at: manifest)
-        return payload
+        return validatedPayload(payload)
       }
       if FileManager.default.fileExists(atPath: manifest.path) {
         try? FileManager.default.removeItem(at: manifest)
@@ -148,6 +150,19 @@ final class VoiceBriefShareBridge {
           let payload = defaults.dictionary(forKey: legacyPayloadKey)
     else { return nil }
     defaults.removeObject(forKey: legacyPayloadKey)
+    return payload
+  }
+
+  private func validatedPayload(_ payload: [String: Any]) -> [String: Any]? {
+    guard payload["kind"] as? String == "processed" else { return payload }
+    guard let ownerUserId = payload["ownerUserId"] as? String,
+          let generation = payload["sessionGeneration"] as? String,
+          let defaults = UserDefaults(suiteName: appGroup),
+          generation == defaults.string(forKey: shareGenerationKey),
+          let session = defaults.dictionary(forKey: shareSessionKey),
+          ownerUserId == session["userId"] as? String,
+          generation == session["generation"] as? String
+    else { return nil }
     return payload
   }
 
@@ -166,8 +181,21 @@ final class VoiceBriefShareBridge {
           !refreshToken.isEmpty,
           !userId.isEmpty
     else {
+      defaults.set(UUID().uuidString.lowercased(), forKey: shareGenerationKey)
       defaults.removeObject(forKey: shareSessionKey)
+      removePendingSharePayload()
       return
+    }
+    let existing = defaults.dictionary(forKey: shareSessionKey)
+    let generation: String
+    if existing?["userId"] as? String == userId,
+       let existingGeneration = existing?["generation"] as? String,
+       existingGeneration == defaults.string(forKey: shareGenerationKey) {
+      generation = existingGeneration
+    } else {
+      generation = UUID().uuidString.lowercased()
+      defaults.set(generation, forKey: shareGenerationKey)
+      removePendingSharePayload()
     }
     defaults.set(
       [
@@ -177,9 +205,26 @@ final class VoiceBriefShareBridge {
         "refreshToken": refreshToken,
         "userId": userId,
         "expiresAt": expiresAt,
+        "generation": generation,
       ],
       forKey: shareSessionKey
     )
+  }
+
+  private func removePendingSharePayload() {
+    guard let container = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: appGroup
+    ) else { return }
+    let incoming = container.appendingPathComponent("Incoming", isDirectory: true)
+    if let items = try? FileManager.default.contentsOfDirectory(
+      at: incoming,
+      includingPropertiesForKeys: nil
+    ) {
+      for item in items {
+        try? FileManager.default.removeItem(at: item)
+      }
+    }
+    UserDefaults(suiteName: appGroup)?.removeObject(forKey: legacyPayloadKey)
   }
 
   private func persistDocument(_ source: URL) throws {

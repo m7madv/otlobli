@@ -7,6 +7,7 @@ import 'package:voicebrief/app/app_controller.dart';
 import 'package:voicebrief/app/app_state.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/core/storage/app_database.dart';
+import 'package:voicebrief/core/storage/app_preferences.dart';
 import 'package:voicebrief/features/audio_import/data/audio_import_service.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/auth/data/native_identity_token_service.dart';
@@ -17,6 +18,10 @@ import 'package:voicebrief/features/transcription/data/transcription_repository.
 
 final appConfigProvider = Provider<AppConfig>(
   (_) => AppConfig.fromEnvironment(),
+);
+
+final appPreferencesProvider = Provider<AppPreferences>(
+  (_) => MemoryAppPreferences(),
 );
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -62,7 +67,7 @@ final subscriptionRepositoryProvider = Provider<SubscriptionRepository>((ref) {
   if (config.useMocks || platformKey.isEmpty) {
     return FakeSubscriptionRepository();
   }
-  return RevenueCatSubscriptionRepository();
+  return RevenueCatSubscriptionRepository(Supabase.instance.client);
 });
 
 final transcriptionRepositoryProvider = Provider<TranscriptionRepository>((
@@ -85,6 +90,7 @@ final appControllerProvider = StateNotifierProvider<AppController, AppState>((
     historyRepository: ref.watch(historyRepositoryProvider),
     audioImportService: ref.watch(audioImportServiceProvider),
     sharedAudioInbox: ref.watch(sharedAudioInboxProvider),
+    preferences: ref.watch(appPreferencesProvider),
   );
 });
 

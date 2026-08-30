@@ -51,6 +51,21 @@ class AppConfig {
   final String appleRedirectUri;
 
   bool get hasSupabase => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+  bool releaseReadyFor({required bool isIOS}) {
+    final uri = Uri.tryParse(supabaseUrl);
+    final correctBackend =
+        uri?.scheme == 'https' &&
+        uri?.host == '${AppIdentity.supabaseProjectRef}.supabase.co';
+    final revenueCatKey = isIOS ? revenueCatIosKey : revenueCatAndroidKey;
+    return environment == 'production' &&
+        !useMocks &&
+        hasSupabase &&
+        correctBackend &&
+        revenueCatKey.isNotEmpty &&
+        googleWebClientId.isNotEmpty &&
+        (!isIOS || googleIosClientId.isNotEmpty);
+  }
 }
 
 abstract final class AppIdentity {
@@ -60,6 +75,7 @@ abstract final class AppIdentity {
   static const iosBundleId = 'app.voicebrief.mobile';
   static const urlScheme = 'voicebrief';
   static const iosAppGroup = 'group.app.voicebrief.mobile';
+  static const supabaseProjectRef = 'jyehqpdbayslhzebdycj';
   static const termsUrl = 'https://voicebrief-legal.vercel.app/terms';
   static const privacyUrl = 'https://voicebrief-legal.vercel.app/privacy';
   static const supportUrl = 'https://voicebrief-legal.vercel.app/support';

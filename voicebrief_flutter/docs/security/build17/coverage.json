@@ -1,0 +1,219 @@
+{
+  "completeness": "partial",
+  "deferred": [
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "App Group entitlement limits access to signed Runner/extension and ordinary sign-out clears the preference.",
+        "cwe": [
+          "CWE-613"
+        ],
+        "evidence": "Extension refresh writes an earlier session back without generation compare-and-swap; processed manifest lacks owner/generation and Runner imports under the current account.",
+        "locations": [
+          "voicebrief_flutter/lib/app/bootstrap.dart:81-112",
+          "voicebrief_flutter/ios/Runner/AppDelegate.swift:154-182",
+          "voicebrief_flutter/ios/ShareExtension/ShareViewController.swift:395-457",
+          "voicebrief_flutter/lib/app/app_controller.dart:314-337"
+        ],
+        "ruleId": "ios-app-group-session-generation",
+        "severity": "high",
+        "title": "Stale iOS App Group session/result can cross sign-out or account switch"
+      },
+      "id": "ios-app-group-session-generation",
+      "paths": [
+        "voicebrief_flutter/lib/app/bootstrap.dart",
+        "voicebrief_flutter/ios/Runner/AppDelegate.swift",
+        "voicebrief_flutter/ios/ShareExtension/ShareViewController.swift",
+        "voicebrief_flutter/lib/app/app_controller.dart"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "Private bucket, own-prefix RLS, 25 MiB per-object limit.",
+        "cwe": [
+          "CWE-770"
+        ],
+        "evidence": "Insert policy constrains path/type and bucket per-object size but has no aggregate/count/reservation/rate constraint.",
+        "locations": [
+          "voicebrief_flutter/supabase/schema.sql:429-448",
+          "voicebrief_flutter/supabase/functions/delete-account/index.ts:37-56"
+        ],
+        "ruleId": "unbounded-authenticated-storage",
+        "severity": "high",
+        "title": "Authenticated users can upload unbounded audio-temp objects"
+      },
+      "id": "unbounded-authenticated-storage",
+      "paths": [
+        "voicebrief_flutter/supabase/schema.sql",
+        "voicebrief_flutter/supabase/functions/delete-account/index.ts"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "Exact user/job path binding and file-size ceiling limit one request but do not establish duration.",
+        "cwe": [
+          "CWE-602"
+        ],
+        "evidence": "durationSeconds is validated only as a numeric range and is passed directly into minute reservation before the whole uploaded blob is sent to OpenAI.",
+        "locations": [
+          "voicebrief_flutter/supabase/functions/process-audio/index.ts:305-376",
+          "voicebrief_flutter/supabase/schema.sql:177-184"
+        ],
+        "ruleId": "client-asserted-audio-duration",
+        "severity": "high",
+        "title": "Billing trusts client-reported audio duration"
+      },
+      "id": "client-asserted-audio-duration",
+      "paths": [
+        "voicebrief_flutter/supabase/functions/process-audio/index.ts",
+        "voicebrief_flutter/supabase/schema.sql"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "Function finally removes reached uploads and account deletion cascades records.",
+        "cwe": [
+          "CWE-459"
+        ],
+        "evidence": "Upload precedes invocation and expired processing_jobs have no source-defined scheduled deletion.",
+        "locations": [
+          "voicebrief_flutter/lib/features/transcription/data/transcription_repository.dart:106-164",
+          "voicebrief_flutter/supabase/functions/process-audio/index.ts:483-534",
+          "voicebrief_flutter/supabase/schema.sql:47-63"
+        ],
+        "ruleId": "temporary-data-ttl-not-enforced",
+        "severity": "medium",
+        "title": "Temporary audio and result cleanup is not enforceable"
+      },
+      "id": "temporary-data-ttl-not-enforced",
+      "paths": [
+        "voicebrief_flutter/lib/features/transcription/data/transcription_repository.dart",
+        "voicebrief_flutter/supabase/functions/process-audio/index.ts",
+        "voicebrief_flutter/supabase/schema.sql"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "Honeypot, field limits, nominal five-per-day check.",
+        "cwe": [
+          "CWE-362"
+        ],
+        "evidence": "Separate count and insert operations allow concurrent callers to observe the same count.",
+        "locations": [
+          "voicebrief_flutter/supabase/functions/legal/index.ts:442-476"
+        ],
+        "ruleId": "support-rate-limit-race",
+        "severity": "medium",
+        "title": "Support rate limit uses non-atomic count then insert"
+      },
+      "id": "support-rate-limit-race",
+      "paths": [
+        "voicebrief_flutter/supabase/functions/legal/index.ts"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "counterEvidence": "Declared large Content-Length and individual oversized fields are rejected.",
+        "cwe": [
+          "CWE-400"
+        ],
+        "evidence": "Missing length becomes zero and formData() buffers/parses the actual request before per-field validation.",
+        "locations": [
+          "voicebrief_flutter/supabase/functions/legal/index.ts:398-409"
+        ],
+        "ruleId": "public-form-unbounded-body-parse",
+        "severity": "medium",
+        "title": "Public support form trusts optional Content-Length before formData buffering"
+      },
+      "id": "public-form-unbounded-body-parse",
+      "paths": [
+        "voicebrief_flutter/supabase/functions/legal/index.ts"
+      ],
+      "reason": "Awaiting independent focused validation and parent source verification."
+    }
+  ],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [],
+  "explicitExclusions": [],
+  "includePaths": [
+    "voicebrief_flutter"
+  ],
+  "inventoryStrategy": "scoped_path",
+  "mode": "scoped_path",
+  "openQuestions": [
+    {
+      "question": "Real iPhone account-switch and Share Extension timing acceptance remains."
+    },
+    {
+      "question": "Live deployment and scheduled cleanup must be verified only on jyehqpdbayslhzebdycj."
+    }
+  ],
+  "scanId": "a3c7b83e-9d4b-4870-a335-4e3a784b1b50",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "reported",
+      "id": "surface_flutter-client-authentication-preferences-quota-storage-and-platform-bridges",
+      "label": "Flutter client authentication, preferences, quota, storage and platform bridges",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "surface_ios-runner-and-share-extension-app-group-data-flow",
+      "label": "iOS Runner and Share Extension App Group data flow",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "surface_supabase-schema-rls-storage-policies-and-edge-functions",
+      "label": "Supabase schema, RLS, storage policies and Edge Functions",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "surface_public-legal/support-endpoint",
+      "label": "Public legal/support endpoint",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface_ci-and-release-configuration",
+      "label": "CI and release configuration",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "surface_independent-baseline-audit",
+      "label": "Independent baseline audit",
+      "notes": "Six source-backed candidates returned; focused validation is running.",
+      "receiptRefs": [],
+      "riskArea": "All scoped security surfaces"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface_architecture-and-trust-boundary-review",
+      "label": "Architecture and trust-boundary review",
+      "notes": "Architecture map completed and reconciled into focused investigation packets.",
+      "receiptRefs": [],
+      "riskArea": "Threat model completeness"
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "surface_production-dashboard-and-exact-artifact-configuration",
+      "label": "Production dashboard and exact artifact configuration",
+      "notes": "Requires external readback and TestFlight artifact verification after source fixes.",
+      "receiptRefs": [],
+      "riskArea": "Operational assurance"
+    }
+  ]
+}

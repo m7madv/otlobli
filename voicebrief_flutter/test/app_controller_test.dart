@@ -76,13 +76,37 @@ void main() {
     addTearDown(controller.dispose);
     await controller.signInWithProvider(IdentityProvider.google);
 
-    inbox.emit((result: sampleResult(), openResult: true));
+    inbox.emit((
+      result: sampleResult(),
+      openResult: true,
+      ownerUserId: 'test-account',
+    ));
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
     expect(controller.state.activeResult?.importantDates, isNotEmpty);
     expect(controller.state.activeResult?.actionItems, isNotEmpty);
     expect(controller.state.resultNavigationRequest, 1);
     expect(controller.state.activeResult?.savedLocally, isTrue);
+  });
+
+  test('shared result from another account is rejected', () async {
+    final inbox = _ControllableSharedAudioInbox();
+    addTearDown(inbox.dispose);
+    final controller = createTestController(sharedAudioInbox: inbox);
+    addTearDown(controller.dispose);
+    await controller.signInWithProvider(IdentityProvider.google);
+
+    inbox.emit((
+      result: sampleResult(),
+      openResult: true,
+      ownerUserId: 'different-account',
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(controller.state.activeResult, isNull);
+    expect(controller.state.history, isEmpty);
+    expect(controller.state.resultNavigationRequest, 0);
+    expect(controller.state.errorMessage, isNotNull);
   });
 }
 

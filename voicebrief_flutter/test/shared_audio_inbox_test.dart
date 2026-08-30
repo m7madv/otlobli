@@ -17,6 +17,7 @@ void main() {
       final payload = <String, Object?>{
         'kind': 'processed',
         'openResult': true,
+        'ownerUserId': 'account-1',
         'result': <String, Object?>{
           'id': '3a7ee21d-fbc0-4a2d-9d44-4c117e6b5857',
           'detectedLanguage': 'ar',
@@ -57,6 +58,7 @@ void main() {
       expect(await inbox.takePending(), isNull);
       final event = await resultFuture;
       expect(event.openResult, isTrue);
+      expect(event.ownerUserId, 'account-1');
       expect(event.result.title, 'موعد التصوير');
       expect(event.result.audioDurationSeconds, 12);
       expect(event.result.importantDates.single.dateIso, '2026-08-31');

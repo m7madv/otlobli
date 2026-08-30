@@ -3,6 +3,9 @@ project_id = "voicebrief"
 [functions.process-audio]
 verify_jwt = false
 
+[functions.create-audio-upload]
+verify_jwt = false
+
 [functions.delete-account]
 verify_jwt = false
 

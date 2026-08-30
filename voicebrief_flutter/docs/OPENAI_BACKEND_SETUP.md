@@ -4,6 +4,8 @@
 
 Only `supabase/functions/process-audio/index.ts` calls OpenAI. The Flutter client has no OpenAI dependency, model name, endpoint, or key.
 
+Build 17 adds `create-audio-upload` before `process-audio`. It issues an exact signed Storage upload after an atomic per-user reservation, while `process-audio` verifies the reservation and derives the trusted duration from media metadata. Deploy migration `20260830190000_security_hardening.sql` before deploying the functions. As of 2026-08-30 these build 17 changes are local and must be deployed only to `jyehqpdbayslhzebdycj`; active version 11 below remains the live pre-build-17 backend.
+
 Default server configuration:
 
 ```text

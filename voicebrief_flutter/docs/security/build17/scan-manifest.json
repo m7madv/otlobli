@@ -1,0 +1,90 @@
+{
+  "documentType": "codex-security.scan-manifest",
+  "scan": {
+    "artifacts": [
+      {
+        "mediaType": "application/json",
+        "path": "findings.json",
+        "sha256": "40c50a32c7f327b0d2156f9890e02aa03edbed3dfa3624da820dc1e7dd7da6ed"
+      },
+      {
+        "mediaType": "application/json",
+        "path": "coverage.json",
+        "sha256": "1c2cc93f990740ac80fc94434f1be3a79203badb6a2ba395d98c5d95a5a1493e"
+      }
+    ],
+    "completedAt": "2026-08-30T17:16:12.552857Z",
+    "coverageRef": "coverage.json",
+    "findingsRef": "findings.json",
+    "id": "a3c7b83e-9d4b-4870-a335-4e3a784b1b50",
+    "preservedSources": {
+      "checkpoints/316f367a0363a3d6c8be3bf6d5102d98c96024f6b1a2f8adafa2a538552de524.json": "316f367a0363a3d6c8be3bf6d5102d98c96024f6b1a2f8adafa2a538552de524",
+      "checkpoints/3813f3df45d781d7729e9b4e19a7b8ba0dd6993da3d03f48b78fa22f88b0a2ce.json": "29706702a42ce0dd862acf9b4ac967fd126d960195f66514d308892ed091ff68",
+      "checkpoints/70f9a44b2bbc9c3d2f2e3ac9c93185e74f4a6f2238d260e7c9522e5f65a7370c.json": "6bdd208073aa45546581e1a3954ae3f10685a423a0173449eb7e5cd4c1f94e49"
+    },
+    "producer": {
+      "name": "codex-security-plugin",
+      "version": "0.1.22"
+    },
+    "scope": {
+      "artifactsReviewed": [
+        "Flutter source/tests",
+        "iOS Runner/Share Extension",
+        "Supabase schema/migrations/Edge Functions",
+        "release workflows"
+      ],
+      "excludePaths": [],
+      "includePaths": [
+        "voicebrief_flutter"
+      ],
+      "limitations": [
+        "Target snapshot is 9f228c1; remediation is in the current working tree.",
+        "Swift and real-device behavior require macOS CI and iPhone acceptance.",
+        "Live Supabase was not modified because the local CLI is authenticated to a different account."
+      ],
+      "runtimeStatus": "Flutter and Deno tests passed locally; live backend and iPhone runtime pending.",
+      "summary": "Standard security scan of voicebrief_flutter at commit 9f228c1 before build 17 remediation.",
+      "validationMode": "Manual source-to-sink validation with focused independent review receipts."
+    },
+    "sealedAt": "2026-08-30T17:16:12.552857Z",
+    "startedAt": "2026-08-30T16:26:49.518426Z",
+    "status": "completed",
+    "target": {
+      "displayName": "VoiceBriefAuthRepair",
+      "kind": "git_worktree",
+      "revision": "9f228c14cb6afc21a3301ff1dfb9d69c4752bb7f",
+      "snapshotDigest": "codex-security-snapshot/v1:sha256:9c1b03a44ce79330338782ee61ec02e55f200d7ed0f2384938effc9b6a41c768",
+      "targetId": "target_sha256_d294260cee0c18f27ea5868abf425b0ed1026dc2cc8a0ba6ea94e8b82e497dd0"
+    },
+    "threatModel": {
+      "assets": [
+        "authentication tokens",
+        "private audio",
+        "transcripts and summaries",
+        "quota/service budget",
+        "support availability"
+      ],
+      "attackerCapabilities": [
+        "unauthenticated internet requests",
+        "authenticated modified clients",
+        "same-device account switching"
+      ],
+      "securityObjectives": [
+        "account isolation",
+        "server-enforced quota",
+        "bounded uploads/bodies",
+        "retention enforcement",
+        "fail-closed release configuration"
+      ],
+      "summary": "VoiceBrief accepts authenticated audio from Flutter and an iOS Share Extension, stores temporary media in Supabase, invokes OpenAI through Edge Functions, and exposes a public support form.",
+      "trustBoundaries": [
+        "iOS App Group",
+        "client to Edge Functions",
+        "Storage to process-audio",
+        "public browser to legal function",
+        "Edge Functions to OpenAI"
+      ]
+    }
+  },
+  "schemaVersion": "1.0"
+}

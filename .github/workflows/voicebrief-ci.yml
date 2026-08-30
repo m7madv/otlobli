@@ -23,11 +23,23 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno fmt --check supabase/functions/process-audio
+      - run: deno fmt --check supabase/functions
         working-directory: voicebrief_flutter
-      - run: deno test supabase/functions/process-audio/date_normalization_test.ts
+      - run: deno lint supabase/functions
+        working-directory: voicebrief_flutter
+      - run: deno test --allow-env --config supabase/functions/process-audio/deno.json supabase/functions/process-audio/date_normalization_test.ts supabase/functions/process-audio/audio_metadata_test.ts
+        working-directory: voicebrief_flutter
+      - run: deno test supabase/functions/_shared/bounded_json_test.ts
+        working-directory: voicebrief_flutter
+      - run: deno test --config supabase/functions/legal/deno.json supabase/functions/legal/bounded_form_test.ts
         working-directory: voicebrief_flutter
       - run: deno check --config supabase/functions/process-audio/deno.json supabase/functions/process-audio/index.ts
+        working-directory: voicebrief_flutter
+      - run: deno check --config supabase/functions/create-audio-upload/deno.json supabase/functions/create-audio-upload/index.ts
+        working-directory: voicebrief_flutter
+      - run: deno check --config supabase/functions/legal/deno.json supabase/functions/legal/index.ts
+        working-directory: voicebrief_flutter
+      - run: deno check --config supabase/functions/delete-account/deno.json supabase/functions/delete-account/index.ts
         working-directory: voicebrief_flutter
 
   android:
@@ -105,6 +117,7 @@ jobs:
           required = {
               "SUPABASE_URL": os.environ.get("VOICEBRIEF_SUPABASE_URL", ""),
               "SUPABASE_ANON_KEY": os.environ.get("VOICEBRIEF_SUPABASE_ANON_KEY", ""),
+              "REVENUECAT_IOS_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY", ""),
               "GOOGLE_IOS_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_IOS_CLIENT_ID", ""),
               "GOOGLE_WEB_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_WEB_CLIENT_ID", ""),
           }
@@ -115,7 +128,6 @@ jobs:
               "APP_ENV": "production",
               "USE_MOCK_SERVICES": False,
               **required,
-              "REVENUECAT_IOS_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY", ""),
               "REVENUECAT_ANDROID_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY", ""),
               "APPLE_SERVICE_ID": os.environ.get("VOICEBRIEF_APPLE_SERVICE_ID", ""),
               "APPLE_REDIRECT_URI": os.environ.get("VOICEBRIEF_APPLE_REDIRECT_URI", ""),
@@ -150,7 +162,7 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "16"
+          test "$app_build_version" = "17"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$app/Info.plist")" = "public.audio"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:1' "$app/Info.plist")" = "public.mp3"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:2' "$app/Info.plist")" = "public.mpeg-4-audio"
@@ -162,11 +174,11 @@ jobs:
           cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
           (
             cd build/ios/unsigned-ipa
-            zip -qry ../VoiceBrief-0.1.0-build16-live-unsigned.ipa Payload
+            zip -qry ../VoiceBrief-0.1.0-build17-live-unsigned.ipa Payload
           )
-          shasum -a 256 build/ios/VoiceBrief-0.1.0-build16-live-unsigned.ipa
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build17-live-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-ios-live-unsigned-${{ github.run_number }}
-          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build16-live-unsigned.ipa
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build17-live-unsigned.ipa
           if-no-files-found: error

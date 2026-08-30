@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { boundedJson, BoundedJsonError } from "../_shared/bounded_json.ts";
 import { bearerToken, jsonResponse, sha256 } from "../_shared/http.ts";
+import {
+  AudioMetadataError,
+  trustedAudioDurationSeconds,
+} from "./audio_metadata.ts";
 import { normalizeSpokenDates } from "./date_normalization.ts";
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
@@ -285,11 +290,21 @@ Deno.serve(async (request) => {
 
   let body: RequestBody;
   try {
-    const contentLength = Number(request.headers.get("content-length") ?? "0");
-    if (contentLength > 32_768) throw new SafeError("request_too_large", 413);
-    body = validateBody(await request.json(), userData.user.id);
+    body = validateBody(
+      await boundedJson(request, 32_768),
+      userData.user.id,
+    );
   } catch (error) {
-    const safe = error instanceof SafeError
+    const safe = error instanceof BoundedJsonError
+      ? new SafeError(
+        error.status === 413
+          ? "request_too_large"
+          : error.status === 415
+          ? "unsupported_media_type"
+          : "invalid_request",
+        error.status,
+      )
+      : error instanceof SafeError
       ? error
       : new SafeError("invalid_request");
     return jsonResponse(safe.status, { error: safe.code });
@@ -302,13 +317,81 @@ Deno.serve(async (request) => {
   let summaryMs = 0;
   let reserved = false;
   try {
+    const { data: existingJob, error: existingJobError } = await serviceClient
+      .from("processing_jobs")
+      .select("status, result, expires_at")
+      .eq("user_id", userData.user.id)
+      .eq("id", body.jobId)
+      .maybeSingle();
+    if (existingJobError) throw new SafeError("usage_reservation_failed", 409);
+    if (
+      existingJob?.status === "completed" && existingJob.result != null &&
+      Date.parse(existingJob.expires_at) > Date.now()
+    ) {
+      return jsonResponse(200, {
+        result: existingJob.result,
+        idempotent: true,
+      });
+    }
+    if (
+      existingJob?.status === "reserving" ||
+      existingJob?.status === "processing"
+    ) {
+      return jsonResponse(409, { error: "job_in_progress" });
+    }
+
+    const { data: uploadReservation, error: uploadReservationError } =
+      await serviceClient
+        .from("audio_upload_reservations")
+        .select(
+          "storage_path, expected_size_bytes, expected_mime_type, expires_at",
+        )
+        .eq("user_id", userData.user.id)
+        .eq("job_id", body.jobId)
+        .maybeSingle();
+    if (
+      uploadReservationError || uploadReservation == null ||
+      uploadReservation.storage_path !== body.storagePath ||
+      uploadReservation.expected_size_bytes !== body.sizeBytes ||
+      uploadReservation.expected_mime_type !== body.mimeType ||
+      Date.parse(uploadReservation.expires_at) <= Date.now()
+    ) {
+      throw new SafeError("invalid_upload_reservation", 409);
+    }
+
+    const downloadStartedAt = performance.now();
+    const { data: blob, error: downloadError } = await serviceClient.storage
+      .from(AUDIO_BUCKET).download(body.storagePath);
+    downloadMs = performance.now() - downloadStartedAt;
+    if (
+      downloadError || !blob || blob.size <= 0 || blob.size > MAX_AUDIO_BYTES ||
+      blob.size !== body.sizeBytes
+    ) {
+      throw new SafeError("invalid_uploaded_audio");
+    }
+
+    let trustedDuration: number;
+    try {
+      trustedDuration = await trustedAudioDurationSeconds(
+        new Uint8Array(await blob.arrayBuffer()),
+        body.mimeType,
+        body.durationSeconds,
+        MAX_DURATION_SECONDS,
+      );
+    } catch (error) {
+      if (error instanceof AudioMetadataError) {
+        throw new SafeError(error.code, 400);
+      }
+      throw new SafeError("invalid_uploaded_audio");
+    }
+
     const { data, error } = await serviceClient.rpc(
       "reserve_voicebrief_minutes",
       {
         p_user_id: userData.user.id,
         p_job_id: body.jobId,
         p_storage_path: body.storagePath,
-        p_duration_seconds: body.durationSeconds,
+        p_duration_seconds: trustedDuration,
       },
     );
     if (error) throw new SafeError("usage_reservation_failed", 409);
@@ -332,17 +415,6 @@ Deno.serve(async (request) => {
       throw new SafeError("usage_reservation_failed", 409);
     }
     reserved = true;
-
-    const downloadStartedAt = performance.now();
-    const { data: blob, error: downloadError } = await serviceClient.storage
-      .from(AUDIO_BUCKET).download(body.storagePath);
-    downloadMs = performance.now() - downloadStartedAt;
-    if (
-      downloadError || !blob || blob.size <= 0 || blob.size > MAX_AUDIO_BYTES ||
-      blob.size !== body.sizeBytes
-    ) {
-      throw new SafeError("invalid_uploaded_audio");
-    }
 
     const { error: aiStartedError } = await serviceClient.rpc(
       "mark_voicebrief_ai_started",
@@ -484,7 +556,7 @@ Deno.serve(async (request) => {
       id: body.jobId,
       ...generated,
       transcript: requested.transcript === false ? "" : transcription.text,
-      audioDurationSeconds: body.durationSeconds,
+      audioDurationSeconds: trustedDuration,
       processedAt: new Date().toISOString(),
       savedLocally: false,
     };
@@ -531,5 +603,9 @@ Deno.serve(async (request) => {
     return jsonResponse(safe.status, { error: safe.code });
   } finally {
     await serviceClient.storage.from(AUDIO_BUCKET).remove([body.storagePath]);
+    await serviceClient.rpc("release_voicebrief_upload", {
+      p_user_id: userData.user.id,
+      p_job_id: body.jobId,
+    });
   }
 });

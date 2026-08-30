@@ -28,11 +28,13 @@ final class ShareViewController: UIViewController {
     let refreshToken: String
     let userId: String
     let expiresAt: TimeInterval
+    let generation: String
   }
 
   private let appGroup = "group.app.voicebrief.mobile"
   private let legacyPayloadKey = "VoiceBriefPendingShare"
   private let shareSessionKey = "VoiceBriefShareSession"
+  private let shareGenerationKey = "VoiceBriefSessionGeneration"
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private var importStarted = false
@@ -358,7 +360,8 @@ final class ShareViewController: UIViewController {
             self.finishProcessed(
               result,
               target: target,
-              manifest: manifest
+              manifest: manifest,
+              session: current
             )
           }
         }
@@ -376,11 +379,16 @@ final class ShareViewController: UIViewController {
       let refreshToken = values["refreshToken"] as? String,
       let userId = values["userId"] as? String,
       let expiresAt = values["expiresAt"] as? NSNumber,
+      let generation = values["generation"] as? String,
       supabaseURL.hasPrefix("https://"),
       !anonKey.isEmpty,
       !accessToken.isEmpty,
       !refreshToken.isEmpty,
-      !userId.isEmpty
+      !userId.isEmpty,
+      !generation.isEmpty,
+      generation == UserDefaults(suiteName: appGroup)?.string(
+        forKey: shareGenerationKey
+      )
     else { return nil }
     return ShareSession(
       supabaseURL: supabaseURL,
@@ -388,14 +396,28 @@ final class ShareViewController: UIViewController {
       accessToken: accessToken,
       refreshToken: refreshToken,
       userId: userId,
-      expiresAt: expiresAt.doubleValue
+      expiresAt: expiresAt.doubleValue,
+      generation: generation
     )
+  }
+
+  private func isCurrent(_ session: ShareSession) -> Bool {
+    guard let defaults = UserDefaults(suiteName: appGroup),
+          defaults.string(forKey: shareGenerationKey) == session.generation,
+          let current = defaults.dictionary(forKey: shareSessionKey)
+    else { return false }
+    return current["userId"] as? String == session.userId
+      && current["generation"] as? String == session.generation
   }
 
   private func refreshSessionIfNeeded(
     _ session: ShareSession,
     completion: @escaping (Result<ShareSession, ProcessingFailure>) -> Void
   ) {
+    guard isCurrent(session) else {
+      completion(.failure(.authentication))
+      return
+    }
     if session.expiresAt > Date().timeIntervalSince1970 + 300 {
       completion(.success(session))
       return
@@ -435,16 +457,23 @@ final class ShareViewController: UIViewController {
           accessToken: accessToken,
           refreshToken: refreshToken,
           userId: session.userId,
-          expiresAt: Date().timeIntervalSince1970 + expiresIn.doubleValue
+          expiresAt: Date().timeIntervalSince1970 + expiresIn.doubleValue,
+          generation: session.generation
         )
-        self.saveShareSession(refreshed)
+        guard self.saveShareSession(refreshed) else {
+          completion(.failure(.authentication))
+          return
+        }
         completion(.success(refreshed))
       }
     }
   }
 
-  private func saveShareSession(_ session: ShareSession) {
-    UserDefaults(suiteName: appGroup)?.set(
+  private func saveShareSession(_ session: ShareSession) -> Bool {
+    guard isCurrent(session),
+          let defaults = UserDefaults(suiteName: appGroup)
+    else { return false }
+    defaults.set(
       [
         "supabaseUrl": session.supabaseURL,
         "anonKey": session.anonKey,
@@ -452,9 +481,11 @@ final class ShareViewController: UIViewController {
         "refreshToken": session.refreshToken,
         "userId": session.userId,
         "expiresAt": session.expiresAt,
+        "generation": session.generation,
       ],
       forKey: shareSessionKey
     )
+    return true
   }
 
   private func upload(
@@ -466,50 +497,134 @@ final class ShareViewController: UIViewController {
     durationSeconds: Int,
     completion: @escaping (Result<[String: Any], ProcessingFailure>) -> Void
   ) {
-    let jobId = UUID().uuidString.lowercased()
-    let fileExtension = target.pathExtension.lowercased()
-    let storagePath = "\(session.userId)/\(jobId)/input.\(fileExtension)"
-    let encodedPath = storagePath
-      .split(separator: "/")
-      .map { String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "" }
-      .joined(separator: "/")
-    guard let uploadURL = URL(
-      string: "\(session.supabaseURL)/storage/v1/object/audio-temp/\(encodedPath)"
-    ) else {
-      completion(.failure(.serviceUnavailable))
+    guard isCurrent(session) else {
+      completion(.failure(.authentication))
       return
     }
-    var uploadRequest = URLRequest(url: uploadURL)
-    uploadRequest.httpMethod = "POST"
-    uploadRequest.setValue(session.anonKey, forHTTPHeaderField: "apikey")
-    uploadRequest.setValue(
+    let jobId = UUID().uuidString.lowercased()
+    let fileExtension = target.pathExtension.lowercased()
+    requestUploadTicket(
+      session: session,
+      jobId: jobId,
+      fileExtension: fileExtension,
+      mimeType: mimeType,
+      sizeBytes: sizeBytes
+    ) { [weak self] ticket in
+      guard let self else { return }
+      switch ticket {
+      case .failure(let failure):
+        completion(.failure(failure))
+      case .success(let values):
+        guard self.isCurrent(session),
+              let storagePath = values["storagePath"] as? String,
+              let uploadToken = values["uploadToken"] as? String,
+              storagePath == "\(session.userId)/\(jobId)/input.\(fileExtension)",
+              !uploadToken.isEmpty
+        else {
+          completion(.failure(.authentication))
+          return
+        }
+        let encodedPath = storagePath
+          .split(separator: "/")
+          .map {
+            String($0).addingPercentEncoding(
+              withAllowedCharacters: .urlPathAllowed
+            ) ?? ""
+          }
+          .joined(separator: "/")
+        guard var components = URLComponents(
+          string: "\(session.supabaseURL)/storage/v1/object/upload/sign/audio-temp/\(encodedPath)"
+        ) else {
+          completion(.failure(.serviceUnavailable))
+          return
+        }
+        components.queryItems = [URLQueryItem(name: "token", value: uploadToken)]
+        guard let uploadURL = components.url else {
+          completion(.failure(.serviceUnavailable))
+          return
+        }
+        var uploadRequest = URLRequest(url: uploadURL)
+        uploadRequest.httpMethod = "PUT"
+        uploadRequest.setValue(session.anonKey, forHTTPHeaderField: "apikey")
+        uploadRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+        uploadRequest.setValue("false", forHTTPHeaderField: "x-upsert")
+        URLSession.shared.uploadTask(with: uploadRequest, fromFile: target) {
+          [weak self] _, response, error in
+          guard let self else { return }
+          guard error == nil, let http = response as? HTTPURLResponse else {
+            completion(.failure(.noInternet))
+            return
+          }
+          guard (200..<300).contains(http.statusCode) else {
+            completion(.failure(.serviceUnavailable))
+            return
+          }
+          guard self.isCurrent(session) else {
+            completion(.failure(.authentication))
+            return
+          }
+          self.invokeProcessing(
+            session: session,
+            jobId: jobId,
+            storagePath: storagePath,
+            displayName: displayName,
+            mimeType: mimeType,
+            sizeBytes: sizeBytes,
+            durationSeconds: durationSeconds,
+            completion: completion
+          )
+        }.resume()
+      }
+    }
+  }
+
+  private func requestUploadTicket(
+    session: ShareSession,
+    jobId: String,
+    fileExtension: String,
+    mimeType: String,
+    sizeBytes: Int64,
+    completion: @escaping (Result<[String: Any], ProcessingFailure>) -> Void
+  ) {
+    guard isCurrent(session),
+          let url = URL(
+            string: "\(session.supabaseURL)/functions/v1/create-audio-upload"
+          ),
+          let body = try? JSONSerialization.data(
+            withJSONObject: [
+              "jobId": jobId,
+              "extension": fileExtension,
+              "mimeType": mimeType,
+              "sizeBytes": sizeBytes,
+            ]
+          )
+    else {
+      completion(.failure(.authentication))
+      return
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue(session.anonKey, forHTTPHeaderField: "apikey")
+    request.setValue(
       "Bearer \(session.accessToken)",
       forHTTPHeaderField: "Authorization"
     )
-    uploadRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
-    uploadRequest.setValue("false", forHTTPHeaderField: "x-upsert")
-    URLSession.shared.uploadTask(with: uploadRequest, fromFile: target) {
-      [weak self] _, response, error in
-      guard let self else { return }
-      guard error == nil, let http = response as? HTTPURLResponse else {
-        completion(.failure(.noInternet))
-        return
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = body
+    jsonRequest(request) { response in
+      switch response {
+      case .failure(let failure):
+        completion(.failure(failure))
+      case .success(let value):
+        if value.status == 401 {
+          completion(.failure(.authentication))
+        } else if !(200..<300).contains(value.status) {
+          completion(.failure(.serviceUnavailable))
+        } else {
+          completion(.success(value.body))
+        }
       }
-      guard (200..<300).contains(http.statusCode) else {
-        completion(.failure(http.statusCode == 401 ? .authentication : .serviceUnavailable))
-        return
-      }
-      self.invokeProcessing(
-        session: session,
-        jobId: jobId,
-        storagePath: storagePath,
-        displayName: displayName,
-        mimeType: mimeType,
-        sizeBytes: sizeBytes,
-        durationSeconds: durationSeconds,
-        completion: completion
-      )
-    }.resume()
+    }
   }
 
   private func invokeProcessing(
@@ -522,6 +637,10 @@ final class ShareViewController: UIViewController {
     durationSeconds: Int,
     completion: @escaping (Result<[String: Any], ProcessingFailure>) -> Void
   ) {
+    guard isCurrent(session) else {
+      completion(.failure(.authentication))
+      return
+    }
     guard let url = URL(string: "\(session.supabaseURL)/functions/v1/process-audio") else {
       completion(.failure(.serviceUnavailable))
       return
@@ -599,9 +718,16 @@ final class ShareViewController: UIViewController {
 
   private func persistProcessedResult(
     _ result: [String: Any],
-    manifest: URL
+    manifest: URL,
+    session: ShareSession
   ) throws {
-    let payload: [String: Any] = ["kind": "processed", "result": result]
+    guard isCurrent(session) else { throw ProcessingFailure.authentication }
+    let payload: [String: Any] = [
+      "kind": "processed",
+      "result": result,
+      "ownerUserId": session.userId,
+      "sessionGeneration": session.generation,
+    ]
     let data = try JSONSerialization.data(withJSONObject: payload)
     try data.write(to: manifest, options: .atomic)
   }
@@ -609,10 +735,11 @@ final class ShareViewController: UIViewController {
   private func finishProcessed(
     _ result: [String: Any],
     target: URL,
-    manifest: URL
+    manifest: URL,
+    session: ShareSession
   ) {
     do {
-      try persistProcessedResult(result, manifest: manifest)
+      try persistProcessedResult(result, manifest: manifest, session: session)
       try? FileManager.default.removeItem(at: target)
     } catch {
       showProcessingFailure(.invalidResponse)

@@ -100,19 +100,52 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
       throw const AppFailure(AppFailureCode.noInternet);
     }
     final extension = path.extension(audio.displayName).toLowerCase();
-    final storagePath = '${user.id}/$jobId/input$extension';
+    final expectedStoragePath = '${user.id}/$jobId/input$extension';
     onStage?.call('preparing');
+    late final String storagePath;
+    late final String uploadToken;
+    try {
+      final ticketResponse = await _client.functions.invoke(
+        'create-audio-upload',
+        body: {
+          'jobId': jobId,
+          'extension': extension,
+          'mimeType': audio.mimeType,
+          'sizeBytes': audio.sizeBytes,
+        },
+      );
+      if (ticketResponse.status != 200 || ticketResponse.data is! Map) {
+        throw const AppFailure(AppFailureCode.uploadInterrupted);
+      }
+      final ticket = Map<String, Object?>.from(ticketResponse.data as Map);
+      if (ticket['result'] is Map) {
+        onStage?.call('finalizing');
+        return BriefResult.fromJson(
+          Map<String, Object?>.from(ticket['result']! as Map),
+        );
+      }
+      storagePath = ticket['storagePath'] as String? ?? '';
+      uploadToken = ticket['uploadToken'] as String? ?? '';
+      if (storagePath != expectedStoragePath || uploadToken.isEmpty) {
+        throw const AppFailure(AppFailureCode.invalidResponse);
+      }
+    } on FunctionException catch (error) {
+      throw AppFailure(
+        error.status == 429
+            ? AppFailureCode.serviceUnavailable
+            : AppFailureCode.uploadInterrupted,
+        debugContext: '${error.status}',
+      );
+    }
     onStage?.call('uploading');
     try {
       await _client.storage
           .from('audio-temp')
-          .upload(
+          .uploadToSignedUrl(
             storagePath,
+            uploadToken,
             File(audio.path),
-            fileOptions: FileOptions(
-              contentType: audio.mimeType,
-              upsert: false,
-            ),
+            FileOptions(contentType: audio.mimeType, upsert: false),
           );
     } on StorageException {
       throw const AppFailure(AppFailureCode.uploadInterrupted);

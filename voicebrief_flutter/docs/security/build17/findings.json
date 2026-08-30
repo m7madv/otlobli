@@ -1,0 +1,290 @@
+{
+  "documentType": "codex-security.findings",
+  "findings": [
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The scanned Swift flow reuses the shared session and forwards processed results without an account-generation comparison."
+      },
+      "extensions": {
+        "remediationStatus": "Implemented in build 17 working tree; pending iOS CI and real-device acceptance"
+      },
+      "findingId": "csf_df2d102e06c0ffb965ab6087",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:c75f3e91099403aacc7493056803369187d1e3d4f429379b6dc797e3586d7fe1"
+      },
+      "identity": {
+        "anchor": "a-stale-app-group-session-can-attach-a-processed-share-result-to-the-wrong-local-account"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/ios/ShareExtension/ShareViewController.swift",
+          "role": "source",
+          "startLine": 369
+        },
+        {
+          "path": "voicebrief_flutter/ios/Runner/AppDelegate.swift",
+          "role": "sink",
+          "startLine": 249
+        }
+      ],
+      "occurrenceId": "occ_b0a689d1b1429358e56e9135",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Rotate a session generation on logout/account switch, bind jobs and manifests to user ID plus generation, clear App Group payloads on logout, and reject mismatches.",
+      "ruleId": "voicebrief.ios.stale-shared-session-cross-account",
+      "severity": {
+        "level": "medium",
+        "rationale": "Requires the same unlocked device and a prior share session, but can expose one account's processed result after another account becomes active."
+      },
+      "summary": "The Share Extension persists refresh credentials and processed manifests without a session generation that changes on logout or account switch.",
+      "taxonomy": {
+        "category": "ios",
+        "cwe": [
+          "CWE-613",
+          "CWE-639"
+        ]
+      },
+      "title": "A stale App Group session can attach a processed share result to the wrong local account"
+    },
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The request value is passed directly to the quota reservation RPC and result."
+      },
+      "extensions": {
+        "remediationStatus": "Implemented and covered by Deno tests in build 17 working tree"
+      },
+      "findingId": "csf_0169e2945bdb1f44bd90f0e2",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:047c06f9b0b7de3942060cd454e71c28b448b02cbb1576fa400d24e7854957e1"
+      },
+      "identity": {
+        "anchor": "client-controlled-duration-can-undercharge-quota-and-service-budgets"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/supabase/functions/process-audio/index.ts",
+          "role": "source",
+          "startLine": 97
+        },
+        {
+          "path": "voicebrief_flutter/supabase/functions/process-audio/index.ts",
+          "role": "sink",
+          "startLine": 311
+        }
+      ],
+      "occurrenceId": "occ_410403f7d8feeba137ae050a",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Derive duration server-side from media metadata, fail closed on invalid media, and reject materially inconsistent client estimates.",
+      "ruleId": "voicebrief.backend.client-controlled-audio-duration",
+      "severity": {
+        "level": "high",
+        "rationale": "Any authenticated modified client can forge a short duration for a long upload and consume paid transcription capacity outside quota."
+      },
+      "summary": "process-audio reserves usage and records results from durationSeconds supplied by the client instead of the uploaded media.",
+      "taxonomy": {
+        "category": "backend",
+        "cwe": [
+          "CWE-602",
+          "CWE-840"
+        ]
+      },
+      "title": "Client-controlled duration can undercharge quota and service budgets"
+    },
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The INSERT policy constrains folder ownership but not object count, size, MIME, reservation, or rate."
+      },
+      "extensions": {
+        "remediationStatus": "Implemented in build 17 working tree; requires migration and create-audio-upload deployment"
+      },
+      "findingId": "csf_3fea7cb28bb87e006acdfbcf",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:9251d68fa4de369274c0ef38b26ccb005c6d1f1705ef00983a59d3246e8f7d1c"
+      },
+      "identity": {
+        "anchor": "authenticated-clients-can-upload-arbitrary-quantities-directly-to-temporary-audio-storage"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/supabase/schema.sql",
+          "role": "root_control",
+          "startLine": 439
+        }
+      ],
+      "occurrenceId": "occ_d5140c77bd101bba549c5d75",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Remove direct INSERT and issue short-lived signed tokens for an exact reserved path, size, MIME, and job with atomic active and daily limits.",
+      "ruleId": "voicebrief.storage.direct-unbounded-authenticated-upload",
+      "severity": {
+        "level": "medium",
+        "rationale": "An authenticated attacker can create storage cost and retention pressure independently of processing quota."
+      },
+      "summary": "The authenticated INSERT policy permits any object under the caller's folder while processing limits run only after upload.",
+      "taxonomy": {
+        "category": "storage",
+        "cwe": [
+          "CWE-400",
+          "CWE-770"
+        ]
+      },
+      "title": "Authenticated clients can upload arbitrary quantities directly to temporary audio storage"
+    },
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The schema stores expiry but its SELECT policy and backend contain no expiry enforcement."
+      },
+      "extensions": {
+        "remediationStatus": "Result redaction/read filtering and per-user abandoned-upload cleanup implemented; independent storage sweep needs live operational verification"
+      },
+      "findingId": "csf_2a766c7a40c9d5d694be5ac7",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:ce4ac230b7bfa44b80f893ae130d8a944f443c6163511ef9a6c38d2b600c50e3"
+      },
+      "identity": {
+        "anchor": "declared-24-hour-expiry-is-not-enforced-for-job-results-and-abandoned-audio"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/supabase/schema.sql",
+          "role": "source",
+          "startLine": 61
+        },
+        {
+          "path": "voicebrief_flutter/supabase/schema.sql",
+          "role": "sink",
+          "startLine": 129
+        }
+      ],
+      "occurrenceId": "occ_b79a730debaebd91e0d5f8f9",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Exclude expired jobs from reads, redact expired results on a scheduled server task, and independently remove expired reserved audio.",
+      "ruleId": "voicebrief.retention.expiry-not-enforced",
+      "severity": {
+        "level": "medium",
+        "rationale": "Transcripts or generated results can remain readable past the documented window and sensitive abandoned audio may persist."
+      },
+      "summary": "processing_jobs receives expires_at, but the scanned revision does not filter expired rows or purge/redact them; abandoned audio can remain when processing is never invoked.",
+      "taxonomy": {
+        "category": "retention",
+        "cwe": [
+          "CWE-459",
+          "CWE-922"
+        ]
+      },
+      "title": "Declared 24-hour expiry is not enforced for job results and abandoned audio"
+    },
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The check-then-insert sequence has no transaction, lock, or uniqueness guard."
+      },
+      "extensions": {
+        "remediationStatus": "Atomic database RPC implemented in build 17 working tree"
+      },
+      "findingId": "csf_30ce47a3a7c6e95308a1a382",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:b5dae5e47557766f383c5fed00bb92877cceb8ad046ed6ff2e1e77ea9f8cc560"
+      },
+      "identity": {
+        "anchor": "concurrent-support-submissions-can-bypass-the-per-window-rate-limit"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/supabase/functions/legal/index.ts",
+          "role": "source",
+          "startLine": 450
+        },
+        {
+          "path": "voicebrief_flutter/supabase/functions/legal/index.ts",
+          "role": "sink",
+          "startLine": 469
+        }
+      ],
+      "occurrenceId": "occ_ad5214f8e75ef02f0704948a",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Move count and insertion into one database RPC protected by a transaction-scoped advisory lock keyed to the rate identity.",
+      "ruleId": "voicebrief.support.nonatomic-rate-limit",
+      "severity": {
+        "level": "medium",
+        "rationale": "A remote attacker can amplify support-table writes and workload on the public endpoint."
+      },
+      "summary": "The legal function counts recent requests and inserts separately, so concurrent requests can all observe the same pre-limit count.",
+      "taxonomy": {
+        "category": "support",
+        "cwe": [
+          "CWE-362",
+          "CWE-799"
+        ]
+      },
+      "title": "Concurrent support submissions can bypass the per-window rate limit"
+    },
+    {
+      "confidence": {
+        "level": "high",
+        "rationale": "The scanned code gates only an optional header before parsing actual bytes."
+      },
+      "extensions": {
+        "remediationStatus": "Implemented and covered by Deno tests in build 17 working tree"
+      },
+      "findingId": "csf_82a1144cc336d9b9a752c7b0",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:8dbae92f29227c8d1aacd6e6b5cd30b96fc312b372d36ebfa4cd925863bcddfb"
+      },
+      "identity": {
+        "anchor": "chunked-support-requests-can-bypass-the-declared-body-size-check"
+      },
+      "locations": [
+        {
+          "path": "voicebrief_flutter/supabase/functions/legal/index.ts",
+          "role": "source",
+          "startLine": 398
+        },
+        {
+          "path": "voicebrief_flutter/supabase/functions/legal/index.ts",
+          "role": "sink",
+          "startLine": 409
+        }
+      ],
+      "occurrenceId": "occ_fa179b8c954ddfc7ae0442ee",
+      "provenance": {
+        "source": "codex-security standard scan"
+      },
+      "remediation": "Read incrementally, cancel and return 413 when actual bytes exceed the limit, and reject unsupported content types before parsing.",
+      "ruleId": "voicebrief.support.unbounded-request-body",
+      "severity": {
+        "level": "medium",
+        "rationale": "An unauthenticated remote client can force excessive buffering in an Edge Function invocation."
+      },
+      "summary": "The public legal function treats absent Content-Length as zero and then buffers formData(), allowing a larger streamed body.",
+      "taxonomy": {
+        "category": "support",
+        "cwe": [
+          "CWE-400",
+          "CWE-770"
+        ]
+      },
+      "title": "Chunked support requests can bypass the declared body-size check"
+    }
+  ],
+  "scanId": "a3c7b83e-9d4b-4870-a335-4e3a784b1b50",
+  "schemaVersion": "1.0"
+}
