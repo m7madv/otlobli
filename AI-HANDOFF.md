@@ -131,21 +131,31 @@ deleted, no IPA/TestFlight build was created or uploaded, and Oracle/WhatsApp
 was neither inspected nor modified. Do not claim public availability until
 Apple approves it.
 
-Google Play closed testing is now explicitly authorized for the exact tracked
-AAB `artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, size 5,775,124,
+Google Play closed testing is explicitly authorized for the exact tracked AAB
+`artifacts/release-86.244/Otlobli-86.244-1112-release.aab`, size 5,775,124,
 SHA-256 `CCFC71D2EE3A4E40C86DEF9E102C4C5846ED5F0D9E68DEEB4D67CCC1742BBBE6`.
-`CLOSED_TEST_AUTHORIZED.json` is currently `inspect`; the registered Android
-workflow routes to a service-account API inspection without rebuilding or
-publishing. After inspection, bind `track` exactly and change only operation to
-`publish`; the script reuses versionCode 1112 if the exact digest already exists
-or uploads the tracked AAB, updates only that closed track, and commits the edit.
+`CLOSED_TEST_AUTHORIZED.json` remains `inspect`. Run `33308484614` authenticated
+the service account but the first edit returned
+`404 Package not found: com.otlobli.app`; it uploaded nothing and changed no track. Play Console confirms
+the developer account has four other apps and no Otlobli record. The package is
+available and the Arabic/free/app form is prepared as `Otlobli`, but do not tick
+or submit the two legal acknowledgements (developer policies and U.S. export
+laws) without the owner's explicit consent. The existing service account has
+app-scoped access only to Damanak and VoiceBrief. After record creation, grant
+Otlobli read plus test-release permission, rerun inspect, bind the exact closed
+track, then set `publish`; never rebuild or substitute the AAB.
 
 The emulator manager is LDPlayer 9 at `C:\LDPlayer\LDPlayer9\ldconsole.exe`.
-It currently lists 12 instances indexed 0..11. The legacy LDPlayer4 CLI lists
-none, and the connected Android Studio `Diagnostic_API_36` AVD is unrelated and
-must not be stopped. The owner expects 14 tester accounts; enumerate accounts
-inside the LDPlayer instances privately and never print email/password values.
-Control instance launch, ADB actions, and quit through terminal commands only.
+It lists 12 instances indexed 0..11; legacy LDPlayer4 lists none. Terminal-only
+enumeration proved exactly 12 unique Google accounts: index 0 `z12` has none,
+index 1 has two, and indexes 2..11 have one each. The owner expected 14, but no
+extra instance/config was found in either LDPlayer install. Google currently
+requires at least 12 continuously opted-in testers for 14 days, so the verified
+count meets the minimum but has no redundancy. All LDPlayer instances are shut
+down and temporary local ADB was restored to `adbDebug=0`; re-enable per instance
+only while enrolling/testing, then restore it. The unrelated Android Studio
+`Diagnostic_API_36`/`emulator-5554` remained connected and must not be stopped.
+Never print account emails/passwords; use terminal launch, ADB, and quit only.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
