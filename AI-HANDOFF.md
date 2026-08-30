@@ -48,6 +48,13 @@ single-ID recovery path that rereads the submission and verifies the exact
 version item before PATCH. Do not delete the old version or detach it manually
 while the retry runs.
 
+Retry `33304875681` never reached Apple signing or review submission. The
+release preflight stopped because the shared two-app WhatsApp sender was not
+connected/ready at probe time. The guard was not bypassed; no session, number,
+configuration, build, or Apple state changed. Ask the owner to request and
+receive one real OTP from either app, verify the shared sender is awake, then
+rerun the exact existing-build App Review workflow.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS
