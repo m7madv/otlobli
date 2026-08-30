@@ -67,7 +67,8 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 
 - Build 11 replaces the impossible WhatsApp app-launch expectation with in-extension upload, transcription, summarization, result display, and explicit `Save in VoiceBrief`. Runner and extension synchronize the Supabase session through private App Group defaults; refreshed credentials are restored to Runner, and a saved processed-result handoff enters local history without a second audio upload or charge.
 - Local verification passed format across 71 files, analysis with no issues, 31 non-golden tests including processed-result handoff normalization, all eleven golden tests, and `flutter build apk --debug`. The 177,596,157-byte APK has SHA-256 `CF8F63D8CBC22A9AC681A2F51FAED8F7C86CB0B6DA88D6856A84B24657D84E30`.
-- macOS Swift compilation/signing, TestFlight processing, and physical WhatsApp live processing/session refresh/save acceptance remain pending.
+- GitHub CI run `33304112117` passed Deno, Android, Windows golden, and macOS iOS no-codesign jobs. TestFlight run `33304112113` compiled, archived, signed, verified, validated, and uploaded app plus extension. The 34,462,676-byte IPA has SHA-256 `AACAFA2BADBCA2026B1AF8080B66D0F455E79724E825BF15A8F0F352F04C577D`; delivery UUID is `4fdd86e6-da1e-41d6-820e-48290839548a`; GitHub artifact is `9730071886`.
+- App Store status run `33304112131` reports build `0.1.0 (11)` as `VALID`, unexpired, and attached to `VoiceBrief Internal`. Physical WhatsApp live processing, session refresh, result display/save, and later-history acceptance remain pending.
 
 ## Platform checklist
 
@@ -77,4 +78,4 @@ iOS/macOS remaining: build 11 in-extension live upload/processing/result/save fr
 
 ## Honest environment record
 
-This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded build 10, and App Store Connect reports it `VALID` in `VoiceBrief Internal`; the physical iPhone then rejected its WhatsApp direct-open behavior. Build 11 native compilation and device acceptance remain unperformed.
+This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded build 11, and App Store Connect reports it `VALID` in `VoiceBrief Internal`. The physical iPhone rejected builds 9/10 for WhatsApp direct opening; build 11's in-extension processing still requires physical-device acceptance.

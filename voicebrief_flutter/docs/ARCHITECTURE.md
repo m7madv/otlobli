@@ -39,4 +39,4 @@ Screen → AppController (StateNotifier) → repository interface → fake or pr
 
 ## Known platform boundary
 
-Apple does not provide a public API for a Share Extension to launch its containing iOS app. Builds 9 and 10 physically confirmed that boundary for WhatsApp. Build 11 therefore processes within the extension; Swift compilation, signing, shared-session refresh, live network completion, result saving, and cancellation still require macOS/Xcode plus signed physical-device acceptance.
+Apple does not provide a public API for a Share Extension to launch its containing iOS app. Builds 9 and 10 physically confirmed that boundary for WhatsApp. Build 11 therefore processes within the extension; macOS Swift compilation, signing, App Store validation/upload, and processing passed, while shared-session refresh, live network completion, result saving, and cancellation still require signed physical-device acceptance.

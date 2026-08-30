@@ -88,7 +88,9 @@
 
 - Source version is `0.1.0+11`. The Share Extension now processes supported audio through the authenticated production Storage/Edge Function flow and displays the generated title/summary without opening Runner. `Save in VoiceBrief` persists a processed-result App Group handoff that Runner stores locally without a duplicate upload or charge.
 - Runner synchronizes and restores rotating Supabase session credentials through the private App Group. The extension keeps the original audio fallback manifest on authentication/network/quota/service failure and logs no credential, content, file-name, or identity values.
-- Local format, analysis, 31 non-golden tests, eleven golden tests, and APK debug pass. The APK is 177,596,157 bytes with SHA-256 `CF8F63D8CBC22A9AC681A2F51FAED8F7C86CB0B6DA88D6856A84B24657D84E30`. Signed build/TestFlight/App Store processing and real WhatsApp in-extension acceptance are pending.
+- Local format, analysis, 31 non-golden tests, eleven golden tests, and APK debug pass. The APK is 177,596,157 bytes with SHA-256 `CF8F63D8CBC22A9AC681A2F51FAED8F7C86CB0B6DA88D6856A84B24657D84E30`.
+- CI run [33304112117](https://github.com/m7madv/otlobli/actions/runs/33304112117) passed Deno, Android, golden, and iOS no-codesign. TestFlight run [33304112113](https://github.com/m7madv/otlobli/actions/runs/33304112113) signed, verified, validated, and uploaded build 11. IPA size is 34,462,676 bytes; SHA-256 `AACAFA2BADBCA2026B1AF8080B66D0F455E79724E825BF15A8F0F352F04C577D`; delivery UUID `4fdd86e6-da1e-41d6-820e-48290839548a`; GitHub artifact `9730071886` with ZIP SHA-256 `9F3724194F38BD15F3B612F20B035D2D99E3CBBA608B546893D6601C9F9647BF`.
+- App Store status run [33304112131](https://github.com/m7madv/otlobli/actions/runs/33304112131) confirms build `0.1.0 (11)` is `VALID`, unexpired, and attached to `VoiceBrief Internal`. Status artifact `9730121859` is 417 bytes with ZIP SHA-256 `66FAF74DDB4D12EA5B9359B00D917498AC1D9DB00D89BF54E93A4BEDE9100660`. Real WhatsApp in-extension acceptance remains pending.
 
 ## Owner/external configuration
 
@@ -120,7 +122,7 @@
 - [ ] Duplicate-suppression timing and hostile/oversize provider acceptance on a physical Android device.
 - [x] macOS `pod install`, device-target no-codesign build, bundle-ID validation, Share Extension embedding, and unsigned IPA packaging through GitHub Actions.
 - [x] Signed App Store archive/export, embedded provisioning and entitlement verification, App Store validation, and TestFlight upload through GitHub Actions.
-- [ ] Signed physical-iPhone build 11 Share Extension session sync, live processing, result display/save, App Group handoff, playback/seek/trim, and App Store archive acceptance. Builds 9/10 direct-open behavior is rejected.
+- [ ] Signed physical-iPhone build 11 Share Extension session sync, live processing, result display/save, App Group handoff, and playback/seek/trim acceptance. App Store archive/validation/upload passed; builds 9/10 direct-open behavior is rejected.
 - [ ] VoiceOver, all accessibility text sizes, recording interruptions, Apple sign-in, and full Google token exchange. Google picker/cancel passed on API 35 and physical Android 9; Note 8 currently has `mhm1981d@gmail.com`, not the configured test account `mhm1981x@gmail.com`.
 - [ ] Monthly/annual purchase, renewal/cancellation, restore, reinstall/device change.
 - [ ] Account deletion removes Auth/database/Storage/local data while explaining store cancellation.
