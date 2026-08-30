@@ -55,6 +55,14 @@ configuration, build, or Apple state changed. Ask the owner to request and
 receive one real OTP from either app, verify the shared sender is awake, then
 rerun the exact existing-build App Review workflow.
 
+After the owner reported OTP receipt, run `33305605991` still stopped at the
+same preflight with Otlobli's sender disconnected/not ready. The likely
+inference is that the OTP came from the second app's process sharing the US
+number, not the Otlobli process checked by this workflow. Ask for an OTP from
+Otlobli specifically, or reconnect Otlobli session `0` through the protected
+loopback admin route. Local Windows and Oracle Cloud Shell currently have no
+usable SSH private key; do not delete or replace the session.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS
