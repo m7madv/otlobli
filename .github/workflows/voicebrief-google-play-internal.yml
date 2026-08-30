@@ -26,7 +26,8 @@ jobs:
     if: >-
       github.repository == 'm7madv/otlobli' &&
       github.ref == 'refs/heads/codex/voicebrief-ios' &&
-      github.actor == 'm7madv'
+      github.actor == 'm7madv' &&
+      github.triggering_actor == 'm7madv'
     environment: voicebrief-google-play-internal
     runs-on: ubuntu-latest
     timeout-minutes: 20
