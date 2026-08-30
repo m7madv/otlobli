@@ -161,9 +161,14 @@ function redactApiErrors(body, status) {
   };
   return errors
     .flatMap((error) => {
-      const associated = Array.isArray(error?.meta?.associatedErrors)
-        ? error.meta.associatedErrors
-        : [];
+      const rawAssociated = error?.meta?.associatedErrors;
+      const associated = Array.isArray(rawAssociated)
+        ? rawAssociated
+        : rawAssociated && typeof rawAssociated === 'object'
+          ? Object.values(rawAssociated).flatMap((value) =>
+              Array.isArray(value) ? value : [value],
+            )
+          : [];
       return [summarize(error), ...associated.map(summarize)];
     })
     .join('; ');
