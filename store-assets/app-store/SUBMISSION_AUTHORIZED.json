@@ -1,0 +1,14 @@
+{
+  "appVersion": "86.244",
+  "appBuild": "1112",
+  "recordedDate": "2026-08-30",
+  "acceptedBy": "owner",
+  "iphone16SheinGuestFirstProduct": true,
+  "loginPageDismissed": true,
+  "socialAuthStayedInApp": true,
+  "backgroundResumeCycles": 5,
+  "forceQuitColdLaunch": true,
+  "iphoneCheckoutToShamCashCode": true,
+  "ipadCheckoutToShamCashCode": true,
+  "paidConfirmationPressed": false
+}

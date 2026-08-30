@@ -9,6 +9,7 @@ const API_ROOT = 'https://api.appstoreconnect.apple.com/v1'
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const storeAssetRoot = resolve(repositoryRoot, 'store-assets', 'app-store')
 const prepareOnlyMarker = resolve(storeAssetRoot, 'PREPARE_ONLY')
+const submissionAuthorizedMarker = resolve(storeAssetRoot, 'SUBMISSION_AUTHORIZED.json')
 const screenshotAssets = screenshotManifest.map((asset) => ({
   ...asset,
   path: resolve(storeAssetRoot, asset.fileName),
@@ -44,6 +45,33 @@ if (!/^\d+(?:\.\d+){1,2}$/.test(config.appVersion)) throw new Error('Invalid app
 if (!/^\d+$/.test(config.appBuild)) throw new Error('Invalid app build number.')
 if (!Number.isInteger(config.waitMinutes) || config.waitMinutes < 1 || config.waitMinutes > 30) {
   throw new Error('OTLOBLI_ASC_WAIT_MINUTES must be between 1 and 30.')
+}
+
+const submissionAuthorized = existsSync(submissionAuthorizedMarker)
+if (config.prepareOnly === submissionAuthorized) {
+  throw new Error('Exactly one App Review gate must exist: PREPARE_ONLY or SUBMISSION_AUTHORIZED.json.')
+}
+if (submissionAuthorized) {
+  const acceptance = JSON.parse(await readFile(submissionAuthorizedMarker, 'utf8'))
+  if (acceptance.appVersion !== config.appVersion || acceptance.appBuild !== config.appBuild) {
+    throw new Error(
+      `Physical acceptance authorizes ${acceptance.appVersion} (${acceptance.appBuild}), not ${config.appVersion} (${config.appBuild}).`,
+    )
+  }
+  const requiredAcceptance = [
+    'iphone16SheinGuestFirstProduct',
+    'loginPageDismissed',
+    'socialAuthStayedInApp',
+    'forceQuitColdLaunch',
+    'iphoneCheckoutToShamCashCode',
+    'ipadCheckoutToShamCashCode',
+  ]
+  if (acceptance.backgroundResumeCycles < 5 || requiredAcceptance.some((name) => acceptance[name] !== true)) {
+    throw new Error('Physical acceptance record is incomplete; refusing App Review submission.')
+  }
+  if (acceptance.paidConfirmationPressed !== false) {
+    throw new Error('Physical checkout acceptance must stop before the paid confirmation action.')
+  }
 }
 
 const privateKey = createPrivateKey(await readFile(config.keyPath, 'utf8'))

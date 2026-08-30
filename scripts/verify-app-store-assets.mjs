@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,6 +8,7 @@ import { screenshotManifest } from './app-store-screenshot-manifest.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetRoot = resolve(root, 'store-assets', 'app-store')
 const prepareOnlyMarker = resolve(assetRoot, 'PREPARE_ONLY')
+const submissionAuthorizedMarker = resolve(assetRoot, 'SUBMISSION_AUTHORIZED.json')
 const forbiddenName = /(login|auth|otp|password)/i
 const rejectedLoginHashes = new Set([
   '96739F877AF74B5020A75729CAD9883A5C382792FE9F93DEDE8836A00F4E0E26',
@@ -28,9 +30,30 @@ if (screenshotManifest.length < 4) {
   throw new Error('App Store review requires feature screenshots for both iPhone and iPad.')
 }
 
-const prepareOnlyInfo = await stat(prepareOnlyMarker)
-if (!prepareOnlyInfo.isFile()) {
-  throw new Error('PREPARE_ONLY must remain present until physical App Review acceptance tests pass.')
+const prepareOnly = existsSync(prepareOnlyMarker)
+const submissionAuthorized = existsSync(submissionAuthorizedMarker)
+if (prepareOnly === submissionAuthorized) {
+  throw new Error('Exactly one App Review gate must exist: PREPARE_ONLY or SUBMISSION_AUTHORIZED.json.')
+}
+if (submissionAuthorized) {
+  const acceptance = JSON.parse(await readFile(submissionAuthorizedMarker, 'utf8'))
+  const requiredAcceptance = [
+    'iphone16SheinGuestFirstProduct',
+    'loginPageDismissed',
+    'socialAuthStayedInApp',
+    'forceQuitColdLaunch',
+    'iphoneCheckoutToShamCashCode',
+    'ipadCheckoutToShamCashCode',
+  ]
+  if (!/^\d+(?:\.\d+){1,2}$/.test(acceptance.appVersion || '') || !/^\d+$/.test(acceptance.appBuild || '')) {
+    throw new Error('SUBMISSION_AUTHORIZED.json must bind acceptance to one valid app version and build.')
+  }
+  if (acceptance.backgroundResumeCycles < 5 || requiredAcceptance.some((name) => acceptance[name] !== true)) {
+    throw new Error('SUBMISSION_AUTHORIZED.json does not record the complete physical acceptance matrix.')
+  }
+  if (acceptance.paidConfirmationPressed !== false) {
+    throw new Error('Physical checkout acceptance must stop before the paid confirmation action.')
+  }
 }
 
 const manifestNames = new Set()
@@ -72,4 +95,6 @@ if (/otlobli-(?:iphone|ipad)[^'"\n]*login\.png/i.test(submissionSource)) {
   throw new Error('App Store submission still references a login-only screenshot.')
 }
 
-console.log(`App Store screenshot assets verified (${screenshotManifest.length} feature screenshots).`)
+console.log(
+  `App Store screenshot assets verified (${screenshotManifest.length} feature screenshots; gate: ${prepareOnly ? 'PREPARE_ONLY' : 'SUBMISSION_AUTHORIZED'}).`,
+)

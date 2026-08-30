@@ -25,10 +25,13 @@ issue-payment flows retain their separate five-minute deadline.
 
 App Store version reuse now accepts exactly one `REJECTED` or
 `PREPARE_FOR_SUBMISSION` record, preserves metadata, and safely reassigns the
-build. `store-assets/app-store/PREPARE_ONLY` is present and build-enforced, so
-the script can prepare but cannot submit App Review. Do not remove it until the
-owner records clean physical iPhone+iPad checkout acceptance and the iPhone 16
-SHEIN/lifecycle matrix.
+build. The owner explicitly confirmed the complete physical iPhone 16
+SHEIN/lifecycle matrix and clean iPhone+iPad checkout through the ShamCash code
+screen without pressing paid confirmation. `PREPARE_ONLY` was therefore
+replaced by exact-build `SUBMISSION_AUTHORIZED.json` for `86.244 (1112)`.
+Asset verification enforces exactly one gate, the complete acceptance fields,
+and five resume cycles; the submission script refuses any version/build other
+than the authorized pair. App Review submission is now authorized and pending.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
@@ -65,12 +68,12 @@ Command stayed `Accepted` without execution, and Cloud Shell had no SSH private
 key. No session deletion, number/config change, QR replacement, or tool-originated
 test OTP occurred.
 
-Never claim physical acceptance from CI. The owner must update TestFlight on
-iPhone 16 Pro Max, enter SHEIN as guest and open the first product, prove the
-full login page does not remain and Google/Facebook do not open Safari, then run
-five background/resume cycles and one separate force-quit/cold-launch. Before
-App Review, clean iPhone+iPad cart/checkout acceptance through the ShamCash code
-screen without pressing the paid confirmation also remains required.
+Physical acceptance is recorded from the owner's explicit report, not inferred
+from CI: iPhone 16 Pro Max guest SHEIN to first product, login-page dismissal,
+Google/Facebook contained from Safari, five background/resume cycles, separate
+force-quit/cold-launch, plus iPhone and iPad checkout to the ShamCash code screen
+without pressing paid confirmation. Weak-Android acceptance for 1112 remains
+unperformed and does not block the authorized iOS review submission.
 
 # Active handoff — v86.244/1111 SHEIN verification commit barrier (2026-08-27)
 

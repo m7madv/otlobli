@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify App Store assets and physical acceptance gate
+        run: npm run verify:app-store-assets
+
       - name: Validate exact build identity
         env:
           OTLOBLI_APP_VERSION: ${{ inputs.app_version }}
