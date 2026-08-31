@@ -12,6 +12,12 @@ extension StoreBillingPlatformText on StoreBillingPlatform {
     StoreBillingPlatform.googlePlay => 'Google Play',
     StoreBillingPlatform.unavailable => 'متجر التطبيقات',
   };
+
+  static StoreBillingPlatform? fromValue(String? value) => switch (value) {
+    'app_store' => StoreBillingPlatform.appStore,
+    'google_play' => StoreBillingPlatform.googlePlay,
+    _ => null,
+  };
 }
 
 enum BillingCycle { monthly, yearly }
@@ -27,6 +33,7 @@ enum StoreBillingState {
   ready,
   unavailable,
   purchasing,
+  restoring,
   pending,
 }
 
@@ -57,8 +64,11 @@ abstract final class DamanakStoreCatalog {
       'com.damanak.subscription.$planId.${cycle.value}';
 
   static String? planIdFromProduct(String productId) {
+    if (!appleProductIds.contains(productId) &&
+        !googleProductIds.contains(productId)) {
+      return null;
+    }
     const prefix = 'com.damanak.subscription.';
-    if (!productId.startsWith(prefix)) return null;
     final suffix = productId.substring(prefix.length);
     final planId = suffix.split('.').first;
     return const {'starter', 'growth', 'scale'}.contains(planId)
@@ -67,6 +77,7 @@ abstract final class DamanakStoreCatalog {
   }
 
   static BillingCycle? cycleFromAppleProduct(String productId) {
+    if (!appleProductIds.contains(productId)) return null;
     if (productId.endsWith('.monthly')) return BillingCycle.monthly;
     if (productId.endsWith('.yearly')) return BillingCycle.yearly;
     return null;
@@ -85,6 +96,13 @@ abstract final class DamanakStoreCatalog {
     'scale' => 3,
     _ => 0,
   };
+
+  static bool contains(StoreBillingPlatform platform, String productId) =>
+      switch (platform) {
+        StoreBillingPlatform.appStore => appleProductIds.contains(productId),
+        StoreBillingPlatform.googlePlay => googleProductIds.contains(productId),
+        StoreBillingPlatform.unavailable => false,
+      };
 }
 
 class StoreProductOffer {
@@ -127,6 +145,10 @@ class StorePurchaseEvent {
     this.errorCode,
     this.errorMessage,
     this.basePlanId,
+    this.accountId,
+    this.storeId,
+    this.appAccountToken,
+    this.pendingProductIds = const [],
   });
 
   final String key;
@@ -141,6 +163,22 @@ class StorePurchaseEvent {
   final bool needsCompletion;
   final String? errorCode;
   final String? errorMessage;
+
+  /// المعرّف المحلي الذي أعاده Google Play مع المعاملة، إن توفر.
+  ///
+  /// يبقى null على Apple؛ فالربط هناك يستخدم appAccountToken مستقلاً.
+  final String? accountId;
+
+  /// معرّف المتجر المحلي الذي أعاده Google Play في obfuscatedProfileId، إن توفر.
+  final String? storeId;
+
+  /// رمز StoreKit 2 الأصلي. يستخدم Build 24 وما بعده storeId، بينما قد تعيد
+  /// معاملات Build 23 القديمة accountId. لا يجوز استنتاجه من جلسة التطبيق.
+  final String? appAccountToken;
+
+  /// المنتجات التي سيبدّل إليها Google لاحقاً عند استخدام الاستبدال المؤجل.
+  /// تكون فارغة على Apple وفي المشتريات غير المؤجلة.
+  final List<String> pendingProductIds;
 }
 
 class StorePurchaseReceipt {
@@ -177,4 +215,23 @@ class StoreProductLoadResult {
   final List<StoreProductOffer> offers;
   final List<String> missingProductIds;
   final String? errorMessage;
+}
+
+class StoreRestoreResult {
+  const StoreRestoreResult({
+    required this.platform,
+    this.restoredPurchases,
+    this.pendingPurchases = 0,
+    this.accountMismatchDetected = false,
+  });
+
+  final StoreBillingPlatform platform;
+
+  /// عدد النتائج التي أعادها المتجر عندما يكون قابلاً للمعرفة مباشرة.
+  ///
+  /// يعيد Google Play عدداً نهائياً، بينما قد يرسل App Store النتائج لاحقاً
+  /// على stream المعاملات؛ لذلك تكون القيمة null على Apple.
+  final int? restoredPurchases;
+  final int pendingPurchases;
+  final bool accountMismatchDetected;
 }

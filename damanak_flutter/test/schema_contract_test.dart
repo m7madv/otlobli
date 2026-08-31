@@ -635,4 +635,250 @@ void main() {
     expect(portal, contains('.eq("warranty_id", warranty.id)'));
     expect(portal, contains('.eq("store_id", warranty.store_id)'));
   });
+
+  test('دورة اشتراك المتجر تبقي استحقاقًا حاليًا واحدًا وسلسلة إيصال معزولة', () {
+    final migration = File(
+      'supabase/migrations/20260831160000_damanak_subscription_lifecycle_integrity.sql',
+    ).readAsStringSync();
+
+    for (final token in [
+      'store_entitlements_one_current_per_store',
+      'store_entitlements_store_id_id_unique',
+      'where superseded_at is null',
+      'store_entitlement_id uuid',
+      'foreign key (store_id, store_entitlement_id)',
+      'references public.store_entitlements(store_id, id)',
+      'subscriptions_current_store_entitlement_check',
+      'private.google_purchase_token_links',
+      'GOOGLE_PURCHASE_LINEAGE_CONFLICT',
+      'GOOGLE_PURCHASE_TOKEN_SUPERSEDED',
+      'GOOGLE_LINKED_PURCHASE_UNRESOLVED',
+      'linked_purchase_token_hash',
+      'on delete set null',
+      'ACTIVE_STORE_PROVIDER_CHANGE_BLOCKED',
+      'ACTIVE_STORE_SUBSCRIPTION_REPLACEMENT_BLOCKED',
+      'private.store_sandbox_review_windows',
+      "closes_at <= opens_at + interval '72 hours'",
+      "expires_at <= granted_at + interval '24 hours'",
+      'max_grants between 1 and 20',
+      'sandbox_review_access_granted',
+      'allow_new_grant boolean',
+      "entitlement_status in ('active', 'grace')",
+      "entitlement_status <> 'revoked'",
+      "effective_entitlement_status := 'active'",
+      'expected_current_purchase_token_hash text',
+      "extensions.digest(current_receipt_token, 'sha256')",
+      'STORE_RECEIPT_STALE',
+      'store_subscription_terminated_for_account_deletion',
+      'external_billing_cancellation_required',
+      'current_warranty_usage',
+      'claim_store_entitlement_refreshes',
+      'least(requested_limit, 100)',
+      'release_store_entitlement_refresh',
+      'pg_catalog.power(',
+      'DAMANAK_MULTIPLE_CURRENT_STORE_ENTITLEMENTS',
+      'DAMANAK_STORE_ENTITLEMENT_TENANT_FK_INVALID',
+      'DAMANAK_STORE_BILLING_EXECUTE_EXPOSED',
+      'DAMANAK_RAW_STORE_ENTITLEMENT_APPLY_EXPOSED',
+    ]) {
+      expect(migration, contains(token));
+    }
+
+    expect(migration, contains('account_delete_definition'));
+    expect(migration, contains("pg_catalog.strpos("));
+
+    final sandboxClaimStart = migration.indexOf(
+      'create or replace function private.claim_store_sandbox_access(',
+    );
+    final sandboxClaimEnd = migration.indexOf(
+      'revoke all on function private.claim_store_sandbox_access(',
+      sandboxClaimStart,
+    );
+    expect(sandboxClaimStart, greaterThanOrEqualTo(0));
+    expect(sandboxClaimEnd, greaterThan(sandboxClaimStart));
+    final sandboxClaim = migration.substring(
+      sandboxClaimStart,
+      sandboxClaimEnd,
+    );
+    expect(sandboxClaim, isNot(contains('skip locked')));
+    expect(
+      sandboxClaim.indexOf('if found then'),
+      lessThan(sandboxClaim.indexOf('if not coalesce(allow_new_grant, false)')),
+    );
+
+    final receiptApplyStart = migration.indexOf(
+      'create function public.apply_verified_store_entitlement_with_receipt(',
+    );
+    final receiptApplyEnd = migration.indexOf(
+      'revoke all on function public.apply_verified_store_entitlement_with_receipt(',
+      receiptApplyStart,
+    );
+    expect(receiptApplyStart, greaterThanOrEqualTo(0));
+    expect(receiptApplyEnd, greaterThan(receiptApplyStart));
+    final receiptApply = migration.substring(
+      receiptApplyStart,
+      receiptApplyEnd,
+    );
+    expect(
+      receiptApply.indexOf('STORE_RECEIPT_STALE'),
+      lessThan(
+        receiptApply.indexOf(
+          'subscription_row := public.apply_verified_store_entitlement(',
+        ),
+      ),
+    );
+
+    final rawApplyAclStart = migration.indexOf(
+      'revoke all on function public.apply_verified_store_entitlement(',
+    );
+    final rawApplyAclEnd = migration.indexOf(
+      'drop function if exists public.apply_verified_store_entitlement_with_receipt(',
+      rawApplyAclStart,
+    );
+    expect(rawApplyAclStart, greaterThanOrEqualTo(0));
+    expect(rawApplyAclEnd, greaterThan(rawApplyAclStart));
+    final rawApplyAcl = migration.substring(rawApplyAclStart, rawApplyAclEnd);
+    expect(
+      rawApplyAcl,
+      contains('from public, anon, authenticated, service_role;'),
+    );
+    expect(rawApplyAcl, isNot(contains('grant execute')));
+
+    final accountDeleteStart = migration.indexOf(
+      'create or replace function public.delete_current_account()',
+    );
+    final accountDeleteEnd = migration.indexOf(
+      'revoke all on function public.delete_current_account()',
+      accountDeleteStart,
+    );
+    expect(accountDeleteStart, greaterThanOrEqualTo(0));
+    expect(accountDeleteEnd, greaterThan(accountDeleteStart));
+    final accountDelete = migration.substring(
+      accountDeleteStart,
+      accountDeleteEnd,
+    );
+    expect(
+      accountDelete,
+      isNot(
+        contains(
+          "raise exception 'ACTIVE_STORE_SUBSCRIPTION_MUST_BE_RESOLVED'",
+        ),
+      ),
+    );
+    expect(
+      accountDelete.indexOf('pg_advisory_xact_lock'),
+      lessThan(accountDelete.indexOf('for update;')),
+    );
+    expect(accountDelete, contains("set status = 'canceled'"));
+    expect(accountDelete, contains('period_end = least('));
+    expect(accountDelete, contains('auto_renews = false'));
+    expect(
+      accountDelete,
+      contains('subscription.store_entitlement_id = terminated_entitlement_id'),
+    );
+  });
+
+  test('حذف حساب المالك يبقي الخلف مالكًا نشطًا قبل إلغاء الاشتراك', () {
+    final migration = File(
+      'supabase/migrations/20260831170000_damanak_account_deletion_successor_fix.sql',
+    ).readAsStringSync();
+    final liveTest = File(
+      'supabase/tests/account_deletion_successor_live.sql',
+    ).readAsStringSync();
+
+    final promotion = migration.indexOf("set role = 'owner',");
+    final activeStatus = migration.indexOf("status = 'active'", promotion);
+    final cancellation = migration.indexOf(
+      'update public.store_entitlements entitlement',
+    );
+    expect(promotion, greaterThanOrEqualTo(0));
+    expect(activeStatus, greaterThan(promotion));
+    expect(cancellation, greaterThan(activeStatus));
+    expect(
+      migration,
+      contains('DAMANAK_ACCOUNT_SUCCESSOR_PROMOTION_ORDER_INVALID'),
+    );
+    expect(liveTest, contains('perform public.delete_current_account();'));
+    expect(liveTest, contains("successor_status <> 'active'"));
+    expect(liveTest, contains('rollback;'));
+  });
+
+  test('سلسلة Google لا تقبل فرعًا شقيقًا أو توكنًا غير حالي', () {
+    final migration = File(
+      'supabase/migrations/20260831180000_damanak_google_lineage_predecessor_cas.sql',
+    ).readAsStringSync();
+    final liveTest = File(
+      'supabase/tests/subscription_lifecycle_live.sql',
+    ).readAsStringSync();
+
+    final applyStart = migration.indexOf(
+      'create or replace function public.apply_verified_store_entitlement_with_receipt(',
+    );
+    final applyEnd = migration.indexOf(
+      'revoke all on function public.apply_verified_store_entitlement_with_receipt(',
+      applyStart,
+    );
+    expect(applyStart, greaterThanOrEqualTo(0));
+    expect(applyEnd, greaterThan(applyStart));
+    final receiptApply = migration.substring(applyStart, applyEnd);
+    final mutation = receiptApply.indexOf(
+      'subscription_row := public.apply_verified_store_entitlement(',
+    );
+    expect(receiptApply, contains('current_token_is_known := found;'));
+    expect(receiptApply, contains('GOOGLE_PURCHASE_TOKEN_SUPERSEDED'));
+    expect(receiptApply, contains("subscription.source = 'store'"));
+    expect(receiptApply, contains('subscription.store_entitlement_id'));
+    expect(
+      receiptApply,
+      contains(
+        'subscription.original_transaction_id =\n          current_link.original_transaction_id',
+      ),
+    );
+    expect(
+      receiptApply,
+      contains("extensions.digest(current_receipt_token, 'sha256')"),
+    );
+    expect(
+      receiptApply.indexOf(') <> purchase_token_hash then'),
+      lessThan(mutation),
+    );
+    expect(
+      receiptApply.indexOf(') <> linked_purchase_token_hash then'),
+      lessThan(mutation),
+    );
+
+    for (final token in [
+      'create or replace function public.resolve_google_purchase_token_binding(',
+      'returns jsonb',
+      "extensions.digest(raw_purchase_token, 'sha256')",
+      "'store_id', token_link.store_id",
+      "'user_id', token_link.user_id",
+      "'original_transaction_id', token_link.original_transaction_id",
+      'from public, anon, authenticated, service_role;',
+      'to service_role;',
+      'DAMANAK_GOOGLE_TOKEN_RESOLVER_ACL_INVALID',
+    ]) {
+      expect(migration, contains(token));
+    }
+
+    expect(liveTest, contains('token_c_hash'));
+    expect(
+      liveTest,
+      contains('A sibling Google token was accepted from stale A'),
+    );
+    expect(liveTest, contains('Current-token replay did not preserve B'));
+    expect(
+      liveTest,
+      contains('An old known lineage replaced independent current C'),
+    );
+    expect(
+      liveTest,
+      contains('Rejected old-lineage replay did not preserve current C'),
+    );
+    expect(
+      liveTest,
+      contains('public.resolve_google_purchase_token_binding(token_b)'),
+    );
+    expect(liveTest, contains('rollback;'));
+  });
 }

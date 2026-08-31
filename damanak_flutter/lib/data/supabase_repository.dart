@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,6 +27,122 @@ import '../models/warranty.dart';
 import '../services/native_identity_token_service.dart';
 import '../services/trial_device_claim_service.dart';
 import 'damanak_repository.dart';
+
+const _fallbackStoreVerificationError = 'STORE_VERIFICATION_FAILED';
+const _publicStoreVerificationErrors = <String>{
+  'AUTH_REQUIRED',
+  'INVALID_PURCHASE_PAYLOAD',
+  'METHOD_NOT_ALLOWED',
+  'STORE_OWNER_REQUIRED',
+  'STORE_PURCHASE_PENDING',
+  'STORE_PURCHASE_PENDING_CANCELED',
+  'STORE_VERIFICATION_RATE_LIMITED',
+  _fallbackStoreVerificationError,
+  'PURCHASE_NOT_VALID',
+  'PURCHASE_CONFLICT',
+  'SANDBOX_NOT_AVAILABLE',
+  'PURCHASE_PROVIDER_UNAVAILABLE',
+  'PURCHASE_VERIFICATION_UNAVAILABLE',
+};
+const _retryableStoreVerificationErrors = <String>{
+  'STORE_PURCHASE_PENDING',
+  'STORE_VERIFICATION_RATE_LIMITED',
+  'STORE_VERIFICATION_FAILED',
+  'PURCHASE_PROVIDER_UNAVAILABLE',
+  'PURCHASE_VERIFICATION_UNAVAILABLE',
+};
+
+@immutable
+class StoreVerificationException implements Exception {
+  const StoreVerificationException({
+    required this.code,
+    required this.statusCode,
+    required this.isRetryable,
+    this.retryAfterSeconds,
+    this.traceId,
+  });
+
+  final String code;
+  final int statusCode;
+  final bool isRetryable;
+  final int? retryAfterSeconds;
+  final String? traceId;
+
+  @override
+  String toString() {
+    final fields = <String>[
+      'code: $code',
+      'statusCode: $statusCode',
+      'isRetryable: $isRetryable',
+      if (retryAfterSeconds != null) 'retryAfterSeconds: $retryAfterSeconds',
+      if (traceId != null) 'traceId: $traceId',
+    ];
+    return 'StoreVerificationException(${fields.join(', ')})';
+  }
+}
+
+@visibleForTesting
+StoreVerificationException storeVerificationExceptionFromPayload({
+  required int statusCode,
+  Object? details,
+}) {
+  final payload = _storeVerificationErrorPayload(details);
+  final rawCode = payload?['error'];
+  final code =
+      rawCode is String &&
+          _publicStoreVerificationErrors.contains(rawCode.trim())
+      ? rawCode.trim()
+      : _fallbackStoreVerificationError;
+  final retryAfterSeconds = code == 'STORE_VERIFICATION_RATE_LIMITED'
+      ? _safeRetryAfterSeconds(payload?['retryAfterSeconds'])
+      : null;
+  final traceId = _safeStoreVerificationTraceId(payload?['traceId']);
+  return StoreVerificationException(
+    code: code,
+    statusCode: statusCode,
+    isRetryable:
+        _retryableStoreVerificationErrors.contains(code) &&
+        payload?['retryable'] != false,
+    retryAfterSeconds: retryAfterSeconds,
+    traceId: traceId,
+  );
+}
+
+Map<String, Object?>? _storeVerificationErrorPayload(Object? details) {
+  Object? decoded = details;
+  if (details is String && details.length <= 4096) {
+    try {
+      decoded = jsonDecode(details);
+    } on FormatException {
+      return null;
+    }
+  }
+  if (decoded is! Map) return null;
+  return <String, Object?>{
+    for (final entry in decoded.entries)
+      if (entry.key is String) entry.key as String: entry.value,
+  };
+}
+
+int? _safeRetryAfterSeconds(Object? value) {
+  final int? parsed = switch (value) {
+    int seconds => seconds,
+    num seconds when seconds.isFinite && seconds == seconds.truncate() =>
+      seconds.toInt(),
+    String seconds => int.tryParse(seconds.trim()),
+    _ => null,
+  };
+  if (parsed == null || parsed < 1 || parsed > 86400) return null;
+  return parsed;
+}
+
+String? _safeStoreVerificationTraceId(Object? value) {
+  if (value is! String) return null;
+  final normalized = value.trim();
+  if (normalized.length < 8 || normalized.length > 128) return null;
+  if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(normalized)) return null;
+  return normalized;
+}
 
 class SupabaseDamanakRepository implements DamanakRepository {
   SupabaseDamanakRepository(
@@ -167,28 +284,60 @@ class SupabaseDamanakRepository implements DamanakRepository {
       Map<String, dynamic>.from(results[0] as Map),
     );
     final subscriptionJson = Map<String, dynamic>.from(results[1] as Map);
-    final plan = PlanInfo.fromJson(
-      Map<String, dynamic>.from(subscriptionJson['plans'] as Map),
-    );
     final usage = (results[2] as num?)?.toInt() ?? 0;
     return WorkspaceSnapshot(
       store: store,
       membership: membership,
-      subscription: SubscriptionInfo(
-        id: subscriptionJson['id'] as String,
-        status: subscriptionJson['status'] as String,
-        plan: plan,
-        trialEndsAt: _dateOrNull(subscriptionJson['trial_ends_at']),
-        periodEndsAt: _dateOrNull(subscriptionJson['current_period_end']),
-        usedWarranties: usage,
-        source: subscriptionJson['source'] as String? ?? 'trial',
-        billingProvider: subscriptionJson['billing_provider'] as String?,
-        storeProductId: subscriptionJson['store_product_id'] as String?,
-        billingCycle: subscriptionJson['billing_cycle'] as String?,
-        autoRenews: subscriptionJson['auto_renews'] as bool? ?? false,
-        lastVerifiedAt: _dateOrNull(subscriptionJson['last_store_verified_at']),
-      ),
+      subscription: _subscriptionFromJson(subscriptionJson, usage),
     );
+  }
+
+  SubscriptionInfo _subscriptionFromJson(
+    Map<String, dynamic> subscriptionJson,
+    int usage,
+  ) {
+    final plan = PlanInfo.fromJson(
+      Map<String, dynamic>.from(subscriptionJson['plans'] as Map),
+    );
+    return SubscriptionInfo(
+      id: subscriptionJson['id'] as String,
+      status: subscriptionJson['status'] as String,
+      plan: plan,
+      trialEndsAt: _dateOrNull(subscriptionJson['trial_ends_at']),
+      periodEndsAt: _dateOrNull(subscriptionJson['current_period_end']),
+      usedWarranties: usage,
+      source: subscriptionJson['source'] as String? ?? 'trial',
+      billingProvider: subscriptionJson['billing_provider'] as String?,
+      storeProductId: subscriptionJson['store_product_id'] as String?,
+      billingCycle: subscriptionJson['billing_cycle'] as String?,
+      autoRenews: subscriptionJson['auto_renews'] as bool? ?? false,
+      lastVerifiedAt: _dateOrNull(subscriptionJson['last_store_verified_at']),
+    );
+  }
+
+  Future<SubscriptionInfo> _loadSubscriptionForStore(String storeId) async {
+    final results = await Future.wait<Object?>([
+      _client
+          .from('store_members')
+          .select('store_id')
+          .eq('store_id', storeId)
+          .eq('user_id', _user.id)
+          .eq('status', 'active')
+          .maybeSingle(),
+      _client
+          .from('subscriptions')
+          .select('*, plans(*)')
+          .eq('store_id', storeId)
+          .single(),
+      _client.rpc(
+        'current_warranty_usage',
+        params: {'target_store_id': storeId},
+      ),
+    ]);
+    if (results[0] == null) throw StateError('WORKSPACE_NOT_FOUND');
+    final subscriptionJson = Map<String, dynamic>.from(results[1] as Map);
+    final usage = (results[2] as num?)?.toInt() ?? 0;
+    return _subscriptionFromJson(subscriptionJson, usage);
   }
 
   @override
@@ -1293,39 +1442,51 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String storeId,
     required StorePurchaseReceipt receipt,
   }) async {
-    final response = await _client.functions.invoke(
-      'verify-store-purchase',
-      body: {
-        'storeId': storeId,
-        'platform': receipt.platform.value,
-        'productId': receipt.productId,
-        'basePlanId': receipt.basePlanId,
-        'purchaseId': receipt.purchaseId,
-        'transactionDate': receipt.transactionDate,
-        'verificationData': receipt.verificationData,
-        'verificationSource': receipt.verificationSource,
-      },
-    );
-    if (response.status < 200 || response.status >= 300) {
-      throw StateError('STORE_VERIFICATION_FAILED');
-    }
-    final snapshot = await loadWorkspace();
-    if (snapshot == null) throw StateError('WORKSPACE_NOT_FOUND');
-    return snapshot.subscription;
+    await _invokeStoreVerification({
+      'storeId': storeId,
+      'platform': receipt.platform.value,
+      'productId': receipt.productId,
+      'basePlanId': receipt.basePlanId,
+      'purchaseId': receipt.purchaseId,
+      'transactionDate': receipt.transactionDate,
+      'verificationData': receipt.verificationData,
+      'verificationSource': receipt.verificationSource,
+      if (receipt.platform == StoreBillingPlatform.googlePlay)
+        'acknowledgeOnServer': true,
+    });
+    return _loadSubscriptionForStore(storeId);
   }
 
   @override
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) async {
-    final response = await _client.functions.invoke(
-      'verify-store-purchase',
-      body: {'storeId': storeId, 'refresh': true},
-    );
-    if (response.status < 200 || response.status >= 300) {
-      throw StateError('STORE_VERIFICATION_FAILED');
+    await _invokeStoreVerification({'storeId': storeId, 'refresh': true});
+    return _loadSubscriptionForStore(storeId);
+  }
+
+  Future<void> _invokeStoreVerification(Map<String, Object?> body) async {
+    try {
+      final response = await _client.functions.invoke(
+        'verify-store-purchase',
+        body: body,
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw storeVerificationExceptionFromPayload(
+          statusCode: response.status,
+          details: response.data,
+        );
+      }
+    } on FunctionsHttpException catch (error) {
+      throw storeVerificationExceptionFromPayload(
+        statusCode: error.status,
+        details: error.details,
+      );
+    } on FunctionException catch (error) {
+      throw StoreVerificationException(
+        code: _fallbackStoreVerificationError,
+        statusCode: error.status,
+        isRetryable: true,
+      );
     }
-    final snapshot = await loadWorkspace();
-    if (snapshot == null) throw StateError('WORKSPACE_NOT_FOUND');
-    return snapshot.subscription;
   }
 
   String? _nullable(String value) {

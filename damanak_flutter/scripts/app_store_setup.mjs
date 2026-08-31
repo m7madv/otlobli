@@ -14,6 +14,24 @@ const GROUP_LOCALIZED_NAME = 'خطط ضمانك';
 const GROUP_CUSTOM_APP_NAME = 'ضمانك';
 const INTERNAL_BETA_GROUP_NAME = 'Damanak Internal';
 const PROFILE_NAME = 'Damanak App Store';
+const RELEASE_VERSION = '4.5.0';
+const RELEASE_BUILD = '23';
+const APP_PRIMARY_CATEGORY = 'BUSINESS';
+const APP_SUPPORT_URL =
+  'https://exxayzlklvgeyqhvtzgi.supabase.co/functions/v1/legal';
+const APP_PRIVACY_URL = `${APP_SUPPORT_URL}/privacy`;
+const APP_DESCRIPTION = `ضمانك نظام عربي مبسط لإدارة ضمانات المتاجر من الجوال.
+
+يساعد المتجر على تسجيل المنتجات والأرقام التسلسلية بالباركود أو يدويًا، وإصدار ضمان للعميل خلال ثوانٍ، ومتابعة المطالبات والصيانة وحالة كل ضمان من مكان واحد.
+
+يتضمن التطبيق إدارة الفروع، ودعوة الموظفين بصلاحيات واضحة، والبحث السريع، واستيراد قوائم المنتجات من الملفات، وتقارير تشغيلية تساعد صاحب المتجر على متابعة العمل.
+
+ضمانك مخصص لإدارة الضمانات وخدمة ما بعد البيع، ولا يستخدم لإصدار فواتير ضريبية أو بيع منتجات للمستهلك داخل التطبيق.
+
+شروط الاستخدام (اتفاقية ترخيص المستخدم النهائي القياسية من Apple):
+https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`;
+const APP_KEYWORDS = 'ضمان,متجر,باركود,صيانة,مطالبات,فروع';
+const APP_COPYRIGHT = '2026 Damanak';
 const APP_STORE_TERRITORIES = ['SAU', 'ARE', 'BHR', 'KWT', 'OMN', 'QAT'];
 // Apple distinguishes paid-in-full subscriptions from 12-month commitments
 // paid monthly: https://developer.apple.com/documentation/appstoreconnectapi/subscriptionplantype
@@ -79,6 +97,7 @@ const productDefinitions = [
 
 const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
 const applyPrices = process.argv.includes('--apply-prices');
+const prepareAppVersion = process.argv.includes('--prepare-app-version');
 const addSubscriptionsToReviewDraft = process.argv.includes(
   '--add-subscriptions-to-review-draft',
 );

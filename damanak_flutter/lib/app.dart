@@ -10,15 +10,47 @@ import 'screens/shell_screen.dart';
 import 'state/app_controller.dart';
 import 'state/app_scope.dart';
 
-class DamanakApp extends StatelessWidget {
+class DamanakApp extends StatefulWidget {
   const DamanakApp({required this.controller, super.key});
 
   final AppController controller;
 
   @override
+  State<DamanakApp> createState() => _DamanakAppState();
+}
+
+class _DamanakAppState extends State<DamanakApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant DamanakApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.cancelStoreBillingReconciliation();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.controller.handleAppResumed();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppScope(
-      controller: controller,
+      controller: widget.controller,
       child: const DamanakAppFrame(home: _AppGate()),
     );
   }

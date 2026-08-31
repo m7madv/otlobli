@@ -186,4 +186,16 @@ class SubscriptionInfo {
   }
 
   bool get isStoreSubscription => source == 'store';
+
+  bool get hasUnexpiredStorePeriod {
+    if (!isStoreSubscription || (status != 'active' && status != 'past_due')) {
+      return false;
+    }
+    final end = periodEndsAt;
+    final verifiedAt = lastVerifiedAt;
+    // لا تستخدم ساعة الهاتف لحسم إمكانية فتح مزود دفع ثانٍ. وقت التحقق
+    // ونهاية الفترة كلاهما قادمان من الخادم؛ وعند نقص أحدهما نفشل مغلقين.
+    if (end == null || verifiedAt == null) return true;
+    return end.isAfter(verifiedAt);
+  }
 }

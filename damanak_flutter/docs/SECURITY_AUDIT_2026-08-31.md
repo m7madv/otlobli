@@ -26,12 +26,22 @@
 - مسارات الذكاء الاصطناعي معزولة بالمتجر والحصة والدور، ولا تمنح قرار مطالبة تلقائياً.
 - صفحة الضمان العامة تقلل بيانات العميل وتستخدم HMAC ورؤوس `no-store` و`no-referrer` وCSP.
 
+## متابعة دورة الاشتراك في مصدر 4.5.0+24
+
+- راجعت المتابعة كامل مسار الكتالوج والشراء والاستعادة والتغيير والإلغاء والمصالحة وحذف الحساب على Flutter وEdge Functions وSQL. لا تغيّر هذه المتابعة نتيجة التدقيق الأصلية ذات النتائج الخمس؛ هي تحصين وظيفي وأمني إضافي بعده.
+- Apple Build `24` يربط المعاملة بـUUID المتجر عبر `appAccountToken`، ويرفض الحدث المتأخر غير المطابق. يبقى توافق Build `23` القديم مقيداً بملكية الحساب ومتجر واحد أو إيصال مرتبط سابقاً.
+- Google يفحص نتيجة `BillingClient` الحقيقية، ولا يفسر الفشل كغياب مشتريات. توكن الاستبدال يجب أن يطابق الحساب والمتجر صراحةً؛ legacy غير المربوط لا يدخل `launchBillingFlow` أبداً.
+- الاستعادة تختار المتجر المفتوح من حساب متعدد المتاجر، وتفضل الربط الدقيق، ولا ترسل للخادم أكثر من مرشح legacy واحد عند غياب التطابق. النتائج المعلقة والحسابات والمتاجر الأخرى لا تتحول إلى نجاح استعادة.
+- migration `20260831180000_damanak_google_lineage_predecessor_cas.sql` يفرض predecessor/current-receipt بنمط CAS ويرفض sibling أو replay. حذف المالك في `20260831170000` يثبت الخلف النشط قبل إلغاء الاشتراك.
+- `verify-store-purchase` v23 و`refresh-store-entitlements` v7 نشطتان، وإقرار Google يتم بعد تطبيق الاستحقاق مع إعادة محاولة مجدولة. آخر تشغيل `damanak-entitlement-refresh` عند `2026-08-31 20:35 UTC` نجح وأعاد HTTP `200`.
+- لا يوجد Google RTDN حالياً؛ شراء خارجي جديد لا يُكتشف إلا عند فتح التطبيق. هذه فجوة تشغيل موثقة لا مبرر للادعاء بإغلاقها، ولا تعني إمكان تجاوز عزل الإيصال عند وصوله للخادم.
+
 ## اختبارات إعادة التشغيل
 
 ```powershell
 flutter analyze
 flutter test
-npx --yes deno test --allow-env supabase/functions
+npx --yes deno test --allow-env --allow-net supabase/functions
 npx supabase db query --linked --file supabase/tests/warranty_tenant_integrity_live.sql --output json
 flutter build web --release
 flutter build apk --debug
@@ -42,8 +52,9 @@ flutter build apk --debug
 ## تحقق الإغلاق
 
 - `flutter analyze`: ناجح بلا ملاحظات.
-- Flutter: `93/93` اختباراً ناجحاً.
-- Deno: `23/23` اختباراً ناجحاً.
+- Flutter: `150/150` اختباراً ناجحاً.
+- Deno: `56/56` اختباراً ناجحاً.
 - نجح `git diff --check` وفحص تنسيق ملفات الدوال.
-- نجح بناء web release وAndroid debug؛ لا يمثل ذلك قبول شراء أو قارئ شاشة أو جهاز فعلي.
-- راجع وكيل أمني مستقل رقعة الإغلاق بعد migration `20260831150000` وفلتر `store_id`، ولم يجد نتيجة أمنية إضافية قابلة للتقرير ضمن النطاق.
+- نجح بناء web release وAndroid debug. APK Build `24` المحلي حجمه `207,919,707` بايت وبصمته `745AB8B44F68C587BBE57294D7D012642C9E059D2C93760C22AF7070AD729B8F`؛ لا يمثل ذلك قبول شراء أو قارئ شاشة أو جهاز فعلي.
+- نجحت اختبارات `subscription_lifecycle_live.sql` و`account_deletion_successor_live.sql` و`warranty_tenant_integrity_live.sql` على الإنتاج داخل `BEGIN/ROLLBACK`.
+- راجع وكيلان مستقلان رقع Edge/SQL وFlutter بعد migration `20260831180000`. أُصلحت ملاحظاتهما حول نتيجة BillingClient، legacy replacement، واختيار المتجر المتعدد، ثم لم تبق نتيجة إضافية قابلة للتقرير ضمن النطاق.

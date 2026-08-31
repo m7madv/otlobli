@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Q2BOXDzbcDTh9rbJcAirdwZrKGvFng6jHn0EHVvf4Mcn2EMBIVMaF4GztWovwEC
+\restrict Hf0IjshAfeh5GTy3LjzAS2aaH6ZZZufnvvVxcH9euoLoR7u4PKBkMAdTtscm94o
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -43,6 +43,134 @@ ALTER SCHEMA "public" OWNER TO "pg_database_owner";
 
 COMMENT ON SCHEMA "public" IS 'standard public schema';
 
+
+--
+-- Name: claim_store_sandbox_access("uuid", "uuid", "text", "text", boolean); Type: FUNCTION; Schema: private; Owner: postgres
+--
+
+CREATE FUNCTION "private"."claim_store_sandbox_access"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "external_original_transaction_id" "text", "allow_new_grant" boolean) RETURNS timestamp with time zone
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  explicit_expiry timestamptz;
+  review_window private.store_sandbox_review_windows%rowtype;
+  existing_grant private.store_sandbox_review_grants%rowtype;
+  granted_expiry timestamptz;
+begin
+  if (select auth.role()) <> 'service_role' then
+    raise exception 'SERVICE_ROLE_REQUIRED';
+  end if;
+
+  select tester.expires_at
+  into explicit_expiry
+  from private.store_sandbox_testers tester
+  where tester.store_id = target_store_id
+    and tester.user_id = target_user_id
+    and tester.platform = billing_platform
+    and tester.expires_at > pg_catalog.now()
+  for share;
+  if explicit_expiry is not null then
+    return explicit_expiry;
+  end if;
+
+  select grant_row.*
+  into existing_grant
+  from private.store_sandbox_review_grants grant_row
+  join private.store_sandbox_review_windows review
+    on review.id = grant_row.window_id
+  where grant_row.store_id = target_store_id
+    and grant_row.user_id = target_user_id
+    and grant_row.platform = billing_platform
+    and review.revoked_at is null
+    and review.opens_at <= pg_catalog.now()
+    and review.closes_at > pg_catalog.now()
+  order by review.closes_at, review.created_at
+  for update of grant_row
+  limit 1;
+  if found then
+    if existing_grant.original_transaction_id <>
+      external_original_transaction_id then
+      raise exception 'SANDBOX_REVIEW_GRANT_CONFLICT';
+    end if;
+    if existing_grant.expires_at <= pg_catalog.now() then
+      raise exception 'SANDBOX_REVIEW_GRANT_EXPIRED';
+    end if;
+    return existing_grant.expires_at;
+  end if;
+
+  -- A terminal provider response may reuse an existing bounded review grant,
+  -- but it must never create a fresh grant. Only a newly verified active or
+  -- grace entitlement may consume a review-window seat.
+  if not coalesce(allow_new_grant, false) then
+    raise exception 'SANDBOX_REVIEW_GRANT_REQUIRED';
+  end if;
+
+  select review.*
+  into review_window
+  from private.store_sandbox_review_windows review
+  where review.platform = billing_platform
+    and review.revoked_at is null
+    and review.opens_at <= pg_catalog.now()
+    and review.closes_at > pg_catalog.now()
+    and review.grants_used < review.max_grants
+  order by review.closes_at, review.created_at
+  for update
+  limit 1;
+  if not found then
+    raise exception 'SANDBOX_REVIEW_WINDOW_CLOSED';
+  end if;
+
+  granted_expiry := least(
+    review_window.closes_at,
+    pg_catalog.now() +
+      pg_catalog.make_interval(secs => review_window.grant_ttl_seconds)
+  );
+  insert into private.store_sandbox_review_grants (
+    window_id,
+    store_id,
+    user_id,
+    platform,
+    original_transaction_id,
+    expires_at
+  ) values (
+    review_window.id,
+    target_store_id,
+    target_user_id,
+    billing_platform,
+    external_original_transaction_id,
+    granted_expiry
+  );
+  update private.store_sandbox_review_windows
+  set grants_used = grants_used + 1
+  where id = review_window.id;
+
+  insert into public.audit_logs (
+    store_id,
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  ) values (
+    target_store_id,
+    target_user_id,
+    'sandbox_review_access_granted',
+    'sandbox_review_window',
+    review_window.id,
+    pg_catalog.jsonb_build_object(
+      'platform', billing_platform,
+      'release_version', review_window.release_version,
+      'submission_id', review_window.submission_id,
+      'expires_at', granted_expiry
+    )
+  );
+  return granted_expiry;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."claim_store_sandbox_access"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "external_original_transaction_id" "text", "allow_new_grant" boolean) OWNER TO "postgres";
 
 --
 -- Name: create_sale_unlocked("uuid", "uuid", "uuid", "text", "text", "jsonb", "jsonb", numeric, "text"); Type: FUNCTION; Schema: private; Owner: postgres
@@ -400,8 +528,10 @@ CREATE TABLE "public"."subscriptions" (
     "auto_renews" boolean DEFAULT false NOT NULL,
     "last_store_verified_at" timestamp with time zone,
     "store_environment" "text",
+    "store_entitlement_id" "uuid",
     CONSTRAINT "subscriptions_billing_cycle_check" CHECK ((("billing_cycle" IS NULL) OR ("billing_cycle" = ANY (ARRAY['monthly'::"text", 'yearly'::"text"])))),
     CONSTRAINT "subscriptions_billing_provider_check" CHECK ((("billing_provider" IS NULL) OR ("billing_provider" = ANY (ARRAY['app_store'::"text", 'google_play'::"text"])))),
+    CONSTRAINT "subscriptions_current_store_entitlement_check" CHECK (((("source" = 'store'::"text") AND ("store_entitlement_id" IS NOT NULL)) OR (("source" <> 'store'::"text") AND ("store_entitlement_id" IS NULL)))),
     CONSTRAINT "subscriptions_source_check" CHECK (("source" = ANY (ARRAY['trial'::"text", 'activation_code'::"text", 'manual'::"text", 'store'::"text"]))),
     CONSTRAINT "subscriptions_status_check" CHECK (("status" = ANY (ARRAY['trialing'::"text", 'active'::"text", 'past_due'::"text", 'canceled'::"text"]))),
     CONSTRAINT "subscriptions_store_environment_check" CHECK ((("store_environment" IS NULL) OR ("store_environment" = ANY (ARRAY['sandbox'::"text", 'production'::"text"])))),
@@ -421,16 +551,18 @@ CREATE FUNCTION "public"."apply_verified_store_entitlement"("target_store_id" "u
     AS $$
 declare
   catalog_row public.store_product_catalog%rowtype;
-  linked_store_id uuid;
-  linked_user_id uuid;
-  linked_environment text;
-  current_subscription_environment text;
+  linked_entitlement public.store_entitlements%rowtype;
+  transaction_entitlement public.store_entitlements%rowtype;
+  current_entitlement public.store_entitlements%rowtype;
+  subscription_row public.subscriptions%rowtype;
   verified_environment text := store_environment;
+  effective_entitlement_status text := entitlement_status;
   sandbox_expires_at timestamptz;
   effective_period_end timestamptz := entitlement_period_end;
+  candidate_id uuid := gen_random_uuid();
   written_store_id uuid;
-  subscription_row public.subscriptions%rowtype;
   normalized_status text;
+  current_blocks_replacement boolean := false;
 begin
   if (select auth.role()) <> 'service_role' then
     raise exception 'SERVICE_ROLE_REQUIRED';
@@ -441,9 +573,22 @@ begin
      )
      or verified_environment not in ('sandbox', 'production')
      or nullif(pg_catalog.btrim(external_transaction_id), '') is null
-     or nullif(pg_catalog.btrim(external_original_transaction_id), '') is null then
+     or nullif(
+       pg_catalog.btrim(external_original_transaction_id), ''
+     ) is null then
     raise exception 'INVALID_STORE_ENTITLEMENT';
   end if;
+  -- Every mutation of one store follows this lock order: store, receipt, row.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      target_store_id::text || ':store-subscription',
+      0
+    )
+  );
+
+  -- Recheck authorization after the store lock. Account deletion and purchase
+  -- verification use the same lock, so a stale pre-lock membership decision
+  -- can never write after ownership has moved.
   if not exists (
     select 1
     from public.store_members member
@@ -454,64 +599,118 @@ begin
   ) then
     raise exception 'STORE_OWNER_REQUIRED';
   end if;
-
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
       billing_platform || ':' || external_original_transaction_id,
       0
     )
   );
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      billing_platform || ':transaction:' || external_transaction_id,
+      0
+    )
+  );
 
-  select entitlement.store_id, entitlement.user_id, entitlement.environment
-  into linked_store_id, linked_user_id, linked_environment
-  from public.store_entitlements entitlement
-  where entitlement.platform = billing_platform
-    and entitlement.original_transaction_id = external_original_transaction_id;
-
-  if linked_store_id is not null and (
-    linked_store_id <> target_store_id or linked_user_id <> target_user_id
-  ) then
-    raise exception 'STORE_PURCHASE_ALREADY_LINKED';
-  end if;
-  if verified_environment = 'sandbox' and linked_environment = 'production' then
-    raise exception 'SANDBOX_CANNOT_REPLACE_PRODUCTION';
-  end if;
-
-  select subscription.store_environment
-  into current_subscription_environment
+  select *
+  into subscription_row
   from public.subscriptions subscription
   where subscription.store_id = target_store_id
   for update;
+  if not found then
+    raise exception 'SUBSCRIPTION_NOT_FOUND';
+  end if;
 
-  if verified_environment = 'sandbox' then
-    if current_subscription_environment = 'production' then
+  select *
+  into linked_entitlement
+  from public.store_entitlements entitlement
+  where entitlement.platform = billing_platform
+    and entitlement.original_transaction_id =
+      external_original_transaction_id
+  for update;
+  if found then
+    candidate_id := linked_entitlement.id;
+    if linked_entitlement.store_id <> target_store_id
+       or linked_entitlement.user_id is distinct from target_user_id then
+      raise exception 'STORE_PURCHASE_ALREADY_LINKED';
+    end if;
+    if linked_entitlement.environment = 'production'
+       and verified_environment = 'sandbox' then
       raise exception 'SANDBOX_CANNOT_REPLACE_PRODUCTION';
-    end if;
-    select tester.expires_at
-    into sandbox_expires_at
-    from private.store_sandbox_testers tester
-    where tester.store_id = target_store_id
-      and tester.user_id = target_user_id
-      and tester.platform = billing_platform
-      and tester.expires_at > pg_catalog.now()
-    for share;
-    if sandbox_expires_at is null then
-      raise exception 'SANDBOX_TESTER_NOT_ALLOWED';
-    end if;
-    if effective_period_end is null then
-      effective_period_end := sandbox_expires_at;
-    else
-      effective_period_end := least(effective_period_end, sandbox_expires_at);
     end if;
   end if;
 
-  if entitlement_status in ('active', 'grace') and (
-    effective_period_end is null or effective_period_end <= pg_catalog.now()
+  select *
+  into transaction_entitlement
+  from public.store_entitlements entitlement
+  where entitlement.platform = billing_platform
+    and entitlement.transaction_id = external_transaction_id
+  for update;
+  if found and (
+    transaction_entitlement.store_id <> target_store_id
+    or transaction_entitlement.user_id is distinct from target_user_id
+    or transaction_entitlement.original_transaction_id <>
+      external_original_transaction_id
+  ) then
+    raise exception 'STORE_PURCHASE_ALREADY_LINKED';
+  end if;
+
+  if subscription_row.store_entitlement_id is not null then
+    select *
+    into current_entitlement
+    from public.store_entitlements entitlement
+    where entitlement.id = subscription_row.store_entitlement_id
+    for update;
+    if found then
+      current_blocks_replacement :=
+        current_entitlement.status in ('active', 'grace', 'past_due')
+        and current_entitlement.period_end > pg_catalog.now();
+      if current_entitlement.environment = 'production'
+         and verified_environment = 'sandbox' then
+        raise exception 'SANDBOX_CANNOT_REPLACE_PRODUCTION';
+      end if;
+      if current_entitlement.id <> candidate_id
+         and current_blocks_replacement
+         and not (
+           current_entitlement.environment = 'sandbox'
+           and verified_environment = 'production'
+         ) then
+        if current_entitlement.platform <> billing_platform then
+          raise exception 'ACTIVE_STORE_PROVIDER_CHANGE_BLOCKED';
+        end if;
+        raise exception 'ACTIVE_STORE_SUBSCRIPTION_REPLACEMENT_BLOCKED';
+      end if;
+    end if;
+  end if;
+
+  if verified_environment = 'sandbox'
+     and entitlement_status <> 'revoked' then
+    sandbox_expires_at := private.claim_store_sandbox_access(
+      target_store_id,
+      target_user_id,
+      billing_platform,
+      external_original_transaction_id,
+      entitlement_status in ('active', 'grace')
+    );
+    -- Sandbox subscription periods are deliberately accelerated. Once an
+    -- active/grace receipt has consumed a bounded grant, provider expiry alone
+    -- must not eject App Review before that grant ends. Revocation never takes
+    -- this path, and an expired grant can never be renewed implicitly.
+    effective_period_end := sandbox_expires_at;
+    if entitlement_status not in ('active', 'grace') then
+      effective_entitlement_status := 'active';
+    end if;
+  end if;
+
+  if effective_entitlement_status in ('active', 'grace') and (
+    effective_period_end is null
+    or effective_period_end <= pg_catalog.now()
   ) then
     raise exception 'STORE_ACTIVE_PERIOD_INVALID';
   end if;
 
-  select * into catalog_row
+  select *
+  into catalog_row
   from public.store_product_catalog catalog
   where catalog.platform = billing_platform
     and catalog.product_id = billed_product_id
@@ -522,17 +721,44 @@ begin
     raise exception 'STORE_PRODUCT_UNMAPPED';
   end if;
 
-  insert into public.store_entitlements as current_entitlement (
-    store_id, user_id, platform, product_id, base_plan_id, plan_id,
-    billing_cycle, transaction_id, original_transaction_id, status,
-    environment, period_start, period_end, auto_renews, verified_at
+  insert into public.store_entitlements as existing (
+    id,
+    store_id,
+    user_id,
+    platform,
+    product_id,
+    base_plan_id,
+    plan_id,
+    billing_cycle,
+    transaction_id,
+    original_transaction_id,
+    status,
+    environment,
+    period_start,
+    period_end,
+    auto_renews,
+    verified_at,
+    superseded_at,
+    superseded_by
   ) values (
-    target_store_id, target_user_id, billing_platform, billed_product_id,
-    coalesce(billed_base_plan_id, ''), catalog_row.plan_id,
-    catalog_row.billing_cycle, external_transaction_id,
-    external_original_transaction_id, entitlement_status, verified_environment,
-    entitlement_period_start, effective_period_end,
-    entitlement_auto_renews, pg_catalog.now()
+    candidate_id,
+    target_store_id,
+    target_user_id,
+    billing_platform,
+    billed_product_id,
+    coalesce(billed_base_plan_id, ''),
+    catalog_row.plan_id,
+    catalog_row.billing_cycle,
+    external_transaction_id,
+    external_original_transaction_id,
+    effective_entitlement_status,
+    verified_environment,
+    entitlement_period_start,
+    effective_period_end,
+    entitlement_auto_renews,
+    pg_catalog.now(),
+    pg_catalog.now(),
+    null
   )
   on conflict (platform, original_transaction_id) do update set
     user_id = excluded.user_id,
@@ -547,22 +773,36 @@ begin
     period_end = excluded.period_end,
     auto_renews = excluded.auto_renews,
     verified_at = pg_catalog.now(),
-    updated_at = pg_catalog.now()
-  where current_entitlement.store_id = excluded.store_id
-    and current_entitlement.user_id = excluded.user_id
+    updated_at = pg_catalog.now(),
+    superseded_at = pg_catalog.now(),
+    superseded_by = null
+  where existing.store_id = excluded.store_id
+    and existing.user_id is not distinct from excluded.user_id
     and not (
-      current_entitlement.environment = 'production'
+      existing.environment = 'production'
       and excluded.environment = 'sandbox'
     )
-  returning store_id into written_store_id;
-
+  returning store_id, id into written_store_id, candidate_id;
   if written_store_id is null then
     raise exception 'STORE_PURCHASE_ALREADY_LINKED';
   end if;
 
+  update public.store_entitlements entitlement
+  set superseded_at = pg_catalog.now(),
+      superseded_by = candidate_id,
+      refresh_locked_at = null
+  where entitlement.store_id = target_store_id
+    and entitlement.id <> candidate_id
+    and entitlement.superseded_at is null;
+
+  update public.store_entitlements entitlement
+  set superseded_at = null,
+      superseded_by = null
+  where entitlement.id = candidate_id;
+
   normalized_status := case
-    when entitlement_status in ('active', 'grace') then 'active'
-    when entitlement_status = 'past_due' then 'past_due'
+    when effective_entitlement_status in ('active', 'grace') then 'active'
+    when effective_entitlement_status = 'past_due' then 'past_due'
     else 'canceled'
   end;
 
@@ -577,19 +817,21 @@ begin
       store_product_id = billed_product_id,
       billing_cycle = catalog_row.billing_cycle,
       original_transaction_id = external_original_transaction_id,
-    store_environment = verified_environment,
+      store_environment = verified_environment,
+      store_entitlement_id = candidate_id,
       auto_renews = entitlement_auto_renews,
       last_store_verified_at = pg_catalog.now(),
       updated_at = pg_catalog.now()
   where store_id = target_store_id
   returning * into subscription_row;
 
-  if not found then
-    raise exception 'SUBSCRIPTION_NOT_FOUND';
-  end if;
-
   insert into public.audit_logs (
-    store_id, user_id, action, entity_type, entity_id, metadata
+    store_id,
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
   ) values (
     target_store_id,
     target_user_id,
@@ -600,12 +842,13 @@ begin
       'platform', billing_platform,
       'product_id', billed_product_id,
       'billing_cycle', catalog_row.billing_cycle,
-      'status', entitlement_status,
+      'status', effective_entitlement_status,
+      'provider_status', entitlement_status,
       'environment', verified_environment,
-      'effective_period_end', effective_period_end
+      'effective_period_end', effective_period_end,
+      'store_entitlement_id', candidate_id
     )
   );
-
   return subscription_row;
 end;
 $$;
@@ -614,18 +857,245 @@ $$;
 ALTER FUNCTION "public"."apply_verified_store_entitlement"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean) OWNER TO "postgres";
 
 --
--- Name: apply_verified_store_entitlement_with_receipt("uuid", "uuid", "text", "text", "text", "text", "text", "text", "text", timestamp with time zone, timestamp with time zone, boolean, "text"); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: apply_verified_store_entitlement_with_receipt("uuid", "uuid", "text", "text", "text", "text", "text", "text", "text", timestamp with time zone, timestamp with time zone, boolean, "text", "text", "text", "text"); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text") RETURNS "public"."subscriptions"
+CREATE FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text", "purchase_token_hash" "text", "linked_purchase_token_hash" "text", "expected_current_purchase_token_hash" "text") RETURNS "public"."subscriptions"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
-    AS $$
+    AS $_$
 declare
   subscription_row public.subscriptions%rowtype;
+  current_link private.google_purchase_token_links%rowtype;
+  previous_link private.google_purchase_token_links%rowtype;
+  current_receipt_token text;
+  resolved_original_transaction_id text :=
+    external_original_transaction_id;
+  written_hash text;
+  current_token_is_known boolean := false;
+  current_subscription_id uuid;
 begin
   if (select auth.role()) <> 'service_role' then
     raise exception 'SERVICE_ROLE_REQUIRED';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      target_store_id::text || ':store-subscription',
+      0
+    )
+  );
+
+  if expected_current_purchase_token_hash is not null then
+    if expected_current_purchase_token_hash !~ '^[0-9a-f]{64}$'
+       or nullif(
+         pg_catalog.btrim(external_original_transaction_id),
+         ''
+       ) is null then
+      raise exception 'STORE_RECEIPT_STALE';
+    end if;
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        billing_platform || ':' || external_original_transaction_id,
+        0
+      )
+    );
+    select receipt.purchase_token
+    into current_receipt_token
+    from private.store_receipt_secrets receipt
+    where receipt.platform = billing_platform
+      and receipt.original_transaction_id = external_original_transaction_id
+    for update;
+    if current_receipt_token is null
+       or pg_catalog.encode(
+         extensions.digest(current_receipt_token, 'sha256'),
+         'hex'
+       ) <> expected_current_purchase_token_hash then
+      raise exception 'STORE_RECEIPT_STALE';
+    end if;
+  end if;
+
+  if billing_platform = 'google_play' then
+    if char_length(coalesce(raw_purchase_token, '')) < 20
+       or purchase_token_hash !~ '^[0-9a-f]{64}$'
+       or purchase_token_hash <>
+         pg_catalog.encode(
+           extensions.digest(raw_purchase_token, 'sha256'),
+           'hex'
+         )
+       or (
+         linked_purchase_token_hash is not null
+         and linked_purchase_token_hash !~ '^[0-9a-f]{64}$'
+       )
+       or linked_purchase_token_hash = purchase_token_hash then
+      raise exception 'GOOGLE_PURCHASE_TOKEN_REQUIRED';
+    end if;
+
+    select *
+    into current_link
+    from private.google_purchase_token_links token_link
+    where token_link.token_hash = purchase_token_hash
+    for update;
+    current_token_is_known := found;
+    if current_token_is_known and (
+      current_link.store_id <> target_store_id
+      or current_link.user_id is distinct from target_user_id
+    ) then
+      raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
+    end if;
+
+    -- A known token is idempotent only while its lineage is the store's current
+    -- entitlement and the token itself is that lineage's saved receipt. This
+    -- also rejects a replay after a later token or an independent lineage won.
+    if current_token_is_known then
+      select subscription.id
+      into current_subscription_id
+      from public.subscriptions subscription
+      join public.store_entitlements entitlement
+        on entitlement.id = subscription.store_entitlement_id
+       and entitlement.store_id = subscription.store_id
+      where subscription.store_id = target_store_id
+        and subscription.source = 'store'
+        and subscription.billing_provider = billing_platform
+        and subscription.original_transaction_id =
+          current_link.original_transaction_id
+        and entitlement.platform = billing_platform
+        and entitlement.original_transaction_id =
+          current_link.original_transaction_id
+        and entitlement.superseded_at is null
+      for update of subscription, entitlement;
+      if current_subscription_id is null then
+        raise exception 'GOOGLE_PURCHASE_TOKEN_SUPERSEDED';
+      end if;
+
+      perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended(
+          billing_platform || ':' ||
+            current_link.original_transaction_id,
+          0
+        )
+      );
+      select receipt.purchase_token
+      into current_receipt_token
+      from private.store_receipt_secrets receipt
+      where receipt.platform = billing_platform
+        and receipt.original_transaction_id =
+          current_link.original_transaction_id
+      for update;
+      if current_receipt_token is null
+         or pg_catalog.encode(
+           extensions.digest(current_receipt_token, 'sha256'),
+           'hex'
+         ) <> purchase_token_hash then
+        raise exception 'GOOGLE_PURCHASE_TOKEN_SUPERSEDED';
+      end if;
+    end if;
+
+    -- A token with a recorded successor is an ancestor, never the current
+    -- receipt. Replaying it must not roll the plan, period, or saved secret
+    -- backwards after an upgrade or resubscription.
+    if exists (
+      select 1
+      from private.google_purchase_token_links successor
+      where successor.linked_token_hash = purchase_token_hash
+        and successor.token_hash <> purchase_token_hash
+    ) then
+      raise exception 'GOOGLE_PURCHASE_TOKEN_SUPERSEDED';
+    end if;
+
+    if linked_purchase_token_hash is not null then
+      select *
+      into previous_link
+      from private.google_purchase_token_links token_link
+      where token_link.token_hash = linked_purchase_token_hash
+      for update;
+      if not found then
+        if not current_token_is_known then
+          raise exception 'GOOGLE_LINKED_PURCHASE_UNRESOLVED';
+        end if;
+
+        -- Legacy databases retained only the newest raw token. When that
+        -- newest token is already bound, Google's authenticated predecessor
+        -- may be inserted into the same lineage. A collision with any other
+        -- tenant remains a hard conflict.
+        written_hash := null;
+        insert into private.google_purchase_token_links as existing (
+          token_hash,
+          store_id,
+          user_id,
+          original_transaction_id
+        ) values (
+          linked_purchase_token_hash,
+          current_link.store_id,
+          current_link.user_id,
+          current_link.original_transaction_id
+        )
+        on conflict (token_hash) do update set
+          last_seen_at = pg_catalog.now()
+        where existing.store_id = excluded.store_id
+          and existing.user_id is not distinct from excluded.user_id
+          and existing.original_transaction_id =
+            excluded.original_transaction_id
+        returning token_hash into written_hash;
+        if written_hash is null then
+          raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
+        end if;
+
+        select *
+        into previous_link
+        from private.google_purchase_token_links token_link
+        where token_link.token_hash = linked_purchase_token_hash
+        for update;
+      end if;
+      if previous_link.store_id <> target_store_id
+         or previous_link.user_id is distinct from target_user_id then
+        raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
+      end if;
+
+      -- For a new token, the provider-authenticated predecessor must still be
+      -- the saved receipt. Two siblings cannot both advance from one ancestor.
+      if not current_token_is_known then
+        perform pg_catalog.pg_advisory_xact_lock(
+          pg_catalog.hashtextextended(
+            billing_platform || ':' ||
+              previous_link.original_transaction_id,
+            0
+          )
+        );
+        select receipt.purchase_token
+        into current_receipt_token
+        from private.store_receipt_secrets receipt
+        where receipt.platform = billing_platform
+          and receipt.original_transaction_id =
+            previous_link.original_transaction_id
+        for update;
+        if current_receipt_token is null
+           or pg_catalog.encode(
+             extensions.digest(current_receipt_token, 'sha256'),
+             'hex'
+           ) <> linked_purchase_token_hash then
+          raise exception 'GOOGLE_PURCHASE_TOKEN_SUPERSEDED';
+        end if;
+      end if;
+
+      resolved_original_transaction_id :=
+        previous_link.original_transaction_id;
+      if current_token_is_known
+         and current_link.original_transaction_id <>
+           resolved_original_transaction_id then
+        raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
+      end if;
+    elsif current_token_is_known then
+      resolved_original_transaction_id :=
+        current_link.original_transaction_id;
+    elsif external_original_transaction_id <>
+      'token_' || purchase_token_hash then
+      raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
+    end if;
+  elsif purchase_token_hash is not null
+        or linked_purchase_token_hash is not null
+        or raw_purchase_token is not null then
+    raise exception 'INVALID_STORE_ENTITLEMENT';
   end if;
 
   subscription_row := public.apply_verified_store_entitlement(
@@ -635,7 +1105,7 @@ begin
     billed_product_id,
     billed_base_plan_id,
     external_transaction_id,
-    external_original_transaction_id,
+    resolved_original_transaction_id,
     entitlement_status,
     store_environment,
     entitlement_period_start,
@@ -644,14 +1114,47 @@ begin
   );
 
   if billing_platform = 'google_play' then
-    if char_length(coalesce(raw_purchase_token, '')) < 20 then
-      raise exception 'GOOGLE_PURCHASE_TOKEN_REQUIRED';
+    insert into private.google_purchase_token_links as existing (
+      token_hash,
+      linked_token_hash,
+      store_id,
+      user_id,
+      original_transaction_id
+    ) values (
+      purchase_token_hash,
+      linked_purchase_token_hash,
+      target_store_id,
+      target_user_id,
+      resolved_original_transaction_id
+    )
+    on conflict (token_hash) do update set
+      linked_token_hash = coalesce(
+        excluded.linked_token_hash,
+        existing.linked_token_hash
+      ),
+      last_seen_at = pg_catalog.now()
+    where existing.store_id = excluded.store_id
+      and existing.user_id is not distinct from excluded.user_id
+      and existing.original_transaction_id =
+        excluded.original_transaction_id
+      and (
+        existing.linked_token_hash is null
+        or excluded.linked_token_hash is null
+        or existing.linked_token_hash = excluded.linked_token_hash
+      )
+    returning token_hash into written_hash;
+    if written_hash is null then
+      raise exception 'GOOGLE_PURCHASE_LINEAGE_CONFLICT';
     end if;
+
     insert into private.store_receipt_secrets (
-      platform, original_transaction_id, purchase_token, updated_at
+      platform,
+      original_transaction_id,
+      purchase_token,
+      updated_at
     ) values (
       billing_platform,
-      external_original_transaction_id,
+      resolved_original_transaction_id,
       raw_purchase_token,
       pg_catalog.now()
     )
@@ -659,13 +1162,12 @@ begin
       purchase_token = excluded.purchase_token,
       updated_at = pg_catalog.now();
   end if;
-
   return subscription_row;
 end;
-$$;
+$_$;
 
 
-ALTER FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text", "purchase_token_hash" "text", "linked_purchase_token_hash" "text", "expected_current_purchase_token_hash" "text") OWNER TO "postgres";
 
 --
 -- Name: audit_business_change(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -936,27 +1438,34 @@ begin
   if (select auth.role()) <> 'service_role' then
     raise exception 'SERVICE_ROLE_REQUIRED';
   end if;
-  update public.store_entitlements
+  update public.store_entitlements entitlement
   set refresh_locked_at = null
-  where refresh_locked_at < now() - interval '15 minutes';
+  where entitlement.superseded_at is null
+    and entitlement.refresh_locked_at <
+      pg_catalog.now() - interval '15 minutes';
 
   with selected as (
     select entitlement.id
     from public.store_entitlements entitlement
-    where entitlement.next_verification_at <= now()
+    join public.subscriptions subscription
+      on subscription.store_entitlement_id = entitlement.id
+     and subscription.store_id = entitlement.store_id
+     and subscription.source = 'store'
+    where entitlement.superseded_at is null
+      and entitlement.next_verification_at <= pg_catalog.now()
       and entitlement.refresh_locked_at is null
       and entitlement.status in ('active', 'grace', 'past_due')
     order by entitlement.next_verification_at, entitlement.verified_at
-    for update skip locked
-    limit greatest(1, least(requested_limit, 20))
+    for update of entitlement skip locked
+    limit greatest(1, least(requested_limit, 100))
   ), claimed as (
     update public.store_entitlements entitlement
-    set refresh_locked_at = now()
+    set refresh_locked_at = pg_catalog.now()
     from selected
     where entitlement.id = selected.id
     returning entitlement.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object(
+  select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
     'id', claimed.id,
     'storeId', claimed.store_id,
     'userId', claimed.user_id,
@@ -1653,17 +2162,23 @@ COMMENT ON FUNCTION "public"."create_store_with_trial"("store_name" "text", "sto
 
 CREATE FUNCTION "public"."current_warranty_usage"("target_store_id" "uuid") RETURNS bigint
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO ''
     AS $$
+declare
+  month_start timestamptz := pg_catalog.date_trunc(
+    'month',
+    pg_catalog.now()
+  );
 begin
   if not public.is_store_member(target_store_id) then
     raise exception 'STORE_ACCESS_DENIED';
   end if;
   return (
-    select count(*) from public.warranties
-    where store_id = target_store_id
-      and voided_at is null
-      and created_at >= date_trunc('month', now())
+    select pg_catalog.count(*)
+    from public.warranties warranty
+    where warranty.store_id = target_store_id
+      and warranty.created_at >= month_start
+      and warranty.created_at < month_start + interval '1 month'
   );
 end;
 $$;
@@ -1677,27 +2192,121 @@ ALTER FUNCTION "public"."current_warranty_usage"("target_store_id" "uuid") OWNER
 
 CREATE FUNCTION "public"."delete_current_account"() RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public', 'auth'
+    SET "search_path" TO ''
     AS $$
-declare owned_store public.stores%rowtype;
+declare
+  deleting_user_id uuid := auth.uid();
+  owned_store_id uuid;
+  owned_store public.stores%rowtype;
   successor uuid;
+  terminated_entitlement_id uuid;
 begin
-  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
-  for owned_store in select * from public.stores where owner_id = auth.uid()
+  if deleting_user_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+  for owned_store_id in
+    select store.id
+    from public.stores store
+    where store.owner_id = deleting_user_id
+    order by store.id
   loop
-    select user_id into successor from public.store_members
-    where store_id = owned_store.id and user_id <> auth.uid() and status = 'active'
-    order by case role when 'manager' then 0 else 1 end, joined_at
-    limit 1;
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        owned_store_id::text || ':store-subscription',
+        0
+      )
+    );
+    select store.*
+    into owned_store
+    from public.stores store
+    where store.id = owned_store_id
+      and store.owner_id = deleting_user_id
+    for update;
+    if not found then
+      continue;
+    end if;
+
+    select member.user_id
+    into successor
+    from public.store_members member
+    where member.store_id = owned_store.id
+      and member.user_id <> deleting_user_id
+      and member.status = 'active'
+    order by case member.role when 'manager' then 0 else 1 end,
+      member.joined_at,
+      member.user_id
+    limit 1
+    for update;
+
     if successor is null then
       delete from public.stores where id = owned_store.id;
     else
-      update public.store_members set role = 'owner' where store_id = owned_store.id and user_id = successor;
-      update public.stores set owner_id = successor where id = owned_store.id;
+      -- Subscription cancellation fires subscriptions_enforce_member_limit.
+      -- Promote the chosen successor first so that trigger can never suspend
+      -- the only account that will remain able to administer the store.
+      update public.store_members
+      set role = 'owner',
+          status = 'active'
+      where store_id = owned_store.id
+        and user_id = successor;
+
+      terminated_entitlement_id := null;
+      update public.store_entitlements entitlement
+      set status = 'canceled',
+          auto_renews = false,
+          period_end = least(
+            coalesce(entitlement.period_end, pg_catalog.now()),
+            pg_catalog.now()
+          ),
+          refresh_locked_at = null,
+          next_verification_at = pg_catalog.now(),
+          updated_at = pg_catalog.now()
+      where entitlement.store_id = owned_store.id
+        and entitlement.superseded_at is null
+        and entitlement.user_id = deleting_user_id
+      returning entitlement.id into terminated_entitlement_id;
+
+      if terminated_entitlement_id is not null then
+        update public.subscriptions subscription
+        set status = 'canceled',
+            current_period_end = least(
+              coalesce(subscription.current_period_end, pg_catalog.now()),
+              pg_catalog.now()
+            ),
+            auto_renews = false,
+            updated_at = pg_catalog.now()
+        where subscription.store_id = owned_store.id
+          and subscription.source = 'store'
+          and subscription.store_entitlement_id = terminated_entitlement_id;
+
+        insert into public.audit_logs (
+          store_id,
+          user_id,
+          action,
+          entity_type,
+          entity_id,
+          metadata
+        ) values (
+          owned_store.id,
+          deleting_user_id,
+          'store_subscription_terminated_for_account_deletion',
+          'store_entitlement',
+          terminated_entitlement_id,
+          pg_catalog.jsonb_build_object(
+            'successor_user_id', successor,
+            'external_billing_cancellation_required', true
+          )
+        );
+      end if;
+
+      update public.stores
+      set owner_id = successor
+      where id = owned_store.id;
     end if;
     successor := null;
+    terminated_entitlement_id := null;
   end loop;
-  delete from auth.users where id = auth.uid();
+  delete from auth.users where id = deleting_user_id;
 end;
 $$;
 
@@ -3015,19 +3624,48 @@ begin
   if (select auth.role()) <> 'service_role' then
     raise exception 'SERVICE_ROLE_REQUIRED';
   end if;
-  update public.store_entitlements
+  update public.store_entitlements entitlement
   set refresh_locked_at = null,
       refresh_failures = case
         when refresh_succeeded then 0
-        else least(refresh_failures + 1, 1000)
+        else least(coalesce(entitlement.refresh_failures, 0) + 1, 1000)
       end,
       next_verification_at = case
-        when not refresh_succeeded then now() + interval '15 minutes'
-        when status in ('active', 'grace') then now() + interval '6 hours'
-        when status = 'past_due' then now() + interval '1 hour'
-        else now() + interval '24 hours'
+        when not refresh_succeeded then
+          pg_catalog.now() + least(
+            interval '6 hours',
+            interval '5 minutes' * pg_catalog.power(
+              2::double precision,
+              least(coalesce(entitlement.refresh_failures, 0), 7)::double precision
+            )
+          )
+        when entitlement.environment = 'sandbox' then
+          least(
+            pg_catalog.now() + interval '5 minutes',
+            greatest(
+              pg_catalog.now() + interval '1 minute',
+              coalesce(
+                entitlement.period_end - interval '1 minute',
+                pg_catalog.now() + interval '5 minutes'
+              )
+            )
+          )
+        when entitlement.status in ('active', 'grace') then
+          least(
+            pg_catalog.now() + interval '6 hours',
+            greatest(
+              pg_catalog.now() + interval '5 minutes',
+              coalesce(
+                entitlement.period_end - interval '1 hour',
+                pg_catalog.now() + interval '6 hours'
+              )
+            )
+          )
+        when entitlement.status = 'past_due' then
+          pg_catalog.now() + interval '30 minutes'
+        else pg_catalog.now() + interval '24 hours'
       end
-  where id = target_entitlement_id;
+  where entitlement.id = target_entitlement_id;
 end;
 $$;
 
@@ -3175,6 +3813,43 @@ $$;
 
 
 ALTER FUNCTION "public"."reserve_store_purchase_verification"("target_store_id" "uuid", "target_user_id" "uuid") OWNER TO "postgres";
+
+--
+-- Name: resolve_google_purchase_token_binding("text"); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION "public"."resolve_google_purchase_token_binding"("raw_purchase_token" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  token_binding jsonb;
+begin
+  if (select auth.role()) <> 'service_role' then
+    raise exception 'SERVICE_ROLE_REQUIRED';
+  end if;
+  if char_length(coalesce(raw_purchase_token, '')) < 20 then
+    return null;
+  end if;
+
+  select pg_catalog.jsonb_build_object(
+    'store_id', token_link.store_id,
+    'user_id', token_link.user_id,
+    'original_transaction_id', token_link.original_transaction_id
+  )
+  into token_binding
+  from private.google_purchase_token_links token_link
+  where token_link.token_hash = pg_catalog.encode(
+    extensions.digest(raw_purchase_token, 'sha256'),
+    'hex'
+  );
+
+  return token_binding;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."resolve_google_purchase_token_binding"("raw_purchase_token" "text") OWNER TO "postgres";
 
 --
 -- Name: return_sale("uuid", "uuid", "jsonb", "text", "text"); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3950,6 +4625,27 @@ $$;
 ALTER FUNCTION "public"."update_store_member"("target_store_id" "uuid", "target_user_id" "uuid", "target_role" "text", "target_status" "text") OWNER TO "postgres";
 
 --
+-- Name: google_purchase_token_links; Type: TABLE; Schema: private; Owner: postgres
+--
+
+CREATE TABLE "private"."google_purchase_token_links" (
+    "token_hash" "text" NOT NULL,
+    "linked_token_hash" "text",
+    "platform" "text" DEFAULT 'google_play'::"text" NOT NULL,
+    "store_id" "uuid" NOT NULL,
+    "user_id" "uuid",
+    "original_transaction_id" "text" NOT NULL,
+    "first_seen_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "last_seen_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "google_purchase_token_links_linked_token_hash_check" CHECK ((("linked_token_hash" IS NULL) OR ("linked_token_hash" ~ '^[0-9a-f]{64}$'::"text"))),
+    CONSTRAINT "google_purchase_token_links_platform_check" CHECK (("platform" = 'google_play'::"text")),
+    CONSTRAINT "google_purchase_token_links_token_hash_check" CHECK (("token_hash" ~ '^[0-9a-f]{64}$'::"text"))
+);
+
+
+ALTER TABLE "private"."google_purchase_token_links" OWNER TO "postgres";
+
+--
 -- Name: invite_join_attempts; Type: TABLE; Schema: private; Owner: postgres
 --
 
@@ -3998,6 +4694,60 @@ CREATE TABLE "private"."store_receipt_secrets" (
 
 
 ALTER TABLE "private"."store_receipt_secrets" OWNER TO "postgres";
+
+--
+-- Name: store_sandbox_review_grants; Type: TABLE; Schema: private; Owner: postgres
+--
+
+CREATE TABLE "private"."store_sandbox_review_grants" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "window_id" "uuid" NOT NULL,
+    "store_id" "uuid" NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "platform" "text" NOT NULL,
+    "original_transaction_id" "text" NOT NULL,
+    "granted_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "expires_at" timestamp with time zone NOT NULL,
+    CONSTRAINT "store_sandbox_review_grants_check" CHECK (("expires_at" > "granted_at")),
+    CONSTRAINT "store_sandbox_review_grants_check1" CHECK (("expires_at" <= ("granted_at" + '24:00:00'::interval))),
+    CONSTRAINT "store_sandbox_review_grants_platform_check" CHECK (("platform" = ANY (ARRAY['app_store'::"text", 'google_play'::"text"])))
+);
+
+
+ALTER TABLE "private"."store_sandbox_review_grants" OWNER TO "postgres";
+
+--
+-- Name: store_sandbox_review_windows; Type: TABLE; Schema: private; Owner: postgres
+--
+
+CREATE TABLE "private"."store_sandbox_review_windows" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "platform" "text" NOT NULL,
+    "opens_at" timestamp with time zone NOT NULL,
+    "closes_at" timestamp with time zone NOT NULL,
+    "grant_ttl_seconds" integer DEFAULT 86400 NOT NULL,
+    "max_grants" integer DEFAULT 8 NOT NULL,
+    "grants_used" integer DEFAULT 0 NOT NULL,
+    "release_version" "text" NOT NULL,
+    "submission_id" "text" NOT NULL,
+    "created_by" "text" NOT NULL,
+    "note" "text" DEFAULT ''::"text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "revoked_at" timestamp with time zone,
+    CONSTRAINT "store_sandbox_review_windows_check" CHECK (("closes_at" > "opens_at")),
+    CONSTRAINT "store_sandbox_review_windows_check1" CHECK (("closes_at" <= ("opens_at" + '72:00:00'::interval))),
+    CONSTRAINT "store_sandbox_review_windows_check2" CHECK (("grants_used" <= "max_grants")),
+    CONSTRAINT "store_sandbox_review_windows_created_by_check" CHECK ((("char_length"("btrim"("created_by")) >= 3) AND ("char_length"("btrim"("created_by")) <= 200))),
+    CONSTRAINT "store_sandbox_review_windows_grant_ttl_seconds_check" CHECK ((("grant_ttl_seconds" >= 300) AND ("grant_ttl_seconds" <= 86400))),
+    CONSTRAINT "store_sandbox_review_windows_grants_used_check" CHECK (("grants_used" >= 0)),
+    CONSTRAINT "store_sandbox_review_windows_max_grants_check" CHECK ((("max_grants" >= 1) AND ("max_grants" <= 20))),
+    CONSTRAINT "store_sandbox_review_windows_platform_check" CHECK (("platform" = 'app_store'::"text")),
+    CONSTRAINT "store_sandbox_review_windows_release_version_check" CHECK ((("char_length"("btrim"("release_version")) >= 1) AND ("char_length"("btrim"("release_version")) <= 50))),
+    CONSTRAINT "store_sandbox_review_windows_submission_id_check" CHECK ((("char_length"("btrim"("submission_id")) >= 8) AND ("char_length"("btrim"("submission_id")) <= 100)))
+);
+
+
+ALTER TABLE "private"."store_sandbox_review_windows" OWNER TO "postgres";
 
 --
 -- Name: store_sandbox_testers; Type: TABLE; Schema: private; Owner: postgres
@@ -4852,7 +5602,7 @@ ALTER TABLE "public"."store_api_keys" OWNER TO "postgres";
 CREATE TABLE "public"."store_entitlements" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "store_id" "uuid" NOT NULL,
-    "user_id" "uuid" NOT NULL,
+    "user_id" "uuid",
     "platform" "text" NOT NULL,
     "product_id" "text" NOT NULL,
     "base_plan_id" "text" DEFAULT ''::"text" NOT NULL,
@@ -4871,11 +5621,14 @@ CREATE TABLE "public"."store_entitlements" (
     "next_verification_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "refresh_locked_at" timestamp with time zone,
     "refresh_failures" integer DEFAULT 0 NOT NULL,
+    "superseded_at" timestamp with time zone,
+    "superseded_by" "uuid",
     CONSTRAINT "store_entitlements_billing_cycle_check" CHECK (("billing_cycle" = ANY (ARRAY['monthly'::"text", 'yearly'::"text"]))),
     CONSTRAINT "store_entitlements_environment_check" CHECK (("environment" = ANY (ARRAY['sandbox'::"text", 'production'::"text"]))),
     CONSTRAINT "store_entitlements_platform_check" CHECK (("platform" = ANY (ARRAY['app_store'::"text", 'google_play'::"text"]))),
     CONSTRAINT "store_entitlements_refresh_failures_check" CHECK ((("refresh_failures" >= 0) AND ("refresh_failures" <= 1000))),
-    CONSTRAINT "store_entitlements_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'grace'::"text", 'past_due'::"text", 'canceled'::"text", 'expired'::"text", 'revoked'::"text"])))
+    CONSTRAINT "store_entitlements_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'grace'::"text", 'past_due'::"text", 'canceled'::"text", 'expired'::"text", 'revoked'::"text"]))),
+    CONSTRAINT "store_entitlements_superseded_state_check" CHECK (((("superseded_at" IS NULL) AND ("superseded_by" IS NULL)) OR ("superseded_at" IS NOT NULL)))
 );
 
 
@@ -5131,6 +5884,14 @@ CREATE TABLE "public"."webhook_deliveries" (
 ALTER TABLE "public"."webhook_deliveries" OWNER TO "postgres";
 
 --
+-- Name: google_purchase_token_links google_purchase_token_links_pkey; Type: CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."google_purchase_token_links"
+    ADD CONSTRAINT "google_purchase_token_links_pkey" PRIMARY KEY ("token_hash");
+
+
+--
 -- Name: invite_join_attempts invite_join_attempts_pkey; Type: CONSTRAINT; Schema: private; Owner: postgres
 --
 
@@ -5152,6 +5913,30 @@ ALTER TABLE ONLY "private"."store_purchase_verification_limits"
 
 ALTER TABLE ONLY "private"."store_receipt_secrets"
     ADD CONSTRAINT "store_receipt_secrets_pkey" PRIMARY KEY ("platform", "original_transaction_id");
+
+
+--
+-- Name: store_sandbox_review_grants store_sandbox_review_grants_pkey; Type: CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_grants"
+    ADD CONSTRAINT "store_sandbox_review_grants_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: store_sandbox_review_grants store_sandbox_review_grants_window_id_store_id_user_id_plat_key; Type: CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_grants"
+    ADD CONSTRAINT "store_sandbox_review_grants_window_id_store_id_user_id_plat_key" UNIQUE ("window_id", "store_id", "user_id", "platform");
+
+
+--
+-- Name: store_sandbox_review_windows store_sandbox_review_windows_pkey; Type: CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_windows"
+    ADD CONSTRAINT "store_sandbox_review_windows_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -5603,6 +6388,13 @@ ALTER TABLE ONLY "public"."webhook_deliveries"
 
 
 --
+-- Name: google_purchase_token_links_predecessor_idx; Type: INDEX; Schema: private; Owner: postgres
+--
+
+CREATE INDEX "google_purchase_token_links_predecessor_idx" ON "private"."google_purchase_token_links" USING "btree" ("linked_token_hash") WHERE ("linked_token_hash" IS NOT NULL);
+
+
+--
 -- Name: trial_device_claims_account_idx; Type: INDEX; Schema: private; Owner: postgres
 --
 
@@ -5876,17 +6668,17 @@ CREATE INDEX "sale_returns_sale_idx" ON "public"."sale_returns" USING "btree" ("
 
 
 --
--- Name: sales_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX "sales_id_store_id_key" ON "public"."sales" USING "btree" ("id", "store_id");
-
-
---
 -- Name: sales_branch_created_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX "sales_branch_created_idx" ON "public"."sales" USING "btree" ("branch_id", "created_at" DESC);
+
+
+--
+-- Name: sales_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "sales_id_store_id_key" ON "public"."sales" USING "btree" ("id", "store_id");
 
 
 --
@@ -5918,10 +6710,24 @@ CREATE INDEX "store_api_keys_store_created_idx" ON "public"."store_api_keys" USI
 
 
 --
+-- Name: store_entitlements_one_current_per_store; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "store_entitlements_one_current_per_store" ON "public"."store_entitlements" USING "btree" ("store_id") WHERE ("superseded_at" IS NULL);
+
+
+--
 -- Name: store_entitlements_refresh_due_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX "store_entitlements_refresh_due_idx" ON "public"."store_entitlements" USING "btree" ("next_verification_at", "verified_at") WHERE ("status" = ANY (ARRAY['active'::"text", 'grace'::"text", 'past_due'::"text"]));
+CREATE INDEX "store_entitlements_refresh_due_idx" ON "public"."store_entitlements" USING "btree" ("next_verification_at", "verified_at") WHERE (("superseded_at" IS NULL) AND ("status" = ANY (ARRAY['active'::"text", 'grace'::"text", 'past_due'::"text"])));
+
+
+--
+-- Name: store_entitlements_store_id_id_unique; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "store_entitlements_store_id_id_unique" ON "public"."store_entitlements" USING "btree" ("store_id", "id");
 
 
 --
@@ -6422,6 +7228,30 @@ CREATE TRIGGER "warranties_set_updated_at" BEFORE UPDATE ON "public"."warranties
 
 
 --
+-- Name: google_purchase_token_links google_purchase_token_links_platform_original_transaction__fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."google_purchase_token_links"
+    ADD CONSTRAINT "google_purchase_token_links_platform_original_transaction__fkey" FOREIGN KEY ("platform", "original_transaction_id") REFERENCES "public"."store_entitlements"("platform", "original_transaction_id") ON DELETE CASCADE;
+
+
+--
+-- Name: google_purchase_token_links google_purchase_token_links_store_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."google_purchase_token_links"
+    ADD CONSTRAINT "google_purchase_token_links_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+
+
+--
+-- Name: google_purchase_token_links google_purchase_token_links_user_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."google_purchase_token_links"
+    ADD CONSTRAINT "google_purchase_token_links_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+--
 -- Name: invite_join_attempts invite_join_attempts_user_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
 --
 
@@ -6443,6 +7273,38 @@ ALTER TABLE ONLY "private"."store_purchase_verification_limits"
 
 ALTER TABLE ONLY "private"."store_purchase_verification_limits"
     ADD CONSTRAINT "store_purchase_verification_limits_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+--
+-- Name: store_receipt_secrets store_receipt_secrets_entitlement_fk; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_receipt_secrets"
+    ADD CONSTRAINT "store_receipt_secrets_entitlement_fk" FOREIGN KEY ("platform", "original_transaction_id") REFERENCES "public"."store_entitlements"("platform", "original_transaction_id") ON DELETE CASCADE;
+
+
+--
+-- Name: store_sandbox_review_grants store_sandbox_review_grants_store_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_grants"
+    ADD CONSTRAINT "store_sandbox_review_grants_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+
+
+--
+-- Name: store_sandbox_review_grants store_sandbox_review_grants_user_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_grants"
+    ADD CONSTRAINT "store_sandbox_review_grants_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+--
+-- Name: store_sandbox_review_grants store_sandbox_review_grants_window_id_fkey; Type: FK CONSTRAINT; Schema: private; Owner: postgres
+--
+
+ALTER TABLE ONLY "private"."store_sandbox_review_grants"
+    ADD CONSTRAINT "store_sandbox_review_grants_window_id_fkey" FOREIGN KEY ("window_id") REFERENCES "private"."store_sandbox_review_windows"("id") ON DELETE RESTRICT;
 
 
 --
@@ -7038,11 +7900,19 @@ ALTER TABLE ONLY "public"."store_entitlements"
 
 
 --
+-- Name: store_entitlements store_entitlements_superseded_by_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."store_entitlements"
+    ADD CONSTRAINT "store_entitlements_superseded_by_fk" FOREIGN KEY ("superseded_by") REFERENCES "public"."store_entitlements"("id") ON DELETE SET NULL;
+
+
+--
 -- Name: store_entitlements store_entitlements_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."store_entitlements"
-    ADD CONSTRAINT "store_entitlements_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "store_entitlements_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
 
 --
@@ -7118,6 +7988,14 @@ ALTER TABLE ONLY "public"."subscription_requests"
 
 
 --
+-- Name: subscriptions subscriptions_current_store_entitlement_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."subscriptions"
+    ADD CONSTRAINT "subscriptions_current_store_entitlement_fk" FOREIGN KEY ("store_id", "store_entitlement_id") REFERENCES "public"."store_entitlements"("store_id", "id");
+
+
+--
 -- Name: subscriptions subscriptions_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -7150,19 +8028,19 @@ ALTER TABLE ONLY "public"."suppliers"
 
 
 --
--- Name: warranties warranties_branch_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY "public"."warranties"
-    ADD CONSTRAINT "warranties_branch_store_fk" FOREIGN KEY ("branch_id", "store_id") REFERENCES "public"."branches"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("branch_id");
-
-
---
 -- Name: warranties warranties_branch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
     ADD CONSTRAINT "warranties_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "public"."branches"("id") ON DELETE SET NULL;
+
+
+--
+-- Name: warranties warranties_branch_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_branch_store_fk" FOREIGN KEY ("branch_id", "store_id") REFERENCES "public"."branches"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("branch_id");
 
 
 --
@@ -7174,14 +8052,6 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
--- Name: warranties warranties_customer_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY "public"."warranties"
-    ADD CONSTRAINT "warranties_customer_store_fk" FOREIGN KEY ("customer_id", "store_id") REFERENCES "public"."customers"("id", "store_id") ON UPDATE RESTRICT ON DELETE RESTRICT;
-
-
---
 -- Name: warranties warranties_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -7190,11 +8060,11 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
--- Name: warranties warranties_product_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warranties warranties_customer_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
-    ADD CONSTRAINT "warranties_product_store_fk" FOREIGN KEY ("product_id", "store_id") REFERENCES "public"."products"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("product_id");
+    ADD CONSTRAINT "warranties_customer_store_fk" FOREIGN KEY ("customer_id", "store_id") REFERENCES "public"."customers"("id", "store_id") ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 
 --
@@ -7206,11 +8076,11 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
--- Name: warranties warranties_sale_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warranties warranties_product_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
-    ADD CONSTRAINT "warranties_sale_store_fk" FOREIGN KEY ("sale_id", "store_id") REFERENCES "public"."sales"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("sale_id");
+    ADD CONSTRAINT "warranties_product_store_fk" FOREIGN KEY ("product_id", "store_id") REFERENCES "public"."products"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("product_id");
 
 
 --
@@ -7222,6 +8092,14 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
+-- Name: warranties warranties_sale_line_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_sale_line_fk" FOREIGN KEY ("sale_line_id") REFERENCES "public"."sale_lines"("id") ON DELETE SET NULL;
+
+
+--
 -- Name: warranties warranties_sale_line_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -7230,11 +8108,11 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
--- Name: warranties warranties_sale_line_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warranties warranties_sale_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
-    ADD CONSTRAINT "warranties_sale_line_fk" FOREIGN KEY ("sale_line_id") REFERENCES "public"."sale_lines"("id") ON DELETE SET NULL;
+    ADD CONSTRAINT "warranties_sale_store_fk" FOREIGN KEY ("sale_id", "store_id") REFERENCES "public"."sales"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("sale_id");
 
 
 --
@@ -7832,6 +8710,14 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
+-- Name: FUNCTION "claim_store_sandbox_access"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "external_original_transaction_id" "text", "allow_new_grant" boolean); Type: ACL; Schema: private; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION "private"."claim_store_sandbox_access"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "external_original_transaction_id" "text", "allow_new_grant" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."claim_store_sandbox_access"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "external_original_transaction_id" "text", "allow_new_grant" boolean) TO "service_role";
+
+
+--
 -- Name: FUNCTION "create_sale_unlocked"("target_store_id" "uuid", "target_branch_id" "uuid", "target_customer_id" "uuid", "target_customer_name" "text", "target_customer_phone" "text", "sale_lines_input" "jsonb", "sale_payments_input" "jsonb", "order_discount" numeric, "target_notes" "text"); Type: ACL; Schema: private; Owner: postgres
 --
 
@@ -7868,15 +8754,14 @@ GRANT SELECT ON TABLE "public"."subscriptions" TO "authenticated";
 --
 
 REVOKE ALL ON FUNCTION "public"."apply_verified_store_entitlement"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."apply_verified_store_entitlement"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean) TO "service_role";
 
 
 --
--- Name: FUNCTION "apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text"); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION "apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text", "purchase_token_hash" "text", "linked_purchase_token_hash" "text", "expected_current_purchase_token_hash" "text"); Type: ACL; Schema: public; Owner: postgres
 --
 
-REVOKE ALL ON FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text") TO "service_role";
+REVOKE ALL ON FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text", "purchase_token_hash" "text", "linked_purchase_token_hash" "text", "expected_current_purchase_token_hash" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."apply_verified_store_entitlement_with_receipt"("target_store_id" "uuid", "target_user_id" "uuid", "billing_platform" "text", "billed_product_id" "text", "billed_base_plan_id" "text", "external_transaction_id" "text", "external_original_transaction_id" "text", "entitlement_status" "text", "store_environment" "text", "entitlement_period_start" timestamp with time zone, "entitlement_period_end" timestamp with time zone, "entitlement_auto_renews" boolean, "raw_purchase_token" "text", "purchase_token_hash" "text", "linked_purchase_token_hash" "text", "expected_current_purchase_token_hash" "text") TO "service_role";
 
 
 --
@@ -8290,6 +9175,14 @@ GRANT ALL ON FUNCTION "public"."reserve_api_request"("target_key_id" "uuid", "ta
 
 REVOKE ALL ON FUNCTION "public"."reserve_store_purchase_verification"("target_store_id" "uuid", "target_user_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."reserve_store_purchase_verification"("target_store_id" "uuid", "target_user_id" "uuid") TO "service_role";
+
+
+--
+-- Name: FUNCTION "resolve_google_purchase_token_binding"("raw_purchase_token" "text"); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION "public"."resolve_google_purchase_token_binding"("raw_purchase_token" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."resolve_google_purchase_token_binding"("raw_purchase_token" "text") TO "service_role";
 
 
 --
@@ -8965,4 +9858,4 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "supabase_admin" IN SCHEMA "public" GRANT ALL 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Q2BOXDzbcDTh9rbJcAirdwZrKGvFng6jHn0EHVvf4Mcn2EMBIVMaF4GztWovwEC
+\unrestrict Hf0IjshAfeh5GTy3LjzAS2aaH6ZZZufnvvVxcH9euoLoR7u4PKBkMAdTtscm94o

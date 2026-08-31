@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_theme.dart';
 import '../core/date_utils.dart';
@@ -18,6 +19,29 @@ class SubscriptionScreen extends StatefulWidget {
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   BillingCycle _cycle = BillingCycle.yearly;
   String? _selectedPlanId;
+  String? _selectionSignature;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final subscription = AppScope.of(context).subscription;
+    if (subscription == null) return;
+    final signature = [
+      subscription.id,
+      subscription.plan.id,
+      subscription.billingCycle,
+      subscription.billingProvider,
+      subscription.periodEndsAt?.toIso8601String(),
+    ].join(':');
+    if (_selectionSignature == signature) return;
+    _selectionSignature = signature;
+    _selectedPlanId = subscription.plan.id;
+    _cycle = switch (subscription.billingCycle) {
+      'monthly' => BillingCycle.monthly,
+      'yearly' => BillingCycle.yearly,
+      _ => BillingCycle.yearly,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +60,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ? null
         : plans.firstWhere((plan) => plan.id == selectedPlanId);
     final canManage = controller.membership!.role.canManageSubscription;
+    final currentProvider = StoreBillingPlatformText.fromValue(
+      subscription.billingProvider,
+    );
+    final providerConflict =
+        subscription.hasUnexpiredStorePeriod &&
+        currentProvider != null &&
+        controller.storeBillingPlatform != StoreBillingPlatform.unavailable &&
+        currentProvider != controller.storeBillingPlatform;
     final storeBusy = const {
       StoreBillingState.loading,
       StoreBillingState.purchasing,
+      StoreBillingState.restoring,
       StoreBillingState.pending,
+    }.contains(controller.storeBillingState);
+    final restoreBusy = const {
+      StoreBillingState.loading,
+      StoreBillingState.purchasing,
+      StoreBillingState.restoring,
     }.contains(controller.storeBillingState);
 
     return Scaffold(
@@ -53,15 +91,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               const MessageBanner(),
               _CurrentPlan(
                 subscription: subscription,
-                platform: controller.storeBillingPlatform,
-                onManage: subscription.isStoreSubscription
+                platform: currentProvider ?? controller.storeBillingPlatform,
+                onManage: canManage && subscription.isStoreSubscription
                     ? controller.openStoreSubscriptionManagement
                     : null,
-                onRestore: canManage && !storeBusy && !controller.isDemo
+                onRestore:
+                    canManage &&
+                        !restoreBusy &&
+                        !providerConflict &&
+                        !controller.isDemo
                     ? controller.restoreStorePurchases
                     : null,
                 canManage: canManage,
               ),
+              if (providerConflict) ...[
+                const SizedBox(height: 12),
+                _ProviderConflictNotice(provider: currentProvider),
+              ],
               const SizedBox(height: 12),
               const _RecordContinuityNotice(),
               const SizedBox(height: 12),
@@ -155,10 +201,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   sameStoreSelection:
                       subscription.isStoreSubscription &&
                       subscription.isUsable &&
+                      currentProvider == controller.storeBillingPlatform &&
                       selectedPlan.id == subscription.plan.id &&
                       subscription.billingCycle == _cycle.value,
-                  canBuy: canManage && !storeBusy && !controller.isDemo,
-                  onBuy: controller.purchaseSubscription,
+                  canBuy:
+                      canManage &&
+                      !storeBusy &&
+                      !providerConflict &&
+                      !controller.isDemo &&
+                      controller.storeBillingState == StoreBillingState.ready,
+                  onBuy: (offer) => _confirmPurchase(
+                    context,
+                    controller.purchaseSubscription,
+                    subscription,
+                    offer,
+                  ),
                 ),
               ] else
                 const _MissingPlansNotice(),
@@ -170,6 +227,92 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
     );
   }
+
+  Future<void> _confirmPurchase(
+    BuildContext context,
+    ValueChanged<StoreProductOffer> onConfirmed,
+    SubscriptionInfo current,
+    StoreProductOffer offer,
+  ) async {
+    final isDowngrade =
+        DamanakStoreCatalog.planRank(offer.planId) <
+        DamanakStoreCatalog.planRank(current.plan.id);
+    final changesCycle =
+        current.billingCycle != null &&
+        current.billingCycle != offer.cycle.value;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        title: const Text('تأكيد اختيار الاشتراك'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'من ${current.plan.name} إلى ${_planName(offer.planId)} • '
+              '${offer.cycle.label}',
+              style: Theme.of(dialogContext).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${offer.localizedPrice} حسب متجر التطبيقات. '
+              'يعرض المتجر السعر والعملة وموعد تطبيق التغيير النهائي قبل التأكيد.',
+            ),
+            if (isDowngrade) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'تنبيه: خفض الباقة يقلل حدود الضمانات والفريق والفروع، وقد يوقف مزايا الباقة الأعلى بعد تطبيق التغيير.',
+              ),
+            ] else if (changesCycle) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'ستتغير دورة الفوترة. راجع تاريخ التجديد الظاهر في نافذة المتجر قبل الإقرار.',
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('رجوع'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('المتابعة إلى المتجر'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) onConfirmed(offer);
+  }
+
+  String _planName(String id) => switch (id) {
+    'starter' => 'بداية',
+    'growth' => 'نمو',
+    'scale' => 'توسع',
+    _ => id,
+  };
+}
+
+class _ProviderConflictNotice extends StatelessWidget {
+  const _ProviderConflictNotice({required this.provider});
+
+  final StoreBillingPlatform? provider;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: context.colors.primaryContainer,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Text(
+      'الاشتراك الحالي مرتبط بـ${provider?.label ?? 'متجر آخر'}. '
+      'أدره أو أوقف تجديده هناك أولاً؛ يمنع ضمانك بدء اشتراك ثانٍ من متجر هذا الجهاز أثناء بقاء الفترة الحالية.',
+      style: TextStyle(color: context.colors.onPrimaryContainer, height: 1.5),
+    ),
+  );
 }
 
 class _MissingPlansNotice extends StatelessWidget {
@@ -216,6 +359,16 @@ class _CurrentPlan extends StatelessWidget {
       'past_due' => 'مشكلة في التجديد',
       _ => 'متوقف',
     };
+    final cycleLabel = switch (subscription.billingCycle) {
+      'monthly' => 'شهري',
+      'yearly' => 'سنوي',
+      _ => null,
+    };
+    final periodLabel = subscription.status == 'trialing'
+        ? 'تنتهي التجربة في'
+        : subscription.autoRenews
+        ? 'يتجدد في'
+        : 'ينتهي في';
     final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -311,9 +464,17 @@ class _CurrentPlan extends StatelessWidget {
                 subscription.plan.branchLabel,
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
+              if (subscription.isStoreSubscription)
+                Text(
+                  [?cycleLabel, platform.label].join(' • '),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
               if (subscription.periodEndsAt != null)
                 Text(
-                  'الفترة حتى ${formatDate(subscription.periodEndsAt!)}',
+                  '$periodLabel ${formatDate(subscription.periodEndsAt!)}',
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 12,
@@ -436,12 +597,14 @@ class _StoreStatus extends StatelessWidget {
     final colors = context.colors;
     final loading =
         state == StoreBillingState.loading ||
-        state == StoreBillingState.purchasing;
+        state == StoreBillingState.purchasing ||
+        state == StoreBillingState.restoring;
     final title = switch (state) {
       StoreBillingState.ready => '${platform.label} متصل',
       StoreBillingState.pending => 'الدفعة قيد المعالجة',
       StoreBillingState.loading => 'جارٍ جلب أسعار المتجر',
       StoreBillingState.purchasing => 'نافذة المتجر مفتوحة',
+      StoreBillingState.restoring => 'جارٍ التحقق من المشتريات السابقة',
       _ => 'الفوترة غير متاحة الآن',
     };
     return Semantics(
@@ -663,17 +826,23 @@ class _PlanBadge extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: foreground),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(icon, size: 14, color: foreground),
+            ),
             const SizedBox(width: 3),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -699,12 +868,18 @@ class _PlanMetric extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: colors.primary),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 16, color: colors.primary),
+          ),
           const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -744,12 +919,53 @@ class _BillingTerms extends StatelessWidget {
   const _BillingTerms();
 
   @override
-  Widget build(BuildContext context) => Text(
-    'تعرض نافذة المتجر السعر والعملة والفترة النهائية قبل التأكيد. يتجدد الاشتراك تلقائياً ويمكنك إدارته أو إلغاؤه من App Store أو Google Play. لا تُفعّل الدفعات المعلّقة. الحصة الشهرية هي الأساس، وقد يتيح النظام هامش تشغيل تلقائياً حتى 10% لتجنب توقف العمل المفاجئ.',
-    style: TextStyle(
-      color: context.colors.onSurfaceVariant,
-      fontSize: 11,
-      height: 1.55,
-    ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'تعرض نافذة المتجر السعر والعملة والفترة النهائية قبل التأكيد. يتجدد الاشتراك تلقائياً ويمكنك إدارته أو إلغاؤه من App Store أو Google Play. لا تُفعّل الدفعات المعلّقة. الحصة الشهرية هي الأساس، وقد يتيح النظام هامش تشغيل تلقائياً حتى 10% لتجنب توقف العمل المفاجئ.',
+        style: TextStyle(
+          color: context.colors.onSurfaceVariant,
+          fontSize: 11,
+          height: 1.55,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 4,
+        runSpacing: 2,
+        children: [
+          TextButton(
+            onPressed: () => _openLegalPage(context, _termsUri),
+            child: const Text('شروط الاستخدام'),
+          ),
+          TextButton(
+            onPressed: () => _openLegalPage(context, _privacyUri),
+            child: const Text('سياسة الخصوصية'),
+          ),
+        ],
+      ),
+    ],
   );
+
+  static final Uri _termsUri = Uri.parse(
+    'https://exxayzlklvgeyqhvtzgi.supabase.co/functions/v1/legal/terms',
+  );
+  static final Uri _privacyUri = Uri.parse(
+    'https://exxayzlklvgeyqhvtzgi.supabase.co/functions/v1/legal/privacy',
+  );
+
+  Future<void> _openLegalPage(BuildContext context, Uri uri) async {
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر فتح الصفحة. حاول مرة أخرى.')),
+      );
+    }
+  }
 }

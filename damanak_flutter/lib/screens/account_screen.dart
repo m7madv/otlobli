@@ -217,7 +217,7 @@ class AccountScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 4.4.0',
+                'ضمانك للأعمال 4.5.0',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),
@@ -232,18 +232,52 @@ class AccountScreen extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final controller = AppScope.of(context);
+    final hasStoreSubscription = controller.subscription?.source == 'store';
+    final billingStore = switch (controller.subscription?.billingProvider) {
+      'app_store' => 'App Store',
+      'google_play' => 'Google Play',
+      _ => 'متجر التطبيقات',
+    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('حذف الحساب نهائياً؟'),
-        content: const Text(
-          'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+            ),
+            if (hasStoreSubscription) ...[
+              const SizedBox(height: 12),
+              Text(
+                'تنبيه: حذف حساب ضمانك لا يلغي الاشتراك أو يوقف الفوترة لدى $billingStore. '
+                'ألغِ التجديد من المتجر لتجنب رسوم لاحقة. يمكنك إدارة الاشتراك أولاً أو المتابعة بالحذف الآن.',
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('إلغاء'),
           ),
+          if (hasStoreSubscription)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext, false);
+                await controller.openStoreSubscriptionManagement();
+              },
+              child: const Text('إدارة الاشتراك'),
+            ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: FilledButton.styleFrom(
@@ -255,7 +289,7 @@ class AccountScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await AppScope.of(context).deleteAccount();
+      await controller.deleteAccount();
     }
   }
 }

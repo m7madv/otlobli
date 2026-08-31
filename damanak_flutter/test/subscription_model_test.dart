@@ -21,6 +21,7 @@ SubscriptionInfo _subscription({
   required String source,
   DateTime? trialEndsAt,
   DateTime? periodEndsAt,
+  DateTime? lastVerifiedAt,
 }) => SubscriptionInfo(
   id: 'subscription',
   status: status,
@@ -29,6 +30,7 @@ SubscriptionInfo _subscription({
   periodEndsAt: periodEndsAt,
   usedWarranties: 0,
   source: source,
+  lastVerifiedAt: lastVerifiedAt,
 );
 
 void main() {
@@ -63,6 +65,46 @@ void main() {
         periodEndsAt: DateTime.now().add(const Duration(days: 1)),
       ).isUsable,
       isTrue,
+    );
+  });
+
+  test('حارس مزود الدفع يستخدم زمن الخادم والحالة لا ساعة الجهاز وحدها', () {
+    final verifiedAt = DateTime.utc(2026, 8, 31, 12);
+    expect(
+      _subscription(
+        status: 'active',
+        source: 'store',
+        periodEndsAt: verifiedAt.add(const Duration(days: 1)),
+        lastVerifiedAt: verifiedAt,
+      ).hasUnexpiredStorePeriod,
+      isTrue,
+    );
+    expect(
+      _subscription(
+        status: 'canceled',
+        source: 'store',
+        periodEndsAt: verifiedAt.add(const Duration(days: 30)),
+        lastVerifiedAt: verifiedAt,
+      ).hasUnexpiredStorePeriod,
+      isFalse,
+    );
+    expect(
+      _subscription(
+        status: 'active',
+        source: 'store',
+        periodEndsAt: verifiedAt.subtract(const Duration(seconds: 1)),
+        lastVerifiedAt: verifiedAt,
+      ).hasUnexpiredStorePeriod,
+      isFalse,
+    );
+    expect(
+      _subscription(
+        status: 'active',
+        source: 'store',
+        periodEndsAt: verifiedAt.add(const Duration(days: 1)),
+      ).hasUnexpiredStorePeriod,
+      isTrue,
+      reason: 'غياب زمن تحقق الخادم يجب أن يمنع فتح مزود ثانٍ احتياطياً',
     );
   });
 }

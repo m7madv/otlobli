@@ -354,7 +354,9 @@ class _ReviewBillingService implements StoreBillingService {
   Stream<List<StorePurchaseEvent>> get purchaseUpdates => const Stream.empty();
 
   @override
-  Future<StoreProductLoadResult> loadProducts() async {
+  Future<StoreProductLoadResult> loadProducts({
+    required String accountId,
+  }) async {
     final offers = _prices.entries.map((entry) {
       final parts = entry.key.split(':');
       final planId = parts.first;
@@ -385,16 +387,27 @@ class _ReviewBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required BillingCycle? currentCycle,
+    required bool requireExistingSubscription,
   }) async {}
 
   @override
-  Future<void> restorePurchases() async {}
+  Future<StoreRestoreResult> restorePurchases({
+    required String accountId,
+    required String storeId,
+  }) async => const StoreRestoreResult(
+    platform: StoreBillingPlatform.appStore,
+    restoredPurchases: 0,
+  );
 
   @override
   Future<void> completePurchase(StorePurchaseEvent event) async {}
 
   @override
-  Future<bool> openSubscriptionManagement() async => true;
+  Future<bool> openSubscriptionManagement(
+    StoreBillingPlatform provider, {
+    String? productId,
+  }) async => true;
 
   @override
   Future<void> dispose() async {}

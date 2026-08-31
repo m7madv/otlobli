@@ -15,6 +15,296 @@ import '../models/store_billing.dart';
 typedef StoreProductQuery =
     Future<ProductDetailsResponse> Function(Set<String> productIds);
 
+typedef GoogleSubscriptionQuery = Future<PurchasesResultWrapper> Function();
+
+@visibleForTesting
+class GoogleSubscriptionSnapshot {
+  const GoogleSubscriptionSnapshot({
+    required this.purchased,
+    required this.pending,
+    required this.accountMismatchDetected,
+  });
+
+  final List<GooglePlayPurchaseDetails> purchased;
+  final List<GooglePlayPurchaseDetails> pending;
+  final bool accountMismatchDetected;
+
+  GooglePlayPurchaseDetails? get latestPurchase => purchased.firstOrNull;
+
+  int get pendingReplacementCount => purchased
+      .where(
+        (purchase) =>
+            purchase.billingClientPurchase.pendingPurchaseUpdate != null,
+      )
+      .length;
+}
+
+@visibleForTesting
+GoogleSubscriptionSnapshot selectGoogleSubscriptionPurchases({
+  required PurchasesResultWrapper response,
+  required String accountId,
+  bool includeUnboundForRestore = false,
+}) {
+  // queryPurchases in in_app_purchase_android 0.5.0 force-fills the legacy
+  // responseCode with OK. billingResult carries the actual BillingClient
+  // outcome, so both fields must be successful before an empty list is trusted.
+  final billingResponseCode = response.billingResult.responseCode;
+  if (response.responseCode != BillingResponse.ok ||
+      billingResponseCode != BillingResponse.ok) {
+    final failureCode = billingResponseCode != BillingResponse.ok
+        ? billingResponseCode
+        : response.responseCode;
+    throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_FAILED:${failureCode.name}');
+  }
+
+  final purchased = <GooglePlayPurchaseDetails>[];
+  final pending = <GooglePlayPurchaseDetails>[];
+  var accountMismatchDetected = false;
+  for (final wrapper in response.purchasesList) {
+    final catalogPurchases = GooglePlayPurchaseDetails.fromPurchase(wrapper)
+        .where(
+          (purchase) =>
+              DamanakStoreCatalog.googleProductIds.contains(purchase.productID),
+        );
+    if (catalogPurchases.isEmpty) continue;
+
+    final purchaseAccountId = wrapper.obfuscatedAccountId?.trim();
+    final accountIsMissing =
+        purchaseAccountId == null || purchaseAccountId.isEmpty;
+    // A normal purchase/replacement remains strict. Only an explicit restore
+    // may forward one unbound out-of-app candidate to the backend, where Play's
+    // expired identifiers and token lineage are authoritative.
+    if (purchaseAccountId != accountId &&
+        !(includeUnboundForRestore && accountIsMissing)) {
+      accountMismatchDetected = true;
+      continue;
+    }
+    for (final purchase in catalogPurchases) {
+      switch (purchase.status) {
+        case PurchaseStatus.purchased:
+        case PurchaseStatus.restored:
+          purchased.add(purchase);
+        case PurchaseStatus.pending:
+          pending.add(purchase);
+        case PurchaseStatus.canceled:
+        case PurchaseStatus.error:
+          break;
+      }
+    }
+  }
+
+  int newestFirst(
+    GooglePlayPurchaseDetails first,
+    GooglePlayPurchaseDetails second,
+  ) {
+    final firstTime = int.tryParse(first.transactionDate ?? '') ?? 0;
+    final secondTime = int.tryParse(second.transactionDate ?? '') ?? 0;
+    return secondTime.compareTo(firstTime);
+  }
+
+  purchased.sort(newestFirst);
+  pending.sort(newestFirst);
+  return GoogleSubscriptionSnapshot(
+    purchased: List.unmodifiable(purchased),
+    pending: List.unmodifiable(pending),
+    accountMismatchDetected: accountMismatchDetected,
+  );
+}
+
+@visibleForTesting
+List<GooglePlayPurchaseDetails> validatedGoogleSubscriptionsForRestore(
+  GoogleSubscriptionSnapshot snapshot, {
+  required String storeId,
+}) {
+  final candidates = [...snapshot.purchased, ...snapshot.pending];
+  final matchingStore = candidates
+      .where((purchase) {
+        final purchaseStoreId = purchase
+            .billingClientPurchase
+            .obfuscatedProfileId
+            ?.trim();
+        return purchaseStoreId == storeId;
+      })
+      .toList(growable: false);
+  if (matchingStore.length > 1) {
+    throw StateError('GOOGLE_MULTIPLE_SUBSCRIPTIONS');
+  }
+  if (matchingStore.isNotEmpty) return List.unmodifiable(matchingStore);
+
+  final unbound = candidates
+      .where((purchase) {
+        final purchaseStoreId = purchase
+            .billingClientPurchase
+            .obfuscatedProfileId
+            ?.trim();
+        return purchaseStoreId == null || purchaseStoreId.isEmpty;
+      })
+      .toList(growable: false);
+  if (unbound.length > 1) {
+    throw StateError('GOOGLE_MULTIPLE_SUBSCRIPTIONS');
+  }
+  return List.unmodifiable(unbound);
+}
+
+@visibleForTesting
+GooglePlayPurchaseDetails? validatedGoogleSubscriptionForPurchase({
+  required GoogleSubscriptionSnapshot snapshot,
+  required String storeId,
+  required bool requireExistingSubscription,
+}) {
+  final candidates = [...snapshot.purchased, ...snapshot.pending];
+  final hasUnboundLegacyStore = candidates.any((purchase) {
+    final purchaseStoreId = purchase.billingClientPurchase.obfuscatedProfileId
+        ?.trim();
+    return purchaseStoreId == null || purchaseStoreId.isEmpty;
+  });
+  // An unbound legacy token can still be the backend's current receipt for this
+  // store. Even when another candidate is explicitly store-bound, replacing it
+  // without a token-level server preflight could mutate the wrong Play lineage.
+  if (hasUnboundLegacyStore) {
+    throw StateError('GOOGLE_SUBSCRIPTION_STORE_CONFLICT');
+  }
+
+  final matchingStore = candidates
+      .where((purchase) {
+        final purchaseStoreId = purchase
+            .billingClientPurchase
+            .obfuscatedProfileId
+            ?.trim();
+        return purchaseStoreId == storeId;
+      })
+      .toList(growable: false);
+  if (matchingStore.length > 1) {
+    throw StateError('GOOGLE_MULTIPLE_SUBSCRIPTIONS');
+  }
+  if (matchingStore.isNotEmpty) {
+    final existing = matchingStore.single;
+    if (existing.status == PurchaseStatus.pending ||
+        existing.billingClientPurchase.pendingPurchaseUpdate != null) {
+      throw StateError('GOOGLE_SUBSCRIPTION_PENDING');
+    }
+    // Play can know about an out-of-app purchase before the Damanak backend has
+    // reconciled it. Never reinterpret that owned item as a fresh purchase or a
+    // replacement based on a missing server cycle; explicit restore verifies it.
+    if (!requireExistingSubscription) {
+      throw StateError('GOOGLE_EXISTING_SUBSCRIPTION_RESTORE_REQUIRED');
+    }
+    return existing;
+  }
+
+  if (snapshot.accountMismatchDetected) {
+    throw StateError('GOOGLE_SUBSCRIPTION_ACCOUNT_CONFLICT');
+  }
+
+  final hasDifferentStore = candidates.any((purchase) {
+    final purchaseStoreId = purchase.billingClientPurchase.obfuscatedProfileId
+        ?.trim();
+    return purchaseStoreId != null &&
+        purchaseStoreId.isNotEmpty &&
+        purchaseStoreId != storeId;
+  });
+  // A token explicitly bound elsewhere must never become this store's old
+  // purchase. If this store has no exact candidate, do not adopt another one.
+  if (hasDifferentStore) {
+    throw StateError('GOOGLE_SUBSCRIPTION_STORE_CONFLICT');
+  }
+  if (requireExistingSubscription) {
+    throw StateError('GOOGLE_EXISTING_SUBSCRIPTION_NOT_FOUND');
+  }
+  return null;
+}
+
+@visibleForTesting
+ReplacementMode googleSubscriptionReplacementMode({
+  required String existingProductId,
+  required BillingCycle? existingCycle,
+  required StoreProductOffer replacement,
+}) {
+  final existingPlanId = DamanakStoreCatalog.planIdFromProduct(
+    existingProductId,
+  );
+  final existingRank = DamanakStoreCatalog.planRank(existingPlanId);
+  final replacementRank = DamanakStoreCatalog.planRank(replacement.planId);
+  if (existingRank == 0 ||
+      replacementRank == 0 ||
+      !DamanakStoreCatalog.googleProductIds.contains(replacement.productId)) {
+    throw StateError('GOOGLE_SUBSCRIPTION_TRANSITION_INVALID');
+  }
+
+  // A lower entitlement always waits until the already-paid higher tier ends,
+  // regardless of a simultaneous cycle change.
+  if (replacementRank < existingRank) return ReplacementMode.deferred;
+
+  if (existingCycle == null) {
+    throw StateError('GOOGLE_EXISTING_CYCLE_UNKNOWN');
+  }
+  if (existingProductId == replacement.productId &&
+      existingCycle == replacement.cycle) {
+    throw StateError('GOOGLE_SUBSCRIPTION_ALREADY_ACTIVE');
+  }
+
+  if (existingCycle != replacement.cycle) {
+    // A cross-tier cycle change must never grant a higher entitlement while
+    // deferring its price until renewal. Start that upgrade at full price.
+    // For a base-plan switch inside the same subscription, Google only permits
+    // full-price or no-proration replacement modes.
+    if (replacementRank > existingRank) {
+      return ReplacementMode.chargeFullPrice;
+    }
+    return switch ((existingCycle, replacement.cycle)) {
+      (BillingCycle.monthly, BillingCycle.yearly) =>
+        ReplacementMode.chargeFullPrice,
+      (BillingCycle.yearly, BillingCycle.monthly) =>
+        ReplacementMode.withoutProration,
+      _ => throw StateError('GOOGLE_SUBSCRIPTION_TRANSITION_INVALID'),
+    };
+  }
+  if (replacementRank > existingRank) {
+    return ReplacementMode.chargeProratedPrice;
+  }
+  throw StateError('GOOGLE_SUBSCRIPTION_TRANSITION_INVALID');
+}
+
+@visibleForTesting
+StorePurchaseStatus storePurchaseEventStatus(
+  PurchaseDetails purchase, {
+  required bool restoring,
+}) {
+  if (purchase is GooglePlayPurchaseDetails &&
+      purchase.billingClientPurchase.pendingPurchaseUpdate != null) {
+    return StorePurchaseStatus.pending;
+  }
+  if (restoring && purchase.status == PurchaseStatus.purchased) {
+    return StorePurchaseStatus.restored;
+  }
+  return switch (purchase.status) {
+    PurchaseStatus.pending => StorePurchaseStatus.pending,
+    PurchaseStatus.purchased => StorePurchaseStatus.purchased,
+    PurchaseStatus.restored => StorePurchaseStatus.restored,
+    PurchaseStatus.canceled => StorePurchaseStatus.canceled,
+    PurchaseStatus.error => StorePurchaseStatus.error,
+  };
+}
+
+@visibleForTesting
+String resolveStorePurchaseProductId({
+  required String productId,
+  required PurchaseStatus status,
+  String? activeProductId,
+}) {
+  final normalizedProductId = productId.trim();
+  if (normalizedProductId.isNotEmpty) return normalizedProductId;
+  if (status != PurchaseStatus.canceled && status != PurchaseStatus.error) {
+    return normalizedProductId;
+  }
+  return activeProductId?.trim() ?? normalizedProductId;
+}
+
+@visibleForTesting
+StreamController<List<StorePurchaseEvent>>
+createBufferedStorePurchaseController() =>
+    StreamController<List<StorePurchaseEvent>>();
+
 @visibleForTesting
 Future<ProductDetailsResponse> queryAppleStoreProducts({
   required Set<String> productIds,
@@ -82,18 +372,6 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
   }
   if (platformError != null) throw platformError!;
   throw TimeoutException('Apple product lookup timed out.');
-}
-
-@visibleForTesting
-Future<T?> waitForOptionalStoreResult<T>({
-  required Future<T> Function() query,
-  required Duration timeout,
-}) async {
-  try {
-    return await query().timeout(timeout);
-  } on Object {
-    return null;
-  }
 }
 
 ProductDetailsResponse _mergeProductResponses({
@@ -231,15 +509,23 @@ String appleCatalogUnavailableMessage(String? storefrontCountryCode) {
 abstract interface class StoreBillingService {
   Stream<List<StorePurchaseEvent>> get purchaseUpdates;
 
-  Future<StoreProductLoadResult> loadProducts();
+  Future<StoreProductLoadResult> loadProducts({required String accountId});
   Future<void> purchase(
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required BillingCycle? currentCycle,
+    required bool requireExistingSubscription,
   });
-  Future<void> restorePurchases();
+  Future<StoreRestoreResult> restorePurchases({
+    required String accountId,
+    required String storeId,
+  });
   Future<void> completePurchase(StorePurchaseEvent event);
-  Future<bool> openSubscriptionManagement();
+  Future<bool> openSubscriptionManagement(
+    StoreBillingPlatform provider, {
+    String? productId,
+  });
   Future<void> dispose();
 }
 
@@ -259,29 +545,38 @@ class UnavailableStoreBillingService implements StoreBillingService {
   Stream<List<StorePurchaseEvent>> get purchaseUpdates => const Stream.empty();
 
   @override
-  Future<StoreProductLoadResult> loadProducts() async =>
-      const StoreProductLoadResult(
-        available: false,
-        platform: StoreBillingPlatform.unavailable,
-        offers: [],
-        errorMessage: 'تتوفر الاشتراكات داخل تطبيق Android أو iPhone فقط.',
-      );
+  Future<StoreProductLoadResult> loadProducts({
+    required String accountId,
+  }) async => const StoreProductLoadResult(
+    available: false,
+    platform: StoreBillingPlatform.unavailable,
+    offers: [],
+    errorMessage: 'تتوفر الاشتراكات داخل تطبيق Android أو iPhone فقط.',
+  );
 
   @override
   Future<void> purchase(
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required BillingCycle? currentCycle,
+    required bool requireExistingSubscription,
   }) => throw StateError('STORE_UNAVAILABLE');
 
   @override
-  Future<void> restorePurchases() => throw StateError('STORE_UNAVAILABLE');
+  Future<StoreRestoreResult> restorePurchases({
+    required String accountId,
+    required String storeId,
+  }) => throw StateError('STORE_UNAVAILABLE');
 
   @override
   Future<void> completePurchase(StorePurchaseEvent event) async {}
 
   @override
-  Future<bool> openSubscriptionManagement() async => false;
+  Future<bool> openSubscriptionManagement(
+    StoreBillingPlatform provider, {
+    String? productId,
+  }) async => false;
 
   @override
   Future<void> dispose() async {}
@@ -290,26 +585,32 @@ class UnavailableStoreBillingService implements StoreBillingService {
 class PlatformStoreBillingService implements StoreBillingService {
   PlatformStoreBillingService({
     InAppPurchase? client,
+    GoogleSubscriptionQuery? googleSubscriptionQuery,
     this.availabilityTimeout = const Duration(seconds: 6),
     this.productQueryTimeout = const Duration(seconds: 16),
-    this.pastPurchasesTimeout = const Duration(seconds: 2),
-  }) : _client = client ?? InAppPurchase.instance {
+    this.purchaseLookupTimeout = const Duration(seconds: 8),
+  }) : _client = client ?? InAppPurchase.instance,
+       _googleSubscriptionQueryOverride = googleSubscriptionQuery {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
       onError: (Object error) {
+        final launch = _activeLaunchIfFresh();
         _updates.add([
           StorePurchaseEvent(
             key: 'stream-${DateTime.now().microsecondsSinceEpoch}',
             status: StorePurchaseStatus.error,
             platform: platform,
-            productId: '',
+            productId: launch?.productId ?? '',
             verificationData: '',
             verificationSource: '',
             needsCompletion: false,
             errorCode: 'purchase_stream',
             errorMessage: error.toString(),
+            accountId: launch?.accountId,
+            storeId: launch?.storeId,
           ),
         ]);
+        _activeLaunch = null;
       },
     );
   }
@@ -317,13 +618,15 @@ class PlatformStoreBillingService implements StoreBillingService {
   final InAppPurchase _client;
   final Duration availabilityTimeout;
   final Duration productQueryTimeout;
-  final Duration pastPurchasesTimeout;
+  final Duration purchaseLookupTimeout;
+  final GoogleSubscriptionQuery? _googleSubscriptionQueryOverride;
   final StreamController<List<StorePurchaseEvent>> _updates =
-      StreamController<List<StorePurchaseEvent>>.broadcast();
+      createBufferedStorePurchaseController();
   final Map<String, ProductDetails> _nativeProducts = {};
   final Map<String, PurchaseDetails> _nativePurchases = {};
   late final StreamSubscription<List<PurchaseDetails>> _purchaseSubscription;
-  GooglePlayPurchaseDetails? _oldGoogleSubscription;
+  bool _purchaseLaunchInProgress = false;
+  _ActiveStorePurchaseLaunch? _activeLaunch;
 
   StoreBillingPlatform get platform {
     if (kIsWeb) return StoreBillingPlatform.unavailable;
@@ -338,7 +641,9 @@ class PlatformStoreBillingService implements StoreBillingService {
   Stream<List<StorePurchaseEvent>> get purchaseUpdates => _updates.stream;
 
   @override
-  Future<StoreProductLoadResult> loadProducts() async {
+  Future<StoreProductLoadResult> loadProducts({
+    required String accountId,
+  }) async {
     if (platform == StoreBillingPlatform.unavailable) {
       return const StoreProductLoadResult(
         available: false,
@@ -378,9 +683,6 @@ class PlatformStoreBillingService implements StoreBillingService {
               timeout: productQueryTimeout,
             );
       final storefrontCountryCode = await appleCountryCode;
-      if (platform == StoreBillingPlatform.googlePlay) {
-        await _loadOldGoogleSubscription();
-      }
 
       _nativeProducts.clear();
       final offers = <StoreProductOffer>[];
@@ -518,33 +820,32 @@ class PlatformStoreBillingService implements StoreBillingService {
     );
   }
 
-  Future<void> _loadOldGoogleSubscription() async {
-    try {
-      final addition = _client
-          .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
-      final response = await waitForOptionalStoreResult(
-        query: addition.queryPastPurchases,
-        timeout: pastPurchasesTimeout,
-      );
-      if (response == null) {
-        _oldGoogleSubscription = null;
-        return;
-      }
-      final candidates = response.pastPurchases
-          .whereType<GooglePlayPurchaseDetails>()
-          .where(
-            (item) =>
-                DamanakStoreCatalog.googleProductIds.contains(item.productID),
-          )
-          .toList();
-      candidates.sort(
-        (a, b) => (b.transactionDate ?? '').compareTo(a.transactionDate ?? ''),
-      );
-      _oldGoogleSubscription = candidates.firstOrNull;
-      if (candidates.isNotEmpty) _forwardPurchases(candidates);
-    } catch (_) {
-      _oldGoogleSubscription = null;
+  Future<PurchasesResultWrapper> _queryGoogleSubscriptions() async {
+    final override = _googleSubscriptionQueryOverride;
+    if (override != null) return override();
+
+    final nativePlatform = InAppPurchasePlatform.instance;
+    if (nativePlatform is! InAppPurchaseAndroidPlatform) {
+      throw StateError('GOOGLE_PLAY_PLATFORM_UNAVAILABLE');
     }
+    // Damanak has no one-time Play products. Querying only `subs` prevents an
+    // unrelated in-app-product response from obscuring subscription state.
+    // ignore: invalid_use_of_visible_for_testing_member
+    return nativePlatform.billingClientManager.runWithClient(
+      (client) => client.queryPurchases(ProductType.subs),
+    );
+  }
+
+  Future<GoogleSubscriptionSnapshot> _queryGoogleSubscriptionSnapshot(
+    String accountId, {
+    bool includeUnboundForRestore = false,
+  }) async {
+    final response = await _queryGoogleSubscriptions();
+    return selectGoogleSubscriptionPurchases(
+      response: response,
+      accountId: accountId,
+      includeUnboundForRestore: includeUnboundForRestore,
+    );
   }
 
   @override
@@ -552,64 +853,150 @@ class PlatformStoreBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required BillingCycle? currentCycle,
+    required bool requireExistingSubscription,
   }) async {
+    if (_purchaseLaunchInProgress) {
+      throw StateError('STORE_PURCHASE_IN_PROGRESS');
+    }
     final product = _nativeProducts[offer.key];
     if (product == null) throw StateError('STORE_PRODUCT_UNAVAILABLE');
 
-    PurchaseParam param;
-    if (product is GooglePlayProductDetails) {
-      final old = _oldGoogleSubscription;
-      param = GooglePlayPurchaseParam(
-        productDetails: product,
-        applicationUserName: accountId,
-        offerToken: product.offerToken,
-        changeSubscriptionParam: old == null
-            ? null
-            : ChangeSubscriptionParam(
-                oldPurchaseDetails: old,
-                replacementMode: _replacementMode(old.productID, offer.planId),
-              ),
+    final launch = _ActiveStorePurchaseLaunch(
+      productId: offer.productId,
+      accountId: accountId,
+      storeId: storeId,
+      startedAt: DateTime.now(),
+    );
+    _activeLaunch = launch;
+    _purchaseLaunchInProgress = true;
+    try {
+      if (product is GooglePlayProductDetails) {
+        await _purchaseGoogleSubscription(
+          product,
+          offer: offer,
+          accountId: accountId,
+          storeId: storeId,
+          currentCycle: currentCycle,
+          requireExistingSubscription: requireExistingSubscription,
+        );
+        return;
+      }
+
+      final launched = await _client.buyNonConsumable(
+        purchaseParam: PurchaseParam(
+          productDetails: product,
+          // StoreKit 2 persists this UUID as appAccountToken. Binding it to the
+          // store prevents a late transaction from being attached to another
+          // workspace owned by the same account.
+          applicationUserName: storeId,
+        ),
       );
-    } else {
-      param = PurchaseParam(
-        productDetails: product,
-        applicationUserName: accountId,
+      if (!launched) throw StateError('STORE_PURCHASE_NOT_LAUNCHED');
+    } catch (_) {
+      if (identical(_activeLaunch, launch)) _activeLaunch = null;
+      rethrow;
+    } finally {
+      _purchaseLaunchInProgress = false;
+    }
+  }
+
+  Future<void> _purchaseGoogleSubscription(
+    GooglePlayProductDetails product, {
+    required StoreProductOffer offer,
+    required String accountId,
+    required String storeId,
+    required BillingCycle? currentCycle,
+    required bool requireExistingSubscription,
+  }) async {
+    GoogleSubscriptionSnapshot snapshot;
+    try {
+      snapshot = await _queryGoogleSubscriptionSnapshot(
+        accountId,
+      ).timeout(purchaseLookupTimeout);
+    } on TimeoutException {
+      throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_TIMEOUT');
+    } on StateError {
+      rethrow;
+    } on Object {
+      throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_FAILED');
+    }
+
+    final existing = validatedGoogleSubscriptionForPurchase(
+      snapshot: snapshot,
+      storeId: storeId,
+      requireExistingSubscription: requireExistingSubscription,
+    );
+    final replacementMode = existing == null
+        ? null
+        : googleSubscriptionReplacementMode(
+            existingProductId: existing.productID,
+            existingCycle: currentCycle,
+            replacement: offer,
+          );
+
+    final nativePlatform = InAppPurchasePlatform.instance;
+    if (nativePlatform is! InAppPurchaseAndroidPlatform) {
+      throw StateError('GOOGLE_PLAY_PLATFORM_UNAVAILABLE');
+    }
+    // Use the native client so both local tenant identifiers reach Play. The
+    // generic GooglePlayPurchaseParam exposes accountId but not profileId.
+    // ignore: invalid_use_of_visible_for_testing_member
+    final result = await nativePlatform.billingClientManager.runWithClient(
+      (client) => client.launchBillingFlow(
+        product: product.id,
+        offerToken: product.offerToken,
+        accountId: accountId,
+        obfuscatedProfileId: storeId,
+        oldProduct: existing?.productID,
+        purchaseToken: existing?.verificationData.serverVerificationData,
+        replacementMode: replacementMode,
+      ),
+    );
+    if (result.responseCode != BillingResponse.ok) {
+      throw StateError(
+        'STORE_PURCHASE_NOT_LAUNCHED:${result.responseCode.name}',
       );
     }
-    final launched = await _client.buyNonConsumable(purchaseParam: param);
-    if (!launched) throw StateError('STORE_PURCHASE_NOT_LAUNCHED');
   }
 
-  ReplacementMode _replacementMode(String oldProductId, String newPlanId) {
-    final oldPlanId = DamanakStoreCatalog.planIdFromProduct(oldProductId);
-    final oldRank = DamanakStoreCatalog.planRank(oldPlanId);
-    final newRank = DamanakStoreCatalog.planRank(newPlanId);
-    if (newRank > oldRank) return ReplacementMode.chargeProratedPrice;
-    if (newRank < oldRank) return ReplacementMode.deferred;
-    return ReplacementMode.chargeFullPrice;
-  }
-
-  void _forwardPurchases(List<PurchaseDetails> purchases) {
+  void _forwardPurchases(
+    List<PurchaseDetails> purchases, {
+    bool restoring = false,
+  }) {
     final events = <StorePurchaseEvent>[];
     for (final purchase in purchases) {
+      final launch = _activeLaunchIfFresh();
+      final isEmptyTerminal =
+          purchase.productID.trim().isEmpty &&
+          (purchase.status == PurchaseStatus.canceled ||
+              purchase.status == PurchaseStatus.error);
+      final productId = resolveStorePurchaseProductId(
+        productId: purchase.productID,
+        status: purchase.status,
+        activeProductId: launch?.productId,
+      );
+      if (!DamanakStoreCatalog.contains(platform, productId)) {
+        continue;
+      }
       final key = [
         purchase.verificationData.source,
-        purchase.purchaseID ?? purchase.productID,
+        purchase.purchaseID ?? productId,
         purchase.transactionDate ?? '',
       ].join(':');
       _nativePurchases[key] = purchase;
-      if (purchase is GooglePlayPurchaseDetails &&
-          (purchase.status == PurchaseStatus.purchased ||
-              purchase.status == PurchaseStatus.restored)) {
-        _oldGoogleSubscription = purchase;
-      }
+      final googlePurchase = purchase is GooglePlayPurchaseDetails
+          ? purchase.billingClientPurchase
+          : null;
+      final applePurchase = purchase is SK2PurchaseDetails ? purchase : null;
+      final status = storePurchaseEventStatus(purchase, restoring: restoring);
       events.add(
         StorePurchaseEvent(
           key: key,
-          status: _status(purchase.status),
+          status: status,
           platform: platform,
-          productId: purchase.productID,
-          basePlanId: _basePlanForPurchase(purchase.productID),
+          productId: productId,
+          basePlanId: _basePlanForPurchase(productId),
           purchaseId: purchase.purchaseID,
           transactionDate: purchase.transactionDate,
           verificationData: purchase.verificationData.serverVerificationData,
@@ -617,8 +1004,32 @@ class PlatformStoreBillingService implements StoreBillingService {
           needsCompletion: purchase.pendingCompletePurchase,
           errorCode: purchase.error?.code,
           errorMessage: purchase.error?.message,
+          accountId:
+              _nonEmpty(googlePurchase?.obfuscatedAccountId) ??
+              (isEmptyTerminal ? launch?.accountId : null),
+          storeId:
+              _nonEmpty(googlePurchase?.obfuscatedProfileId) ??
+              (isEmptyTerminal ? launch?.storeId : null),
+          appAccountToken: _nonEmpty(applePurchase?.appAccountToken),
+          pendingProductIds:
+              googlePurchase?.pendingPurchaseUpdate?.products
+                  .where(DamanakStoreCatalog.googleProductIds.contains)
+                  .toList(growable: false) ??
+              const [],
         ),
       );
+      if (launch != null &&
+          status != StorePurchaseStatus.pending &&
+          _eventBelongsToLaunch(
+            launch,
+            productId: productId,
+            accountId: _nonEmpty(googlePurchase?.obfuscatedAccountId),
+            storeId: _nonEmpty(googlePurchase?.obfuscatedProfileId),
+            transactionDate: purchase.transactionDate,
+            terminalFallback: isEmptyTerminal,
+          )) {
+        _activeLaunch = null;
+      }
     }
     if (events.isNotEmpty) _updates.add(events);
   }
@@ -636,35 +1047,121 @@ class PlatformStoreBillingService implements StoreBillingService {
         : native?.productDetails.subscriptionOfferDetails?[index].basePlanId;
   }
 
-  StorePurchaseStatus _status(PurchaseStatus status) => switch (status) {
-    PurchaseStatus.pending => StorePurchaseStatus.pending,
-    PurchaseStatus.purchased => StorePurchaseStatus.purchased,
-    PurchaseStatus.restored => StorePurchaseStatus.restored,
-    PurchaseStatus.canceled => StorePurchaseStatus.canceled,
-    PurchaseStatus.error => StorePurchaseStatus.error,
-  };
+  String? _nonEmpty(String? value) {
+    final normalized = value?.trim();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
+  _ActiveStorePurchaseLaunch? _activeLaunchIfFresh() {
+    final launch = _activeLaunch;
+    if (launch == null) return null;
+    if (DateTime.now().difference(launch.startedAt) <=
+        const Duration(minutes: 5)) {
+      return launch;
+    }
+    _activeLaunch = null;
+    return null;
+  }
+
+  bool _eventBelongsToLaunch(
+    _ActiveStorePurchaseLaunch launch, {
+    required String productId,
+    required String? accountId,
+    required String? storeId,
+    required String? transactionDate,
+    required bool terminalFallback,
+  }) {
+    if (productId != launch.productId) return false;
+    if (terminalFallback) return true;
+    if (accountId != null && accountId != launch.accountId) return false;
+    if (storeId != null && storeId != launch.storeId) return false;
+    final timestamp = int.tryParse(transactionDate ?? '');
+    if (timestamp == null) {
+      return accountId == launch.accountId && storeId == launch.storeId;
+    }
+    final transactionAt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return !transactionAt.isBefore(
+      launch.startedAt.subtract(const Duration(minutes: 2)),
+    );
+  }
 
   @override
-  Future<void> restorePurchases() => _client.restorePurchases();
+  Future<StoreRestoreResult> restorePurchases({
+    required String accountId,
+    required String storeId,
+  }) async {
+    if (platform == StoreBillingPlatform.googlePlay) {
+      GoogleSubscriptionSnapshot snapshot;
+      try {
+        snapshot = await _queryGoogleSubscriptionSnapshot(
+          accountId,
+          includeUnboundForRestore: true,
+        ).timeout(purchaseLookupTimeout);
+      } on TimeoutException {
+        throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_TIMEOUT');
+      } on StateError {
+        rethrow;
+      } on Object {
+        throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_FAILED');
+      }
+
+      final candidates = validatedGoogleSubscriptionsForRestore(
+        snapshot,
+        storeId: storeId,
+      );
+      _forwardPurchases(candidates, restoring: true);
+      final statuses = candidates
+          .map(
+            (purchase) => storePurchaseEventStatus(purchase, restoring: true),
+          )
+          .toList(growable: false);
+      return StoreRestoreResult(
+        platform: StoreBillingPlatform.googlePlay,
+        restoredPurchases: statuses
+            .where((status) => status == StorePurchaseStatus.restored)
+            .length,
+        pendingPurchases: statuses
+            .where((status) => status == StorePurchaseStatus.pending)
+            .length,
+        accountMismatchDetected: snapshot.accountMismatchDetected,
+      );
+    }
+    if (platform == StoreBillingPlatform.appStore) {
+      await _client.restorePurchases(applicationUserName: accountId);
+      return const StoreRestoreResult(platform: StoreBillingPlatform.appStore);
+    }
+    throw StateError('STORE_UNAVAILABLE');
+  }
 
   @override
   Future<void> completePurchase(StorePurchaseEvent event) async {
     final native = _nativePurchases.remove(event.key);
+    // Build 24 asks the verified Edge Function to acknowledge every Google
+    // token after the entitlement transaction commits. Avoid acknowledging the
+    // same stale local PurchaseWrapper a second time; Build 23 omits that
+    // request flag and retains its original on-device completion path.
+    if (native is GooglePlayPurchaseDetails) return;
     if (native != null && native.pendingCompletePurchase) {
       await _client.completePurchase(native);
     }
   }
 
   @override
-  Future<bool> openSubscriptionManagement() {
-    final url = switch (platform) {
+  Future<bool> openSubscriptionManagement(
+    StoreBillingPlatform provider, {
+    String? productId,
+  }) {
+    final url = switch (provider) {
       StoreBillingPlatform.appStore => Uri.parse(
         'https://apps.apple.com/account/subscriptions',
       ),
-      StoreBillingPlatform.googlePlay => Uri.parse(
-        'https://play.google.com/store/account/subscriptions?package='
-        '${DamanakStoreCatalog.packageName}',
-      ),
+      StoreBillingPlatform.googlePlay =>
+        Uri.https('play.google.com', '/store/account/subscriptions', {
+          'package': DamanakStoreCatalog.packageName,
+          if (productId != null &&
+              DamanakStoreCatalog.googleProductIds.contains(productId))
+            'sku': productId,
+        }),
       StoreBillingPlatform.unavailable => null,
     };
     if (url == null) return Future.value(false);
@@ -676,4 +1173,18 @@ class PlatformStoreBillingService implements StoreBillingService {
     await _purchaseSubscription.cancel();
     await _updates.close();
   }
+}
+
+class _ActiveStorePurchaseLaunch {
+  const _ActiveStorePurchaseLaunch({
+    required this.productId,
+    required this.accountId,
+    required this.storeId,
+    required this.startedAt,
+  });
+
+  final String productId;
+  final String accountId;
+  final String storeId;
+  final DateTime startedAt;
 }
