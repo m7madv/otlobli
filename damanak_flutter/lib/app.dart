@@ -7,6 +7,7 @@ import 'screens/auth_screen.dart';
 import 'screens/configuration_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/shell_screen.dart';
+import 'screens/subscription_screen.dart';
 import 'state/app_controller.dart';
 import 'state/app_scope.dart';
 
@@ -88,17 +89,30 @@ class _AppGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    final requiresFirstSubscription =
+        controller.stage == AppStage.ready &&
+        controller.requiresInitialSubscriptionActivation;
     final page = switch (controller.stage) {
       AppStage.configuring => const ConfigurationScreen(),
       AppStage.signedOut => const AuthScreen(),
       AppStage.onboarding => const OnboardingScreen(),
+      AppStage.ready when requiresFirstSubscription => const SubscriptionScreen(
+        requiredActivation: true,
+      ),
       AppStage.ready => const ShellScreen(),
     };
     return AnimatedSwitcher(
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : const Duration(milliseconds: 220),
-      child: KeyedSubtree(key: ValueKey(controller.stage), child: page),
+      child: KeyedSubtree(
+        key: ValueKey(
+          requiresFirstSubscription
+              ? 'subscription-required'
+              : controller.stage,
+        ),
+        child: page,
+      ),
     );
   }
 }

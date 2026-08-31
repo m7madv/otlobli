@@ -183,6 +183,42 @@ void main() {
     },
   );
 
+  test('إنشاء المتجر يبقى متاحاً بلا تجربة أو حصة عند عدم الأهلية', () {
+    final migration = File(
+      'supabase/migrations/20260901010000_damanak_paid_store_without_repeat_trial.sql',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/data/supabase_repository.dart',
+    ).readAsStringSync();
+
+    for (final token in [
+      'trial_granted boolean := false',
+      'create or replace function public.create_store_with_subscription(',
+      "case when trial_granted then 'trialing' else 'canceled' end",
+      "subscription.status = 'canceled'",
+      "subscription.source = 'trial'",
+      'subscription.trial_ends_at is null',
+      'subscription.current_period_start is null',
+      'subscription.current_period_end is null',
+      "'subscription_required', not trial_granted",
+      'ensure_default_store_branch_after_subscription',
+      'reject_initial_payment_store_write',
+      'revoke all on function public.create_store_with_subscription',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(repository, contains("'create_store_with_subscription'"));
+    expect(repository, isNot(contains("'create_store_with_trial'")));
+    expect(
+      migration,
+      isNot(contains("raise exception 'TRIAL_ALREADY_USED_BY_ACCOUNT'")),
+    );
+    expect(
+      migration,
+      isNot(contains("raise exception 'TRIAL_ALREADY_USED_ON_DEVICE'")),
+    );
+  });
+
   test('مخطط المطالبات يفرض دورة خدمة معزولة وتحديثاً متزامناً آمناً', () {
     final schema = File(
       'supabase/migrations/20260830160000_damanak_claims_foundation.sql',

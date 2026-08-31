@@ -10,7 +10,9 @@ import '../state/app_scope.dart';
 import '../widgets/message_banner.dart';
 
 class SubscriptionScreen extends StatefulWidget {
-  const SubscriptionScreen({super.key});
+  const SubscriptionScreen({this.requiredActivation = false, super.key});
+
+  final bool requiredActivation;
 
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
@@ -46,6 +48,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    if (controller.subscription == null || controller.membership == null) {
+      return const SizedBox.shrink();
+    }
     final colors = context.colors;
     final subscription = controller.subscription!;
     final plans = controller.plans;
@@ -81,7 +86,25 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }.contains(controller.storeBillingState);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الاشتراك والفوترة')),
+      appBar: AppBar(
+        title: Text(
+          widget.requiredActivation ? 'تفعيل المتجر' : 'الاشتراك والفوترة',
+        ),
+        actions: [
+          if (widget.requiredActivation)
+            IconButton(
+              onPressed: controller.busy
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const _InitialPaymentAccountScreen(),
+                      ),
+                    ),
+              tooltip: 'الحساب',
+              icon: const Icon(Icons.account_circle_outlined),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -89,8 +112,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
             children: [
               const MessageBanner(),
+              if (widget.requiredActivation) ...[
+                _SubscriptionRequiredNotice(canManage: canManage),
+                const SizedBox(height: 12),
+              ],
               _CurrentPlan(
                 subscription: subscription,
+                activationRequired: widget.requiredActivation,
                 platform: currentProvider ?? controller.storeBillingPlatform,
                 onManage: canManage && subscription.isStoreSubscription
                     ? controller.openStoreSubscriptionManagement
@@ -108,8 +136,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 const SizedBox(height: 12),
                 _ProviderConflictNotice(provider: currentProvider),
               ],
-              const SizedBox(height: 12),
-              const _RecordContinuityNotice(),
+              if (!widget.requiredActivation) ...[
+                const SizedBox(height: 12),
+                const _RecordContinuityNotice(),
+              ],
               const SizedBox(height: 12),
               _StoreStatus(
                 state: controller.storeBillingState,
@@ -181,7 +211,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ButtonSegment<String>(
                         value: plan.id,
                         label: Text(plan.name),
-                        icon: plan.id == subscription.plan.id
+                        icon:
+                            !widget.requiredActivation &&
+                                plan.id == subscription.plan.id
                             ? const Icon(Icons.check_rounded, size: 17)
                             : null,
                       ),
@@ -197,7 +229,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   key: ValueKey('subscription-plan-${selectedPlan.id}'),
                   plan: selectedPlan,
                   offer: controller.storeOffer(selectedPlan.id, _cycle),
-                  current: selectedPlan.id == subscription.plan.id,
+                  current:
+                      !widget.requiredActivation &&
+                      selectedPlan.id == subscription.plan.id,
                   sameStoreSelection:
                       subscription.isStoreSubscription &&
                       subscription.isUsable &&
@@ -234,9 +268,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     SubscriptionInfo current,
     StoreProductOffer offer,
   ) async {
+    final startsSubscription =
+        widget.requiredActivation || current.isAwaitingSubscription;
     final isDowngrade =
+        !startsSubscription &&
         DamanakStoreCatalog.planRank(offer.planId) <
-        DamanakStoreCatalog.planRank(current.plan.id);
+            DamanakStoreCatalog.planRank(current.plan.id);
     final changesCycle =
         current.billingCycle != null &&
         current.billingCycle != offer.cycle.value;
@@ -250,8 +287,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'من ${current.plan.name} إلى ${_planName(offer.planId)} • '
-              '${offer.cycle.label}',
+              startsSubscription
+                  ? 'تفعيل باقة ${_planName(offer.planId)} • ${offer.cycle.label}'
+                  : 'من ${current.plan.name} إلى ${_planName(offer.planId)} • '
+                        '${offer.cycle.label}',
               style: Theme.of(dialogContext).textTheme.titleMedium,
             ),
             const SizedBox(height: 10),
@@ -295,6 +334,223 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   };
 }
 
+class _SubscriptionRequiredNotice extends StatelessWidget {
+  const _SubscriptionRequiredNotice({required this.canManage});
+
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final title = canManage ? 'ابدأ باشتراك مدفوع' : 'اشتراك المتجر غير مفعّل';
+    final description = canManage
+        ? 'تم إنشاء المتجر من دون مزايا مجانية. يلزم اشتراك مدفوع فعّال أو استعادة اشتراك فعّال قبل إتاحة أي حصة أو ميزة.'
+        : 'لا توجد مزايا مجانية. يمكن لمالك المتجر تفعيل اشتراك مدفوع أو استعادة اشتراك فعّال.';
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      label: '$title. $description',
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainer,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.lock_outline_rounded, color: colors.primary),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InitialPaymentAccountScreen extends StatelessWidget {
+  const _InitialPaymentAccountScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppScope.of(context);
+    final account = controller.account;
+    final store = controller.store;
+    final membership = controller.membership;
+    if (account == null || store == null || membership == null) {
+      return const SizedBox.shrink();
+    }
+    final colors = context.colors;
+    final displayName = account.fullName.trim().isEmpty
+        ? 'مستخدم ضمانك'
+        : account.fullName.trim();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('بيانات الحساب')),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: colors.outlineVariant),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: colors.primaryContainer,
+                      foregroundColor: colors.onPrimaryContainer,
+                      child: Text(
+                        displayName.characters.first,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (account.email.trim().isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              account.email.trim(),
+                              textDirection: TextDirection.ltr,
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 5),
+                          Text(
+                            '${membership.role.label} • ${store.name}',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'لحماية بيانات المتجر، تقتصر هذه الصفحة على إدارة الحساب حتى تفعيل الاشتراك.',
+                style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: controller.busy
+                    ? null
+                    : () => _signOutAndClearRoutes(context),
+                style: OutlinedButton.styleFrom(foregroundColor: colors.error),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('تسجيل الخروج'),
+              ),
+              if (!controller.isDemo) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: controller.busy
+                      ? null
+                      : () => _confirmDelete(context),
+                  style: TextButton.styleFrom(foregroundColor: colors.error),
+                  icon: const Icon(Icons.delete_forever_outlined),
+                  label: const Text('حذف الحساب نهائياً'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _signOutAndClearRoutes(BuildContext context) async {
+    final controller = AppScope.of(context);
+    _removeAccountRoute(context);
+    await controller.signOut();
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final controller = AppScope.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        title: const Text('حذف الحساب نهائياً؟'),
+        content: const Text(
+          'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('حذف نهائي'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    _removeAccountRoute(context);
+    await controller.deleteAccount();
+  }
+
+  void _removeAccountRoute(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isFirst) {
+      navigator.removeRoute(route);
+      return;
+    }
+    navigator.popUntil((candidate) => candidate.isFirst);
+  }
+}
+
 class _ProviderConflictNotice extends StatelessWidget {
   const _ProviderConflictNotice({required this.provider});
 
@@ -335,6 +591,7 @@ class _MissingPlansNotice extends StatelessWidget {
 class _CurrentPlan extends StatelessWidget {
   const _CurrentPlan({
     required this.subscription,
+    required this.activationRequired,
     required this.platform,
     required this.onManage,
     required this.onRestore,
@@ -342,6 +599,7 @@ class _CurrentPlan extends StatelessWidget {
   });
 
   final SubscriptionInfo subscription;
+  final bool activationRequired;
   final StoreBillingPlatform platform;
   final VoidCallback? onManage;
   final VoidCallback? onRestore;
@@ -349,16 +607,21 @@ class _CurrentPlan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = subscription.plan.monthlyWarranties == 0
+    final awaitingSubscription =
+        activationRequired || subscription.isAwaitingSubscription;
+    final ratio =
+        awaitingSubscription || subscription.plan.monthlyWarranties == 0
         ? 0.0
         : (subscription.usedWarranties / subscription.plan.monthlyWarranties)
               .clamp(0.0, 1.0);
-    final statusLabel = switch (subscription.status) {
-      'trialing' => 'تجربة مجانية',
-      'active' => subscription.autoRenews ? 'فعّال ويتجدد' : 'فعّال',
-      'past_due' => 'مشكلة في التجديد',
-      _ => 'متوقف',
-    };
+    final statusLabel = awaitingSubscription
+        ? 'غير مشترك'
+        : switch (subscription.status) {
+            'trialing' => 'تجربة مجانية',
+            'active' => subscription.autoRenews ? 'فعّال ويتجدد' : 'فعّال',
+            'past_due' => 'مشكلة في التجديد',
+            _ => 'متوقف',
+          };
     final cycleLabel = switch (subscription.billingCycle) {
       'monthly' => 'شهري',
       'yearly' => 'سنوي',
@@ -386,7 +649,9 @@ class _CurrentPlan extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                'خطة ${subscription.plan.name}',
+                awaitingSubscription
+                    ? 'لا توجد باقة مفعّلة'
+                    : 'خطة ${subscription.plan.name}',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               Container(
@@ -409,7 +674,7 @@ class _CurrentPlan extends StatelessWidget {
               ),
             ],
           ),
-          if (subscription.status == 'trialing') ...[
+          if (!awaitingSubscription && subscription.status == 'trialing') ...[
             const SizedBox(height: 10),
             Text(
               'تطبق التجربة حدود باقة ${subscription.plan.name}: '
@@ -433,7 +698,9 @@ class _CurrentPlan extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'ضماناً متبقياً هذا الشهر',
+            awaitingSubscription
+                ? 'لا توجد ضمانات متاحة قبل الاشتراك'
+                : 'ضماناً متبقياً هذا الشهر',
             style: TextStyle(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 14),
@@ -452,18 +719,37 @@ class _CurrentPlan extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                '${subscription.usedWarranties}/${subscription.plan.monthlyWarranties} مستخدم',
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-              ),
-              Text(
-                '${subscription.plan.maxMembers} أعضاء كحد أقصى',
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-              ),
-              Text(
-                subscription.plan.branchLabel,
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-              ),
+              if (awaitingSubscription)
+                Text(
+                  'اختر باقة لعرض حدود الضمانات والفريق والفروع.',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                )
+              else ...[
+                Text(
+                  '${subscription.usedWarranties}/${subscription.plan.monthlyWarranties} مستخدم',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '${subscription.plan.maxMembers} أعضاء كحد أقصى',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  subscription.plan.branchLabel,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
               if (subscription.isStoreSubscription)
                 Text(
                   [?cycleLabel, platform.label].join(' • '),

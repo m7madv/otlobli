@@ -36,12 +36,24 @@
 - `verify-store-purchase` v23 و`refresh-store-entitlements` v7 نشطتان، وإقرار Google يتم بعد تطبيق الاستحقاق مع إعادة محاولة مجدولة. آخر تشغيل `damanak-entitlement-refresh` عند `2026-08-31 20:35 UTC` نجح وأعاد HTTP `200`.
 - لا يوجد Google RTDN حالياً؛ شراء خارجي جديد لا يُكتشف إلا عند فتح التطبيق. هذه فجوة تشغيل موثقة لا مبرر للادعاء بإغلاقها، ولا تعني إمكان تجاوز عزل الإيصال عند وصوله للخادم.
 
+## متابعة المتجر بلا تجربة في مصدر 4.5.0+25
+
+- لا تغيّر هذه المتابعة عدد نتائج التدقيق أو حالة نتيجة إثبات الجهاز. UUID التثبيت وحجز الحساب/الجهاز يحدان التكرار العرضي، لكنهما ليسا App Attest/DeviceCheck أو Play Integrity.
+- migration `20260901010000_damanak_paid_store_without_repeat_trial.sql` تضيف RPC جديدة لـBuild `25` وتبقي `create_store_with_trial` القديمة بلا تغيير لتوافق Build `24`. الحساب غير المؤهل يحصل على متجر idempotent مع placeholder غير قابل للاستعمال، بلا استحقاق أو فرع أو حصة.
+- إنشاء الفرع الرئيسي مؤجل حتى يصبح الاشتراك قابلاً للاستعمال، ثم ينشئ trigger الاشتراك `MAIN` مرة واحدة. يمنع ذلك فتح واجهة تشغيل ناقصة أو تجاوز حراس الكتابة أثناء bootstrap.
+- حالة أول دفع فقط تُحجب عنها الدعوات والمطالبات الجديدة وتحديثها وقراءة الضمان الموثقة اللازمة لإصدار رابط جديد. الاشتراك التاريخي المنتهي لا يطابق العلامة الدقيقة، لذلك لم تُكسر استمرارية الضمانات والمطالبات والروابط القديمة بافتراض صامت.
+- migration `20260901011000_damanak_paid_store_acl.sql` تسحب تنفيذ RPC الجديدة ودوال الحراسة من `service_role` وتبقي نقطة الدخول الجديدة لـ`authenticated` فقط. الحراس الداخلية تعمل بصلاحية مالكها داخل triggers وRLS.
+- نجح `store_creation_without_repeat_trial_live.sql` على الإنتاج داخل `BEGIN/ROLLBACK`، وأثبت توافق Build `24`، idempotency، غياب الحصة والفرع والاستحقاق، رفض عمليات التشغيل قبل الدفع، وإنشاء `MAIN` مرة واحدة بعد تفعيل صالح.
+- لا يثبت هذا نجاح شراء أو استعادة حقيقيين، ولا يغلق مسار عميل معدل يستطيع تزوير UUID. الإغلاق الكامل لنتيجة التجربة يحتاج خدمات إثبات المنصة وقراراً صريحاً لمسار الويب.
+
 ## اختبارات إعادة التشغيل
 
 ```powershell
 flutter analyze
 flutter test
 npx --yes deno test --allow-env --allow-net supabase/functions
+npx --yes deno fmt --check supabase/functions
+npx supabase db query --linked --file supabase/tests/store_creation_without_repeat_trial_live.sql --output json
 npx supabase db query --linked --file supabase/tests/warranty_tenant_integrity_live.sql --output json
 flutter build web --release
 flutter build apk --debug
@@ -52,9 +64,9 @@ flutter build apk --debug
 ## تحقق الإغلاق
 
 - `flutter analyze`: ناجح بلا ملاحظات.
-- Flutter: `150/150` اختباراً ناجحاً.
+- Flutter: `160/160` اختباراً ناجحاً.
 - Deno: `56/56` اختباراً ناجحاً.
 - نجح `git diff --check` وفحص تنسيق ملفات الدوال.
-- نجح بناء web release وAndroid debug. APK Build `24` المحلي حجمه `207,919,707` بايت وبصمته `745AB8B44F68C587BBE57294D7D012642C9E059D2C93760C22AF7070AD729B8F`؛ لا يمثل ذلك قبول شراء أو قارئ شاشة أو جهاز فعلي.
-- نجحت اختبارات `subscription_lifecycle_live.sql` و`account_deletion_successor_live.sql` و`warranty_tenant_integrity_live.sql` على الإنتاج داخل `BEGIN/ROLLBACK`.
+- نجح بناء web release وAndroid debug. APK Build `25` المحلي حجمه `180,814,040` بايت وبصمته `C3070BABAA8F452C23B6BBF5D71881C4FD1BF8BDCFAC44A64B39CA723EF1B775`؛ لا يمثل ذلك قبول شراء أو قارئ شاشة أو جهاز فعلي.
+- نجحت اختبارات `store_creation_without_repeat_trial_live.sql` و`subscription_lifecycle_live.sql` و`account_deletion_successor_live.sql` و`warranty_tenant_integrity_live.sql` على الإنتاج داخل `BEGIN/ROLLBACK`.
 - راجع وكيلان مستقلان رقع Edge/SQL وFlutter بعد migration `20260831180000`. أُصلحت ملاحظاتهما حول نتيجة BillingClient، legacy replacement، واختيار المتجر المتعدد، ثم لم تبق نتيجة إضافية قابلة للتقرير ضمن النطاق.

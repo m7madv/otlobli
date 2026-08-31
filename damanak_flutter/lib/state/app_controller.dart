@@ -121,6 +121,12 @@ class AppController extends ChangeNotifier {
   StoreWorkspace? get store => _store;
   StoreMembership? get membership => _membership;
   SubscriptionInfo? get subscription => _subscription;
+  bool get requiresInitialSubscriptionActivation {
+    final current = _subscription;
+    return current?.isAwaitingSubscription == true ||
+        (current != null && !current.isUsable && _branches.isEmpty);
+  }
+
   bool get busy => _busy;
   bool get isDemo => _repository?.isDemo ?? false;
   bool get backendConfigured => _repository != null;
@@ -323,6 +329,10 @@ class AppController extends ChangeNotifier {
       );
       _applySnapshot(snapshot);
       await _loadWorkspaceData();
+      if (snapshot.subscription.isAwaitingSubscription) {
+        _noticeMessage =
+            'تم إنشاء المتجر من دون تجربة مجانية. اختر اشتراكاً مدفوعاً للبدء.';
+      }
       _stage = AppStage.ready;
       unawaited(_drainQueuedStorePurchaseEvents());
       unawaited(refreshStoreProducts());
@@ -1741,6 +1751,8 @@ class AppController extends ChangeNotifier {
     if (!_processingPurchases.add(eventKey)) return;
     final account = _account;
     final store = _store;
+    final requiresInitialWorkspaceReload =
+        requiresInitialSubscriptionActivation;
     try {
       if (_repository == null || store == null || account == null) {
         throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
@@ -1778,25 +1790,47 @@ class AppController extends ChangeNotifier {
             const Duration(seconds: 35),
             onTimeout: () => throw StateError('STORE_VERIFICATION_TIMEOUT'),
           );
-      final contextMatches = _billingContextMatches(
-        sessionEpoch,
-        accountId: account.id,
-        storeId: store.id,
-      );
       if (event.needsCompletion) {
         try {
           await _billingService
               .completePurchase(event)
               .timeout(const Duration(seconds: 20));
         } catch (_) {
+          final completionContextMatches = _billingContextMatches(
+            sessionEpoch,
+            accountId: account.id,
+            storeId: store.id,
+          );
+          if (completionContextMatches) {
+            final workspaceReady = await _prepareInitialActivationWorkspace(
+              verifiedSubscription: verifiedSubscription,
+              requiresReload: requiresInitialWorkspaceReload,
+              sessionEpoch: sessionEpoch,
+              accountId: account.id,
+              storeId: store.id,
+            );
+            if (!workspaceReady) {
+              _finishBillingOperationAfterWorkspacePreparationFailure(
+                intent: intent,
+                restoreSession: restoreSession,
+                displayProgress: displayProgress,
+              );
+              return;
+            }
+            if (!_billingContextMatches(
+              sessionEpoch,
+              accountId: account.id,
+              storeId: store.id,
+            )) {
+              return;
+            }
+            _subscription = verifiedSubscription;
+          }
           final operationMatches =
-              contextMatches &&
+              completionContextMatches &&
               (intent == null || identical(_activePurchaseIntent, intent)) &&
               (restoreSession == null ||
                   _restoreSessionMatches(restoreSession));
-          if (contextMatches) {
-            _subscription = verifiedSubscription;
-          }
           if (operationMatches) {
             if (intent != null) _finishPurchaseIntent(intent);
             if (restoreSession != null) {
@@ -1816,8 +1850,36 @@ class AppController extends ChangeNotifier {
           return;
         }
       }
+      if (!_billingContextMatches(
+        sessionEpoch,
+        accountId: account.id,
+        storeId: store.id,
+      )) {
+        return;
+      }
+      final workspaceReady = await _prepareInitialActivationWorkspace(
+        verifiedSubscription: verifiedSubscription,
+        requiresReload: requiresInitialWorkspaceReload,
+        sessionEpoch: sessionEpoch,
+        accountId: account.id,
+        storeId: store.id,
+      );
+      if (!workspaceReady) {
+        _finishBillingOperationAfterWorkspacePreparationFailure(
+          intent: intent,
+          restoreSession: restoreSession,
+          displayProgress: displayProgress,
+        );
+        return;
+      }
+      if (!_billingContextMatches(
+        sessionEpoch,
+        accountId: account.id,
+        storeId: store.id,
+      )) {
+        return;
+      }
       _rememberVerifiedPurchaseEvent(eventKey);
-      if (!contextMatches) return;
       _subscription = verifiedSubscription;
       final operationMatches =
           (intent == null || identical(_activePurchaseIntent, intent)) &&
@@ -1900,6 +1962,68 @@ class AppController extends ChangeNotifier {
     _verifiedPurchaseEvents.add(eventKey);
     while (_verifiedPurchaseEvents.length > 256) {
       _verifiedPurchaseEvents.remove(_verifiedPurchaseEvents.first);
+    }
+  }
+
+  Future<bool> _prepareInitialActivationWorkspace({
+    required SubscriptionInfo verifiedSubscription,
+    required bool requiresReload,
+    required int sessionEpoch,
+    required String accountId,
+    required String storeId,
+  }) async {
+    if (!requiresReload || !verifiedSubscription.isUsable) return true;
+    if (!_billingContextMatches(
+      sessionEpoch,
+      accountId: accountId,
+      storeId: storeId,
+    )) {
+      return false;
+    }
+    _storeBillingMessage = 'تم التحقق من الاشتراك. جارٍ تهيئة المتجر…';
+    notifyListeners();
+    try {
+      final loaded = await _loadWorkspaceData(
+        expectedBillingSessionEpoch: sessionEpoch,
+        expectedAccountId: accountId,
+        expectedStoreId: storeId,
+      );
+      if (!loaded) return false;
+      if (!_branches.any((branch) => branch.isMain && branch.isActive)) {
+        throw StateError('INITIAL_BRANCH_MISSING');
+      }
+      return true;
+    } catch (_) {
+      if (_billingContextMatches(
+        sessionEpoch,
+        accountId: accountId,
+        storeId: storeId,
+      )) {
+        _storeBillingState = _idleStoreBillingState;
+        _storeBillingMessage = null;
+        _errorMessage =
+            'تم التحقق من الاشتراك، لكن تعذّر تهيئة بيانات المتجر. أغلق التطبيق وافتحه مجدداً؛ لا تدف مرة أخرى.';
+        notifyListeners();
+      }
+      return false;
+    }
+  }
+
+  void _finishBillingOperationAfterWorkspacePreparationFailure({
+    _StorePurchaseIntent? intent,
+    _StoreRestoreSession? restoreSession,
+    required bool displayProgress,
+  }) {
+    if (intent != null && identical(_activePurchaseIntent, intent)) {
+      _finishPurchaseIntent(intent);
+    }
+    if (restoreSession != null && _restoreSessionMatches(restoreSession)) {
+      restoreSession.verificationFailed = true;
+      restoreSession.complete(_RestoreVerificationOutcome.failed);
+    }
+    if (displayProgress) {
+      _storeBillingState = _idleStoreBillingState;
+      _storeBillingMessage = null;
     }
   }
 
@@ -2062,19 +2186,31 @@ class AppController extends ChangeNotifier {
   ) async {
     if (!_restoreSessionMatches(session)) return;
     final current = _subscription;
-    if (current?.isStoreSubscription == true) {
+    final requiresInitialWorkspaceReload =
+        requiresInitialSubscriptionActivation;
+    if (current?.isStoreSubscription == true ||
+        requiresInitialWorkspaceReload) {
       try {
         final refreshed = await _repository!
             .refreshStoreSubscription(session.storeId)
             .timeout(const Duration(seconds: 35));
         if (!_restoreSessionMatches(session)) return;
-        _subscription = refreshed;
         if (refreshed.isUsable) {
+          final workspaceReady = await _prepareInitialActivationWorkspace(
+            verifiedSubscription: refreshed,
+            requiresReload: requiresInitialWorkspaceReload,
+            sessionEpoch: session.sessionEpoch,
+            accountId: session.accountId,
+            storeId: session.storeId,
+          );
+          if (!workspaceReady || !_restoreSessionMatches(session)) return;
+          _subscription = refreshed;
           _noticeMessage =
               'لم يرسل المتجر عملية جديدة، وتم تحديث حالة الاشتراك الحالي من الخادم.';
           _storeBillingMessage = null;
           return;
         }
+        _subscription = refreshed;
       } catch (_) {
         if (!_restoreSessionMatches(session)) return;
       }
@@ -2223,7 +2359,11 @@ class AppController extends ChangeNotifier {
     _subscription = snapshot.subscription;
   }
 
-  Future<void> _loadWorkspaceData() async {
+  Future<bool> _loadWorkspaceData({
+    int? expectedBillingSessionEpoch,
+    String? expectedAccountId,
+    String? expectedStoreId,
+  }) async {
     final storeId = _store!.id;
     final results = await Future.wait<Object>([
       _repository!.loadProducts(storeId),
@@ -2246,6 +2386,14 @@ class AppController extends ChangeNotifier {
       _repository!.loadNotifications(storeId),
       _repository!.loadNotificationPreferences(storeId),
     ]);
+    if (expectedBillingSessionEpoch != null &&
+        !_billingContextMatches(
+          expectedBillingSessionEpoch,
+          accountId: expectedAccountId!,
+          storeId: expectedStoreId!,
+        )) {
+      return false;
+    }
     _products
       ..clear()
       ..addAll(results[0] as List<Product>);
@@ -2294,6 +2442,7 @@ class AppController extends ChangeNotifier {
       ..addAll(results[14] as List<AppNotification>);
     _notificationPreferences = results[15] as NotificationPreferences;
     _activeBranchId ??= activeBranch?.id;
+    return true;
   }
 
   Future<void> _guard(Future<void> Function() action) async {

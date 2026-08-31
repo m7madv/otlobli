@@ -68,6 +68,21 @@ void main() {
     expect(find.text('تأكيد الانضمام'), findsOneWidget);
   });
 
+  testWidgets('لا يعد إنشاء المتجر بتجربة مجانية غير مضمونة', (tester) async {
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_screen(controller, const OnboardingScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('إنشاء المتجر والمتابعة'), findsOneWidget);
+    expect(find.text('إنشاء المتجر وبدء التجربة'), findsNothing);
+    expect(
+      find.textContaining('يُنشأ المتجر من دون مزايا مجانية'),
+      findsOneWidget,
+    );
+  });
+
   test('يقبل أطوال رموز الدعوة المدعومة فقط', () {
     for (final code in [
       'DMN-A1B2C3D4E5',

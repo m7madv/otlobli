@@ -4,6 +4,7 @@ import 'package:damanak/core/app_theme.dart';
 import 'package:damanak/data/damanak_repository.dart';
 import 'package:damanak/data/demo_repository.dart';
 import 'package:damanak/models/account.dart';
+import 'package:damanak/models/branch.dart';
 import 'package:damanak/models/store_billing.dart';
 import 'package:damanak/models/subscription.dart';
 import 'package:damanak/screens/account_screen.dart';
@@ -62,6 +63,99 @@ void main() {
       expect(billing.purchaseCalls, 0);
       expect(controller.errorMessage, contains('لم يبدأ أي اشتراك جديد'));
       expect(controller.storeBillingState, StoreBillingState.ready);
+    });
+
+    test('يكمل الشراء ثم يحمل الفرع قبل فتح المتجر الأول', () async {
+      final activationBranches = Completer<List<StoreBranch>>();
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'google_play'),
+        activationBranches: activationBranches,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.googlePlay,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      expect(controller.branches, isEmpty);
+      await controller.refreshStoreProducts();
+      await controller.purchaseSubscription(controller.storeOffers.first);
+      billing.emit(
+        _googlePurchasedEvent(key: 'initial-purchase', needsCompletion: true),
+      );
+      await _waitUntil(() => repository.loadBranchesCalls == 2);
+
+      expect(billing.completeCalls, 1);
+      expect(controller.subscription!.isAwaitingSubscription, isTrue);
+      expect(controller.branches, isEmpty);
+
+      activationBranches.complete([_mainBranch()]);
+      await _waitUntil(() => controller.subscription?.isUsable == true);
+
+      expect(controller.branches.single.code, 'MAIN');
+      expect(controller.activeBranch?.code, 'MAIN');
+
+      final relaunched = AppController.withRepository(
+        repository,
+        billingService: _LifecycleBillingService(
+          platform: StoreBillingPlatform.googlePlay,
+        ),
+      );
+      addTearDown(relaunched.dispose);
+      await relaunched.initialize();
+      expect(relaunched.subscription!.isUsable, isTrue);
+      expect(relaunched.branches.single.code, 'MAIN');
+    });
+
+    test('تحمل الاستعادة الفرع قبل إزالة بوابة الدفع الأول', () async {
+      final activationBranches = Completer<List<StoreBranch>>();
+      final repository = _SubscriptionRepository(
+        subscription: _inactiveStoreReceiptSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        activationBranches: activationBranches,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.appStore,
+          restoredPurchases: 1,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'initial-restore',
+          appAccountToken: 'demo-store',
+          needsCompletion: true,
+        ),
+      );
+      await _waitUntil(() => repository.loadBranchesCalls == 2);
+
+      expect(billing.completeCalls, 1);
+      expect(controller.subscription!.isAwaitingSubscription, isFalse);
+      expect(controller.subscription!.isUsable, isFalse);
+      expect(controller.branches, isEmpty);
+
+      activationBranches.complete([_mainBranch()]);
+      await restore;
+
+      expect(controller.subscription!.isUsable, isTrue);
+      expect(controller.branches.single.code, 'MAIN');
+      expect(controller.noticeMessage, contains('تمت استعادة الاشتراك'));
     });
 
     test('يمسح عروض الأسعار القديمة إذا فشل تحديث الكتالوج', () async {
@@ -742,25 +836,29 @@ void main() {
   });
 }
 
-StorePurchaseEvent _googlePurchasedEvent({required String key}) =>
-    StorePurchaseEvent(
-      key: key,
-      status: StorePurchaseStatus.purchased,
-      platform: StoreBillingPlatform.googlePlay,
-      productId: 'com.damanak.subscription.growth',
-      basePlanId: 'monthly',
-      purchaseId: 'order-$key',
-      transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
-      verificationData: 'token-$key',
-      verificationSource: 'google_play',
-      needsCompletion: false,
-      accountId: 'demo-owner',
-      storeId: 'demo-store',
-    );
+StorePurchaseEvent _googlePurchasedEvent({
+  required String key,
+  StorePurchaseStatus status = StorePurchaseStatus.purchased,
+  bool needsCompletion = false,
+}) => StorePurchaseEvent(
+  key: key,
+  status: status,
+  platform: StoreBillingPlatform.googlePlay,
+  productId: 'com.damanak.subscription.growth',
+  basePlanId: 'monthly',
+  purchaseId: 'order-$key',
+  transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
+  verificationData: 'token-$key',
+  verificationSource: 'google_play',
+  needsCompletion: needsCompletion,
+  accountId: 'demo-owner',
+  storeId: 'demo-store',
+);
 
 StorePurchaseEvent _appleRestoredEvent({
   required String key,
   String? appAccountToken,
+  bool needsCompletion = false,
 }) => StorePurchaseEvent(
   key: key,
   status: StorePurchaseStatus.restored,
@@ -770,7 +868,7 @@ StorePurchaseEvent _appleRestoredEvent({
   transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
   verificationData: 'signed-$key',
   verificationSource: 'app_store',
-  needsCompletion: false,
+  needsCompletion: needsCompletion,
   appAccountToken: appAccountToken,
 );
 
@@ -822,18 +920,66 @@ SubscriptionInfo _trialSubscription() => SubscriptionInfo(
   usedWarranties: 0,
 );
 
+SubscriptionInfo _initialPaymentSubscription() => const SubscriptionInfo(
+  id: 'subscription-initial-payment',
+  status: 'canceled',
+  plan: _growthPlan,
+  trialEndsAt: null,
+  periodEndsAt: null,
+  usedWarranties: 0,
+  source: 'trial',
+);
+
+SubscriptionInfo _inactiveStoreReceiptSubscription() => const SubscriptionInfo(
+  id: 'subscription-inactive-store-receipt',
+  status: 'canceled',
+  plan: _growthPlan,
+  trialEndsAt: null,
+  periodEndsAt: null,
+  usedWarranties: 0,
+  source: 'store',
+  billingProvider: 'app_store',
+  storeProductId: 'com.damanak.subscription.growth.monthly',
+  billingCycle: 'monthly',
+);
+
+StoreBranch _mainBranch() => StoreBranch(
+  id: 'main-branch',
+  storeId: 'demo-store',
+  name: 'الفرع الرئيسي',
+  code: 'MAIN',
+  city: 'الدوحة',
+  address: '',
+  phone: '',
+  isMain: true,
+  isActive: true,
+  createdAt: DateTime(2026, 9),
+);
+
+Future<void> _waitUntil(bool Function() predicate) async {
+  for (var attempt = 0; attempt < 100 && !predicate(); attempt++) {
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+  }
+  expect(predicate(), isTrue);
+}
+
 class _SubscriptionRepository extends DemoDamanakRepository {
   _SubscriptionRepository({
     required this.subscription,
     this.verifyDelay = Duration.zero,
     this.refreshError,
+    this.verifiedSubscription,
+    this.activationBranches,
   });
 
   SubscriptionInfo subscription;
   final Duration verifyDelay;
   final Object? refreshError;
+  final SubscriptionInfo? verifiedSubscription;
+  final Completer<List<StoreBranch>>? activationBranches;
   int verifyCalls = 0;
   int refreshCalls = 0;
+  int loadBranchesCalls = 0;
 
   @override
   bool get isDemo => false;
@@ -857,13 +1003,24 @@ class _SubscriptionRepository extends DemoDamanakRepository {
   );
 
   @override
+  Future<List<StoreBranch>> loadBranches(String storeId) async {
+    loadBranchesCalls += 1;
+    final pendingBranches = activationBranches;
+    if (pendingBranches == null) return super.loadBranches(storeId);
+    if (loadBranchesCalls == 1) return const <StoreBranch>[];
+    return pendingBranches.future;
+  }
+
+  @override
   Future<SubscriptionInfo> verifyStorePurchase({
     required String storeId,
     required StorePurchaseReceipt receipt,
   }) async {
     verifyCalls += 1;
     if (verifyDelay > Duration.zero) await Future<void>.delayed(verifyDelay);
-    return subscription;
+    final result = verifiedSubscription ?? subscription;
+    subscription = result;
+    return result;
   }
 
   @override
@@ -885,6 +1042,7 @@ class _LifecycleBillingService implements StoreBillingService {
   Object? catalogError;
   int purchaseCalls = 0;
   int restoreCalls = 0;
+  int completeCalls = 0;
   bool? requiredExistingSubscription;
   StoreBillingPlatform? managedProvider;
   String? managedProductId;
@@ -949,7 +1107,9 @@ class _LifecycleBillingService implements StoreBillingService {
   }
 
   @override
-  Future<void> completePurchase(StorePurchaseEvent event) async {}
+  Future<void> completePurchase(StorePurchaseEvent event) async {
+    completeCalls += 1;
+  }
 
   @override
   Future<bool> openSubscriptionManagement(

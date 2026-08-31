@@ -55,7 +55,7 @@ jobs:
           DAMANAK_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAMANAK_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
-          grep -qx 'version: 4.5.0+24' pubspec.yaml
+          grep -qx 'version: 4.5.0+25' pubspec.yaml
           test -n "$DAMANAK_KEYSTORE_PASSWORD"
           test -n "$DAMANAK_KEY_ALIAS"
           test -n "$DAMANAK_SUPABASE_URL"
@@ -84,7 +84,7 @@ jobs:
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-android-4.5.0-build-24-run-${{ github.run_number }}
+          name: damanak-android-4.5.0-build-25-run-${{ github.run_number }}
           path: |
             damanak_flutter/build/app/outputs/bundle/release/app-release.aab
             damanak_flutter/build/google-play-upload/report.json

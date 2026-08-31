@@ -175,8 +175,18 @@ class SubscriptionInfo {
     return end == null || end.isAfter(now);
   }
 
-  int get remainingWarranties => (plan.monthlyWarranties - usedWarranties)
-      .clamp(0, plan.monthlyWarranties);
+  bool get isAwaitingSubscription =>
+      status == 'canceled' &&
+      source == 'trial' &&
+      trialEndsAt == null &&
+      periodEndsAt == null;
+
+  int get remainingWarranties => !isUsable
+      ? 0
+      : (plan.monthlyWarranties - usedWarranties).clamp(
+          0,
+          plan.monthlyWarranties,
+        );
   int get warrantyGraceAllowance => (plan.monthlyWarranties / 10).ceil();
   int get remainingTrialDays {
     final end = trialEndsAt;

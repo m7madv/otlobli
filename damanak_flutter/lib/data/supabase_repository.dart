@@ -352,7 +352,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
       throw StateError('TRIAL_DEVICE_SECURITY_UNAVAILABLE');
     }
     final value = await _client.rpc(
-      'create_store_with_trial',
+      'create_store_with_subscription',
       params: {
         'store_name': name.trim(),
         'store_phone': phone.trim(),

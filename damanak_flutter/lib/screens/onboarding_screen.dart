@@ -261,13 +261,22 @@ class _CreateStoreForm extends StatelessWidget {
                     : null,
               ),
               const SizedBox(height: 18),
+              Text(
+                'إذا كانت التجربة متاحة فستبدأ تلقائياً. وإذا سبق استخدامها، يُنشأ المتجر من دون مزايا مجانية وتنتقل لاختيار اشتراك مدفوع.',
+                style: TextStyle(
+                  color: context.colors.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: busy ? null : onSubmit,
                   icon: const Icon(Icons.arrow_back_rounded),
                   label: Text(
-                    busy ? 'جارٍ إنشاء المتجر…' : 'إنشاء المتجر وبدء التجربة',
+                    busy ? 'جارٍ إنشاء المتجر…' : 'إنشاء المتجر والمتابعة',
                   ),
                 ),
               ),

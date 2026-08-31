@@ -34,6 +34,37 @@ SubscriptionInfo _subscription({
 );
 
 void main() {
+  test('المتجر غير المشترك لا يحصل على حصة الخطة الاسمية', () {
+    final subscription = _subscription(
+      status: 'canceled',
+      source: 'trial',
+      trialEndsAt: null,
+      periodEndsAt: null,
+    );
+
+    expect(subscription.isAwaitingSubscription, isTrue);
+    expect(subscription.isUsable, isFalse);
+    expect(subscription.remainingWarranties, 0);
+  });
+
+  test('لا يخلط بوابة الدفع الأول بتجربة منتهية أو اشتراك يدوي', () {
+    final expiredTrial = _subscription(
+      status: 'canceled',
+      source: 'trial',
+      trialEndsAt: DateTime.now().subtract(const Duration(days: 1)),
+      periodEndsAt: null,
+    );
+    final manualSubscription = _subscription(
+      status: 'canceled',
+      source: 'manual',
+      trialEndsAt: null,
+      periodEndsAt: null,
+    );
+
+    expect(expiredTrial.isAwaitingSubscription, isFalse);
+    expect(manualSubscription.isAwaitingSubscription, isFalse);
+  });
+
   test('اشتراك المتجر لا يصبح مفتوح المدة عند غياب نهاية الفترة', () {
     expect(_subscription(status: 'active', source: 'store').isUsable, isFalse);
   });
