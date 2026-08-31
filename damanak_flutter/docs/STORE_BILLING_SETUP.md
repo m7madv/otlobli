@@ -2,13 +2,13 @@
 
 إصدار المصدر الحالي: `4.5.0+25` — معرّف التطبيق: `com.damanak.damanak`
 
-Build `23` هو حزمة App Review وGoogle Alpha، وBuild `24` موجود في iPhone TestFlight فقط. Build `25` يضيف مسار إنشاء متجر بلا تجربة عند عدم الأهلية، وهو قيد التجهيز لـTestFlight. لا تنسب تغييراته إلى Build `23` أو `24`، ولا تضفه إلى App Review أو Google من دون قرار منفصل.
+Build `23` هو حزمة App Review وGoogle Alpha، وBuild `24` و`25` موجودان في iPhone TestFlight فقط. Build `25` يضيف مسار إنشاء متجر بلا تجربة عند عدم الأهلية. لا تنسب تغييراته إلى Build `23` أو `24`، ولا تضفه إلى App Review أو Google من دون قرار منفصل.
 
 ## الحالة الخارجية
 
 - Apple App ID: `6804792494`. submission `69104e50-7a9a-4102-a717-ca341d442897` يضم الإصدار `4.5.0` ومجموعة الاشتراك والمنتجات الستة، أي 8 عناصر، وحالته `Waiting for Review` على Build `23`.
 - iPhone TestFlight Build `4.5.0 (24)` رُفع في run [33443358450](https://github.com/m7madv/otlobli/actions/runs/33443358450)، وأنهت Apple معالجته. حالته `Ready to Submit` ومربوط بمجموعة `Damanak Internal` الداخلية ذات المختبر الواحد؛ لم يُضف إلى App Review. IPA حجمها `23,923,863` وبصمتها `EA55D5F1192886EE9019F0048E3476C1D5416E047B4F1F1823D234FC56BCF768`.
-- Build `25` لم يُرفع بعد عند تحديث هذه الوثيقة. هو مخصص لـiPhone TestFlight فقط، ولا يغيّر submission Build `23`.
+- رفع run [33449769807](https://github.com/m7madv/otlobli/actions/runs/33449769807) Build `4.5.0 (25)` إلى Apple بنجاح. أنهت Apple المعالجة؛ البناء `VALID` ومعرّفه `8e864062-28e0-4250-abd2-dac25f8df1b9` وداخل `Damanak Internal` ذات المختبر الواحد. الـIPA حجمها `23,930,380` بايت وبصمتها `D2DAF9EF0A97B3C8A6328C32D1B71276352DEAA29A97E144653978983F13A14F`. لم يُضف إلى App Review.
 - أضيف رابط EULA القياسي إلى وصف App Store، وأُكد للمراجعة أن أسعار «توسع» المقصودة تأتي من App Store. لا توجد أسعار بديلة داخل التطبيق.
 - Google Build `23` موجود على مسار Alpha رقم `4699097266255892286` وقيد المراجعة. قائمة `All Apps - Closed Testers` دائمة وتضم بالضبط 12 مختبراً؛ لا تُنشئ قائمة أخرى ولا تعدّلها.
 - رابط الانضمام هو `https://play.google.com/apps/testing/com.damanak.damanak`. لا يبدأ عداد 14 يوماً إلا بعد قبول Google وانضمام المختبرين فعلياً.

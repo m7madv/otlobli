@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر `4.5.0+25`، وiPhone TestFlight Build `25` قيد التجهيز، وBuild `24` في TestFlight، وحزمة App Review/Google Build `23`
+آخر تحديث: 2026-09-01 — المصدر `4.5.0+25`، وiPhone Build `25` و`24` في TestFlight، وحزمة App Review/Google Build `23`
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -30,8 +30,9 @@
 - [x] رُفع رقم المصدر إلى `4.5.0+25`، ونجح `flutter analyze` و`160/160` اختبار Flutter و`56/56` اختبار Deno وبناء web release وAndroid debug.
 - [x] نُشر دعم الخادم المتوافق مع Build `24` ونجح اختباره الحي.
 - [x] بقي submission Apple Build `23` وGoogle Alpha Build `23` وقائمة المختبرين بلا تغيير.
-- [ ] رفع iPhone Build `25` الموقّع إلى TestFlight وانتظار معالجة Apple.
-- [ ] التحقق من ربط Build `25` بمجموعة `Damanak Internal` من دون إضافته إلى App Review.
+- [x] رفع run [33449769807](https://github.com/m7madv/otlobli/actions/runs/33449769807) iPhone Build `25` الموقّع إلى Apple؛ Delivery UUID هو `8e864062-28e0-4250-abd2-dac25f8df1b9`، والـIPA `23,930,380` بايت وبصمتها `D2DAF9EF0A97B3C8A6328C32D1B71276352DEAA29A97E144653978983F13A14F`.
+- [x] ظهر Build `4.5.0 (25)` بحالة `VALID` ومعرّف `8e864062-28e0-4250-abd2-dac25f8df1b9` بعد معالجة Apple.
+- [x] رُبط Build `25` تلقائياً بمجموعة `Damanak Internal` ذات المختبر الواحد، ولم يُضف إلى App Review.
 - [ ] لا ترفع Android Build `25` ولا تضف Build `25` إلى App Review بلا قرار إصدار منفصل.
 
 ## قبول الأجهزة قبل الإطلاق العام
