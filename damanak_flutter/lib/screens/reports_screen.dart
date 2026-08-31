@@ -9,6 +9,7 @@ import '../core/date_utils.dart';
 import '../models/account.dart';
 import '../models/maintenance_request.dart';
 import '../models/warranty.dart';
+import '../services/spreadsheet_safe_csv.dart';
 import '../state/app_scope.dart';
 
 class ReportsScreen extends StatelessWidget {
@@ -330,6 +331,7 @@ class ReportsScreen extends StatelessWidget {
       rows,
       'damanak-warranties',
       'تقرير ضمانات ${controller.store!.name}',
+      numericColumnIndexes: const {6, 7, 8},
     );
   }
 
@@ -337,9 +339,22 @@ class ReportsScreen extends StatelessWidget {
     BuildContext context,
     List<List<String>> rows,
     String filePrefix,
-    String subject,
-  ) async {
-    final csv = rows.map((row) => row.map(_csvCell).join(',')).join('\r\n');
+    String subject, {
+    Set<int> numericColumnIndexes = const {},
+  }) async {
+    final csv = rows.indexed
+        .map(
+          (indexedRow) => indexedRow.$2.indexed
+              .map(
+                (indexedCell) =>
+                    indexedRow.$1 > 0 &&
+                        numericColumnIndexes.contains(indexedCell.$1)
+                    ? spreadsheetSafeCsvNumberCell(indexedCell.$2)
+                    : spreadsheetSafeCsvTextCell(indexedCell.$2),
+              )
+              .join(','),
+        )
+        .join('\r\n');
     final bytes = Uint8List.fromList(utf8.encode('\ufeff$csv'));
     final file = XFile.fromData(
       bytes,
@@ -358,8 +373,6 @@ class ReportsScreen extends StatelessWidget {
       ),
     );
   }
-
-  String _csvCell(String value) => '"${value.replaceAll('"', '""')}"';
 }
 
 class _ReportMetric extends StatelessWidget {

@@ -326,7 +326,7 @@ class _JoinForm extends StatelessWidget {
                 onFieldSubmitted: (_) => onSubmit(),
                 decoration: const InputDecoration(
                   labelText: 'رمز الدعوة',
-                  hintText: 'DMN-7K4P9Q',
+                  hintText: 'DMN-A1B2C3D4E5',
                   prefixIcon: Icon(Icons.key_rounded),
                 ),
                 validator: (value) => (value?.trim().length ?? 0) < 6

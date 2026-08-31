@@ -56,6 +56,60 @@ const allowedAttachmentTypes = new Map([
   ["application/pdf", "pdf"],
 ]);
 const maxAttachmentBytes = 5 * 1024 * 1024;
+const maxRequestBytes = 16 * 1024 * 1024;
+const maxLinkRequestBytes = 64 * 1024;
+
+export class RequestBodyTooLargeError extends Error {}
+
+function boundedRequestBody(request: Request, byteLimit: number) {
+  if (!Number.isSafeInteger(byteLimit) || byteLimit <= 0) {
+    throw new RangeError("INVALID_BODY_LIMIT");
+  }
+  if (!request.body) throw new TypeError("REQUEST_BODY_REQUIRED");
+
+  const advertisedLength = Number(request.headers.get("content-length"));
+  if (
+    Number.isFinite(advertisedLength) &&
+    advertisedLength >= 0 &&
+    advertisedLength > byteLimit
+  ) {
+    throw new RequestBodyTooLargeError("REQUEST_TOO_LARGE");
+  }
+
+  let consumedBytes = 0;
+  return request.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        consumedBytes += chunk.byteLength;
+        if (consumedBytes > byteLimit) {
+          controller.error(new RequestBodyTooLargeError("REQUEST_TOO_LARGE"));
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+}
+
+export async function parseBoundedJsonBody<T>(
+  request: Request,
+  byteLimit = maxLinkRequestBytes,
+): Promise<T> {
+  return await new Response(boundedRequestBody(request, byteLimit)).json() as T;
+}
+
+export async function parseBoundedMultipartFormData(
+  request: Request,
+  byteLimit = maxRequestBytes,
+) {
+  const contentType = request.headers.get("content-type")?.trim() ?? "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
+    throw new TypeError("MULTIPART_REQUIRED");
+  }
+  return await new Response(boundedRequestBody(request, byteLimit), {
+    headers: { "content-type": contentType },
+  }).formData();
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -487,14 +541,6 @@ export function renderWarranty(
 async function issueLink(request: Request) {
   const authorization = request.headers.get("authorization")?.trim();
   if (!authorization) return json(401, { error: "AUTH_REQUIRED" });
-  let body: { warrantyId?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return json(400, { error: "INVALID_JSON" });
-  }
-  const warrantyId = body.warrantyId?.trim();
-  if (!warrantyId) return json(400, { error: "WARRANTY_REQUIRED" });
 
   const supabaseUrl = requiredEnv("SUPABASE_URL");
   const memberClient = createClient(
@@ -507,6 +553,18 @@ async function issueLink(request: Request) {
   if (userError || !userData.user) {
     return json(401, { error: "AUTH_INVALID" });
   }
+
+  let body: { warrantyId?: string };
+  try {
+    body = await parseBoundedJsonBody(request);
+  } catch (error) {
+    return error instanceof RequestBodyTooLargeError
+      ? json(413, { error: "REQUEST_TOO_LARGE" })
+      : json(400, { error: "INVALID_JSON" });
+  }
+  const warrantyId = body.warrantyId?.trim();
+  if (!warrantyId) return json(400, { error: "WARRANTY_REQUIRED" });
+
   const { data, error } = await memberClient
     .from("warranties")
     .select("id, expiry_date")
@@ -596,7 +654,7 @@ async function submitPublicClaim(request: Request) {
   }
 
   const contentLength = Number(request.headers.get("content-length") || "0");
-  if (Number.isFinite(contentLength) && contentLength > 16 * 1024 * 1024) {
+  if (Number.isFinite(contentLength) && contentLength > maxRequestBytes) {
     return portalMessage(
       413,
       "الملفات كبيرة",
@@ -607,8 +665,16 @@ async function submitPublicClaim(request: Request) {
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
+    form = await parseBoundedMultipartFormData(request);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return portalMessage(
+        413,
+        "الملفات كبيرة",
+        "اختر حتى 3 ملفات، وبحجم 5 MB لكل ملف.",
+        url.toString(),
+      );
+    }
     return portalMessage(
       400,
       "تعذّر قراءة الطلب",
@@ -838,6 +904,7 @@ async function viewWarranty(request: Request) {
       "id,claim_number,status,issue,customer_notes,decision_reason,resolution,created_at,updated_at",
     )
     .eq("warranty_id", warranty.id)
+    .eq("store_id", warranty.store_id)
     .order("created_at", { ascending: false })
     .limit(20)
     .returns<PublicClaimRow[]>();

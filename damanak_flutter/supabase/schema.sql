@@ -5645,10 +5645,24 @@ CREATE INDEX "audit_logs_store_created_idx" ON "public"."audit_logs" USING "btre
 
 
 --
+-- Name: branches_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "branches_id_store_id_key" ON "public"."branches" USING "btree" ("id", "store_id");
+
+
+--
 -- Name: branches_one_main_per_store; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX "branches_one_main_per_store" ON "public"."branches" USING "btree" ("store_id") WHERE ("is_main" AND "is_active");
+
+
+--
+-- Name: customers_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "customers_id_store_id_key" ON "public"."customers" USING "btree" ("id", "store_id");
 
 
 --
@@ -5764,6 +5778,13 @@ CREATE INDEX "notifications_user_unread_idx" ON "public"."notifications" USING "
 
 
 --
+-- Name: products_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "products_id_store_id_key" ON "public"."products" USING "btree" ("id", "store_id");
+
+
+--
 -- Name: products_store_barcode_unique; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -5813,6 +5834,13 @@ CREATE INDEX "register_sessions_store_opened_idx" ON "public"."register_sessions
 
 
 --
+-- Name: sale_lines_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "sale_lines_id_store_id_key" ON "public"."sale_lines" USING "btree" ("id", "store_id");
+
+
+--
 -- Name: sale_lines_sale_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -5845,6 +5873,13 @@ CREATE INDEX "sale_return_lines_sale_line_idx" ON "public"."sale_return_lines" U
 --
 
 CREATE INDEX "sale_returns_sale_idx" ON "public"."sale_returns" USING "btree" ("sale_id");
+
+
+--
+-- Name: sales_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "sales_id_store_id_key" ON "public"."sales" USING "btree" ("id", "store_id");
 
 
 --
@@ -5922,6 +5957,13 @@ CREATE UNIQUE INDEX "subscriptions_store_receipt_unique" ON "public"."subscripti
 --
 
 CREATE INDEX "suppliers_store_name_idx" ON "public"."suppliers" USING "btree" ("store_id", "name");
+
+
+--
+-- Name: warranties_id_store_id_key; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "warranties_id_store_id_key" ON "public"."warranties" USING "btree" ("id", "store_id");
 
 
 --
@@ -6660,6 +6702,14 @@ ALTER TABLE ONLY "public"."maintenance_requests"
 
 
 --
+-- Name: maintenance_requests maintenance_requests_warranty_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."maintenance_requests"
+    ADD CONSTRAINT "maintenance_requests_warranty_store_fk" FOREIGN KEY ("warranty_id", "store_id") REFERENCES "public"."warranties"("id", "store_id") ON UPDATE RESTRICT ON DELETE CASCADE;
+
+
+--
 -- Name: notification_preferences notification_preferences_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -7100,6 +7150,14 @@ ALTER TABLE ONLY "public"."suppliers"
 
 
 --
+-- Name: warranties warranties_branch_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_branch_store_fk" FOREIGN KEY ("branch_id", "store_id") REFERENCES "public"."branches"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("branch_id");
+
+
+--
 -- Name: warranties warranties_branch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -7116,11 +7174,27 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
+-- Name: warranties warranties_customer_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_customer_store_fk" FOREIGN KEY ("customer_id", "store_id") REFERENCES "public"."customers"("id", "store_id") ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+
+--
 -- Name: warranties warranties_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
     ADD CONSTRAINT "warranties_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE RESTRICT;
+
+
+--
+-- Name: warranties warranties_product_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_product_store_fk" FOREIGN KEY ("product_id", "store_id") REFERENCES "public"."products"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("product_id");
 
 
 --
@@ -7132,11 +7206,27 @@ ALTER TABLE ONLY "public"."warranties"
 
 
 --
+-- Name: warranties warranties_sale_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_sale_store_fk" FOREIGN KEY ("sale_id", "store_id") REFERENCES "public"."sales"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("sale_id");
+
+
+--
 -- Name: warranties warranties_sale_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY "public"."warranties"
     ADD CONSTRAINT "warranties_sale_fk" FOREIGN KEY ("sale_id") REFERENCES "public"."sales"("id") ON DELETE SET NULL;
+
+
+--
+-- Name: warranties warranties_sale_line_store_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "public"."warranties"
+    ADD CONSTRAINT "warranties_sale_line_store_fk" FOREIGN KEY ("sale_line_id", "store_id") REFERENCES "public"."sale_lines"("id", "store_id") ON UPDATE RESTRICT ON DELETE SET NULL ("sale_line_id");
 
 
 --

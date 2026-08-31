@@ -44,11 +44,16 @@ void main() {
   testWidgets('يحفظ رابط الدعوة ويجهز نموذج الانضمام', (tester) async {
     final controller = AppController.unconfigured();
     final handled = controller.handleIncomingUri(
-      Uri.parse('com.damanak.damanak://join?code=DMN-7K4P9Q&role=staff'),
+      Uri.parse(
+        'com.damanak.damanak://join?code=DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90&role=staff',
+      ),
     );
 
     expect(handled, isTrue);
-    expect(controller.pendingInvitationCode, 'DMN-7K4P9Q');
+    expect(
+      controller.pendingInvitationCode,
+      'DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90',
+    );
     expect(controller.pendingInvitationRole, MemberRole.staff);
 
     await tester.pumpWidget(_screen(controller, const OnboardingScreen()));
@@ -59,8 +64,46 @@ void main() {
       find.text('تم تحميل الدعوة. صلاحيتك بعد الانضمام: موظف.'),
       findsOneWidget,
     );
-    expect(find.text('DMN-7K4P9Q'), findsWidgets);
+    expect(find.text('DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90'), findsWidgets);
     expect(find.text('تأكيد الانضمام'), findsOneWidget);
+  });
+
+  test('يقبل أطوال رموز الدعوة المدعومة فقط', () {
+    for (final code in [
+      'DMN-A1B2C3D4E5',
+      'DMN-A1B2C3D4E5F60718',
+      'DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90',
+    ]) {
+      final controller = AppController.unconfigured();
+      expect(
+        controller.handleIncomingUri(
+          Uri.parse('com.damanak.damanak://join?code=$code&role=staff'),
+        ),
+        isTrue,
+      );
+      expect(controller.pendingInvitationCode, code);
+      controller.dispose();
+    }
+
+    for (final code in [
+      'DMN-A1B2C3D4E',
+      'DMN-A1B2C3D4E5F',
+      'DMN-A1B2C3D4E5F6071',
+      'DMN-A1B2C3D4E5F607182',
+      'DMN-A1B2C3D4E5F60718293A4B5C6D7E8F9',
+      'DMN-A1B2C3D4E5F60718293A4B5C6D7E8F901',
+      'DMN-A1B2C3D4EG',
+    ]) {
+      final controller = AppController.unconfigured();
+      expect(
+        controller.handleIncomingUri(
+          Uri.parse('com.damanak.damanak://join?code=$code&role=staff'),
+        ),
+        isTrue,
+      );
+      expect(controller.pendingInvitationCode, isNull);
+      controller.dispose();
+    }
   });
 
   test('ينشئ صفحة دعوة HTTPS آمنة تتضمن الرمز والصلاحية', () {

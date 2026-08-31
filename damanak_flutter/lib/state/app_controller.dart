@@ -326,7 +326,10 @@ class AppController extends ChangeNotifier {
       return false;
     }
     final code = uri.queryParameters['code']?.trim().toUpperCase();
-    if (code == null || !RegExp(r'^DMN-[A-Z0-9]{6,16}$').hasMatch(code)) {
+    if (code == null ||
+        !RegExp(
+          r'^DMN-(?:[A-F0-9]{10}|[A-F0-9]{16}|[A-F0-9]{32})$',
+        ).hasMatch(code)) {
       _errorMessage = 'رابط الدعوة غير مكتمل. اطلب من المدير إرسال دعوة جديدة.';
       notifyListeners();
       return true;

@@ -3,7 +3,7 @@ import { handle } from "./index.ts";
 Deno.test("invite page is HTTPS-only guidance and never cached", async () => {
   const response = handle(
     new Request(
-      "https://example.test/functions/v1/legal/join?code=DMN-A1B2C3D4E5F60718&role=staff",
+      "https://example.test/functions/v1/legal/join?code=DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90&role=staff",
     ),
   );
   const html = await response.text();
@@ -11,12 +11,48 @@ Deno.test("invite page is HTTPS-only guidance and never cached", async () => {
     throw new Error("invite secrets must never be cached");
   }
   if (
-    !html.includes("DMN-A1B2C3D4E5F60718") ||
+    !html.includes("DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90") ||
     html.includes("com.damanak.damanak://")
   ) {
     throw new Error(
       "invite page must show the manual code without a hijackable scheme",
     );
+  }
+});
+
+Deno.test("invite page accepts only the supported hexadecimal code lengths", async () => {
+  for (
+    const code of [
+      "DMN-A1B2C3D4E5",
+      "DMN-A1B2C3D4E5F60718",
+      "DMN-A1B2C3D4E5F60718293A4B5C6D7E8F90",
+    ]
+  ) {
+    const html = await handle(
+      new Request(`https://example.test/functions/v1/legal/join?code=${code}`),
+    ).text();
+    if (!html.includes("دعوة فريق ضمانك") || !html.includes(code)) {
+      throw new Error(`Supported invitation code was rejected: ${code}`);
+    }
+  }
+
+  for (
+    const code of [
+      "DMN-A1B2C3D4E",
+      "DMN-A1B2C3D4E5F",
+      "DMN-A1B2C3D4E5F6071",
+      "DMN-A1B2C3D4E5F607182",
+      "DMN-A1B2C3D4E5F60718293A4B5C6D7E8F9",
+      "DMN-A1B2C3D4E5F60718293A4B5C6D7E8F901",
+      "DMN-A1B2C3D4EG",
+    ]
+  ) {
+    const html = await handle(
+      new Request(`https://example.test/functions/v1/legal/join?code=${code}`),
+    ).text();
+    if (!html.includes("رابط دعوة غير صالح")) {
+      throw new Error(`Invalid invitation code was accepted: ${code}`);
+    }
   }
 });
 

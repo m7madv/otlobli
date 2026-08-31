@@ -1,4 +1,9 @@
-import { renderWarranty } from "./index.ts";
+import {
+  parseBoundedJsonBody,
+  parseBoundedMultipartFormData,
+  renderWarranty,
+  RequestBodyTooLargeError,
+} from "./index.ts";
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -76,4 +81,67 @@ Deno.test("does not offer claim submission for an expired warranty", () => {
     !html.includes('enctype="multipart/form-data"'),
     "Expired warranty exposes a submission form",
   );
+});
+
+Deno.test("parses a normal multipart claim through the byte counter", async () => {
+  const form = new FormData();
+  form.set("issue", "الجهاز لا يعمل");
+  form.set("consent", "yes");
+  const request = new Request("https://example.test/claim", {
+    method: "POST",
+    body: form,
+  });
+
+  const parsed = await parseBoundedMultipartFormData(request, 1024 * 1024);
+  assert(parsed.get("issue") === "الجهاز لا يعمل", "Multipart text changed");
+});
+
+Deno.test("stops a multipart stream when the total byte limit is crossed", async () => {
+  const oversizedChunk = new Uint8Array(1025);
+  const request = new Request("https://example.test/claim", {
+    method: "POST",
+    headers: {
+      "content-type": "multipart/form-data; boundary=damanak-test",
+    },
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(oversizedChunk);
+        controller.close();
+      },
+    }),
+  });
+
+  let rejected = false;
+  try {
+    await parseBoundedMultipartFormData(request, 1024);
+  } catch (error) {
+    rejected = error instanceof RequestBodyTooLargeError;
+  }
+  assert(rejected, "Oversized multipart body was not rejected by the stream");
+});
+
+Deno.test("parses a small link request and rejects an oversized JSON stream", async () => {
+  const validRequest = new Request("https://example.test/link", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ warrantyId: "warranty-1" }),
+  });
+  const parsed = await parseBoundedJsonBody<{ warrantyId: string }>(
+    validRequest,
+    1024,
+  );
+  assert(parsed.warrantyId === "warranty-1", "Bounded JSON body changed");
+
+  const oversizedRequest = new Request("https://example.test/link", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ warrantyId: "x".repeat(1024) }),
+  });
+  let rejected = false;
+  try {
+    await parseBoundedJsonBody(oversizedRequest, 128);
+  } catch (error) {
+    rejected = error instanceof RequestBodyTooLargeError;
+  }
+  assert(rejected, "Oversized link JSON was not rejected by the byte counter");
 });

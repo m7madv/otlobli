@@ -584,4 +584,55 @@ void main() {
     expect(portal, contains('brandingAllowed === true'));
     expect(portal, contains('const publicStore'));
   });
+
+  test('مراجع الضمان لا تستطيع عبور حدود المتجر', () {
+    final migration = File(
+      'supabase/migrations/20260831140000_damanak_warranty_tenant_integrity.sql',
+    ).readAsStringSync();
+
+    for (final token in [
+      'branches_id_store_id_key',
+      'customers_id_store_id_key',
+      'products_id_store_id_key',
+      'sales_id_store_id_key',
+      'sale_lines_id_store_id_key',
+      'warranties_customer_store_fk',
+      'warranties_product_store_fk',
+      'warranties_branch_store_fk',
+      'warranties_sale_store_fk',
+      'warranties_sale_line_store_fk',
+      'foreign key (customer_id, store_id)',
+      'foreign key (product_id, store_id)',
+      'foreign key (branch_id, store_id)',
+      'foreign key (sale_id, store_id)',
+      'foreign key (sale_line_id, store_id)',
+      'on delete set null (product_id)',
+      'on delete set null (branch_id)',
+      'on delete set null (sale_id)',
+      'on delete set null (sale_line_id)',
+    ]) {
+      expect(migration, contains(token));
+    }
+  });
+
+  test('المطالبة لا تستطيع الارتباط بضمان من متجر آخر', () {
+    final migration = File(
+      'supabase/migrations/20260831150000_damanak_claim_warranty_tenant_integrity.sql',
+    ).readAsStringSync();
+    final portal = File(
+      'supabase/functions/warranty-card/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'warranties_id_store_id_key',
+      'maintenance_requests_warranty_store_fk',
+      'foreign key (warranty_id, store_id)',
+      'references public.warranties(id, store_id)',
+      'request.store_id <> warranty.store_id',
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(portal, contains('.eq("warranty_id", warranty.id)'));
+    expect(portal, contains('.eq("store_id", warranty.store_id)'));
+  });
 }

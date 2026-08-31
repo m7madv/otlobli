@@ -141,7 +141,9 @@ function escapeHtml(value: string) {
 function invitationPage(url: URL): LegalPage {
   const code = url.searchParams.get("code")?.trim().toUpperCase() ?? "";
   const role = url.searchParams.get("role");
-  const validCode = /^DMN-(?:[A-F0-9]{10}|[A-F0-9]{16})$/.test(code);
+  const validCode = /^DMN-(?:[A-F0-9]{10}|[A-F0-9]{16}|[A-F0-9]{32})$/.test(
+    code,
+  );
   const roleLabel = role === "manager" ? "مدير" : "موظف";
   return {
     title: validCode ? "دعوة فريق ضمانك" : "رابط دعوة غير صالح",
