@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#000000"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="description"
+      content="Delete a VoiceBrief account, all local history, or one saved result."
+    />
+    <title>Delete Account — VoiceBrief</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content"
+      ><span class="copy-en">Skip to content</span
+      ><span class="copy-ar">انتقل إلى المحتوى</span></a
+    >
+    <header>
+      <div class="topbar">
+        <a class="brand" href="/privacy" translate="no">VoiceBrief</a>
+        <nav aria-label="Legal navigation">
+          <a href="/privacy"
+            ><span class="copy-en">Privacy</span
+            ><span class="copy-ar">الخصوصية</span></a
+          ><a href="/terms"
+            ><span class="copy-en">Terms</span
+            ><span class="copy-ar">الشروط</span></a
+          ><a href="/support"
+            ><span class="copy-en">Support</span
+            ><span class="copy-ar">الدعم</span></a
+          ><a href="/delete-account" aria-current="page"
+            ><span class="copy-en">Delete account</span
+            ><span class="copy-ar">حذف الحساب</span></a
+          ><a
+            class="language"
+            data-language-switch
+            href="/delete-account?lang=ar"
+            lang="ar"
+            >العربية</a
+          >
+        </nav>
+      </div>
+    </header>
+    <main
+      id="content"
+      data-locale="en"
+      aria-label="Delete a VoiceBrief account or local data in English"
+    >
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>Delete your VoiceBrief account or local data</h1>
+      <p class="lede">
+        Keep your account and delete local history, remove one saved result, or
+        permanently delete the account and associated data.
+      </p>
+      <p class="updated">
+        Last updated: <time datetime="2026-08-30">August 30, 2026</time>
+      </p>
+      <section>
+        <h2>Delete in the App</h2>
+        <ol>
+          <li>Sign in to VoiceBrief.</li>
+          <li>Open <strong>Settings</strong>.</li>
+          <li>Choose <strong>Delete Account</strong>.</li>
+          <li>Read the confirmation and confirm permanent deletion.</li>
+        </ol>
+        <p>
+          This is the fastest method. It deletes the VoiceBrief account and data
+          controlled by VoiceBrief, and clears locally saved VoiceBrief results
+          on that device.
+        </p>
+      </section>
+      <section id="delete-local-data">
+        <h2>Delete Local Data Without Deleting Your Account</h2>
+        <p>
+          VoiceBrief history is saved locally on your device. You can remove
+          some or all of that local history while keeping your VoiceBrief
+          account active:
+        </p>
+        <ol>
+          <li>
+            To delete all saved briefs and transcripts on the device, open
+            <strong>Settings</strong> →
+            <strong>Delete saved text</strong> (Clear local history), then
+            confirm.
+          </li>
+          <li>
+            To delete one result, open <strong>History</strong> and swipe the
+            saved result toward the trash icon. VoiceBrief offers an immediate
+            Undo action if you removed it by mistake.
+          </li>
+        </ol>
+        <p>
+          Temporary audio files are deleted automatically after processing. If
+          an interruption prevents immediate deletion, operational cleanup
+          removes them. Temporary server processing results may remain for up to
+          24 hours to support safe retries and prevent duplicate charging, then
+          are removed automatically under the retention rules in the
+          <a href="/privacy?lang=en">Privacy Policy</a>.
+        </p>
+        <p>
+          <strong
+            >Clearing local history or deleting one result does not delete your
+            account or cancel a store subscription.</strong
+          >
+        </p>
+      </section>
+      <section>
+        <h2>What Is Deleted</h2>
+        <ul>
+          <li>Your VoiceBrief account and authentication record.</li>
+          <li>
+            VoiceBrief usage, quota, processing-job, and support-linked account
+            records associated with that account where applicable.
+          </li>
+          <li>
+            Temporary audio objects and generated processing results controlled
+            by VoiceBrief and associated with that account.
+          </li>
+          <li>
+            Local VoiceBrief results on the device when deletion is completed
+            from inside the app.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>What May Be Retained</h2>
+        <p>
+          App Store, Google Play, or RevenueCat transaction records may remain
+          for legal, fraud-prevention, accounting, or operational reasons under
+          their policies. VoiceBrief may retain a limited deletion-request or
+          support record as needed to verify ownership, document completion,
+          investigate abuse, protect the service, or satisfy legal obligations.
+          A manual server-side request cannot erase copies that remain locally
+          on a device you no longer access.
+        </p>
+      </section>
+      <section>
+        <h2>Submit a Manual Deletion Request</h2>
+        <p>
+          If you cannot sign in, use the email associated with your VoiceBrief
+          account. If you used Apple Hide My Email, enter the relay address
+          shown for VoiceBrief when possible. The request enters the private
+          support queue; submitting it does not delete the account immediately.
+          We verify ownership before deletion and never ask for a password or
+          sign-in code.
+        </p>
+        <div
+          class="notice"
+          data-form-status
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></div>
+        <form
+          method="post"
+          action="https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/legal/support?lang=en"
+          data-deletion-form
+          data-language="en"
+        >
+          <label
+            >Account Email<input
+              type="email"
+              name="email"
+              autocomplete="email"
+              inputmode="email"
+              spellcheck="false"
+              maxlength="254"
+              required
+            /><span class="hint"
+              >Never send a password or sign-in code.</span
+            ></label
+          >
+          <label
+            >Sign-in Provider<select name="message" data-provider required>
+              <option value="">Choose one</option>
+              <option
+                value="Permanent VoiceBrief account deletion requested. Sign-in provider: Apple. The requester confirmed deletion of the account and data controlled by VoiceBrief."
+                data-provider-key="Apple"
+              >
+                Apple
+              </option>
+              <option
+                value="Permanent VoiceBrief account deletion requested. Sign-in provider: Google. The requester confirmed deletion of the account and data controlled by VoiceBrief."
+                data-provider-key="Google"
+              >
+                Google
+              </option>
+            </select></label
+          >
+          <label
+            >Optional Note<textarea
+              name="note"
+              autocomplete="off"
+              maxlength="1000"
+            ></textarea
+            ><span class="hint"
+              >You may include non-secret information that helps identify the
+              account. Do not send audio or payment details.</span
+            ></label
+          >
+          <label class="check"
+            ><input
+              type="checkbox"
+              name="confirm"
+              value="delete"
+              required
+            /><span
+              >I confirm that I am requesting permanent deletion of my
+              VoiceBrief account and associated data.</span
+            ></label
+          >
+          <input type="hidden" name="category" value="account" />
+          <input
+            type="hidden"
+            name="subject"
+            value="VoiceBrief account deletion request"
+          />
+          <label class="trap" aria-hidden="true"
+            >Website<input
+              type="text"
+              name="website"
+              autocomplete="off"
+              tabindex="-1" /></label
+          ><button type="submit">Submit Deletion Request</button>
+        </form>
+      </section>
+      <section>
+        <h2>Subscription Cancellation Is Separate</h2>
+        <p>
+          <strong
+            >Deleting a VoiceBrief account does not cancel an App Store or
+            Google Play subscription.</strong
+          >
+          Manage or cancel an active subscription separately in the applicable
+          store settings. If Sign in with Apple authorization remains after
+          deletion, you can revoke VoiceBrief manually in Apple Account settings
+          under apps using your Apple ID.
+        </p>
+      </section>
+    </main>
+    <main
+      id="content-ar"
+      data-locale="ar"
+      aria-label="حذف حساب VoiceBrief أو البيانات المحلية بالعربية"
+      hidden
+    >
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>حذف حساب VoiceBrief أو البيانات المحلية</h1>
+      <p class="lede">
+        أبقِ حسابك واحذف السجل المحلي، أو احذف نتيجة محفوظة واحدة، أو احذف
+        الحساب والبيانات المرتبطة به نهائيًا.
+      </p>
+      <p class="updated">
+        آخر تحديث: <time datetime="2026-08-30">30 أغسطس 2026</time>
+      </p>
+      <section>
+        <h2>الحذف من داخل التطبيق</h2>
+        <ol>
+          <li>سجّل الدخول إلى VoiceBrief.</li>
+          <li>افتح <strong>الإعدادات</strong>.</li>
+          <li>اختر <strong>حذف الحساب</strong>.</li>
+          <li>اقرأ رسالة التأكيد ثم أكّد الحذف النهائي.</li>
+        </ol>
+        <p>
+          هذه أسرع طريقة. تحذف حساب VoiceBrief والبيانات الخاضعة لسيطرة
+          VoiceBrief، وتمسح نتائج VoiceBrief المحفوظة محليًا على ذلك الجهاز.
+        </p>
+      </section>
+      <section id="delete-local-data-ar">
+        <h2>حذف البيانات المحلية دون حذف الحساب</h2>
+        <p>
+          يُحفظ سجل VoiceBrief محليًا على جهازك. يمكنك حذف بعض هذا السجل أو كله
+          مع إبقاء حساب VoiceBrief نشطًا:
+        </p>
+        <ol>
+          <li>
+            لحذف كل الملخصات والنصوص المحفوظة على الجهاز، افتح
+            <strong>الإعدادات</strong> ←
+            <strong>حذف النصوص المحفوظة</strong> («مسح السجل المحلي»)، ثم أكّد
+            الحذف.
+          </li>
+          <li>
+            لحذف نتيجة واحدة، افتح <strong>السجل</strong> واسحب بطاقة النتيجة
+            المحفوظة باتجاه أيقونة سلة المهملات. يعرض VoiceBrief خيار تراجع
+            فوريًا إذا حذفتها بالخطأ.
+          </li>
+        </ol>
+        <p>
+          تُحذف الملفات الصوتية المؤقتة تلقائيًا بعد المعالجة. وإذا منع انقطاعٌ
+          الحذف الفوري، تزيلها عملية التنظيف التشغيلية. قد تبقى نتائج المعالجة
+          المؤقتة على الخادم لمدة تصل إلى 24 ساعة لدعم إعادة المحاولة ومنع
+          احتساب الطلب نفسه مرتين، ثم تُزال تلقائيًا وفق قواعد الاحتفاظ الموضحة
+          في <a href="/privacy?lang=ar">سياسة الخصوصية</a>.
+        </p>
+        <p>
+          <strong
+            >مسح السجل المحلي أو حذف نتيجة واحدة لا يحذف حسابك ولا يلغي اشتراك
+            المتجر.</strong
+          >
+        </p>
+      </section>
+      <section>
+        <h2>البيانات التي تُحذف</h2>
+        <ul>
+          <li>حساب VoiceBrief وسجل المصادقة.</li>
+          <li>
+            سجلات الاستخدام والحصة ومهام المعالجة وسجلات الدعم المرتبطة بالحساب
+            لدى VoiceBrief، حيث ينطبق.
+          </li>
+          <li>
+            الملفات الصوتية المؤقتة ونتائج المعالجة التي يسيطر عليها VoiceBrief
+            والمرتبطة بالحساب.
+          </li>
+          <li>
+            نتائج VoiceBrief المحلية على الجهاز عند إتمام الحذف من داخل التطبيق.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>بيانات قد يُحتفظ بها</h2>
+        <p>
+          قد تبقى سجلات المعاملات لدى App Store أو Google Play أو RevenueCat
+          لأسباب قانونية أو محاسبية أو تشغيلية أو لمنع الاحتيال وفق سياساتهم.
+          وقد يحتفظ VoiceBrief بسجل محدود لطلب الحذف أو الدعم حسب الحاجة للتحقق
+          من الملكية وتوثيق التنفيذ والتحقيق في الإساءة وحماية الخدمة أو الوفاء
+          بالالتزامات القانونية. ولا يستطيع طلب الحذف اليدوي من الخادم مسح نسخ
+          بقيت محليًا على جهاز لم يعد بإمكانك الوصول إليه.
+        </p>
+      </section>
+      <section>
+        <h2>إرسال طلب حذف يدوي</h2>
+        <p>
+          إذا تعذر عليك تسجيل الدخول، استخدم البريد المرتبط بحساب VoiceBrief.
+          إذا استخدمت «إخفاء بريدي الإلكتروني» مع Apple، فاكتب عنوان الترحيل
+          الظاهر لحساب VoiceBrief إن أمكن. يدخل الطلب قائمة الدعم الخاصة، ولا
+          يؤدي إرساله وحده إلى حذف فوري. نتحقق من الملكية قبل الحذف، ولن نطلب
+          كلمة مرور أو رمز تسجيل دخول.
+        </p>
+        <div
+          class="notice"
+          data-form-status
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></div>
+        <form
+          method="post"
+          action="https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/legal/support?lang=ar"
+          data-deletion-form
+          data-language="ar"
+        >
+          <label
+            >البريد المرتبط بالحساب<input
+              type="email"
+              name="email"
+              autocomplete="email"
+              inputmode="email"
+              spellcheck="false"
+              maxlength="254"
+              required
+            /><span class="hint"
+              >لا ترسل كلمة المرور أو رمز تسجيل الدخول.</span
+            ></label
+          >
+          <label
+            >طريقة تسجيل الدخول<select name="message" data-provider required>
+              <option value="">اختر</option>
+              <option
+                value="طلب حذف حساب VoiceBrief نهائيًا. طريقة تسجيل الدخول: Apple. أكّد صاحب الطلب حذف الحساب والبيانات الخاضعة لسيطرة VoiceBrief."
+                data-provider-key="Apple"
+              >
+                Apple
+              </option>
+              <option
+                value="طلب حذف حساب VoiceBrief نهائيًا. طريقة تسجيل الدخول: Google. أكّد صاحب الطلب حذف الحساب والبيانات الخاضعة لسيطرة VoiceBrief."
+                data-provider-key="Google"
+              >
+                Google
+              </option>
+            </select></label
+          >
+          <label
+            >ملاحظة اختيارية<textarea
+              name="note"
+              autocomplete="off"
+              maxlength="1000"
+            ></textarea
+            ><span class="hint"
+              >يمكنك ذكر معلومة غير سرية تساعد على تمييز الحساب. لا ترسل تسجيلات
+              أو بيانات دفع.</span
+            ></label
+          >
+          <label class="check"
+            ><input
+              type="checkbox"
+              name="confirm"
+              value="delete"
+              required
+            /><span
+              >أؤكد أنني أطلب حذف حساب VoiceBrief والبيانات المرتبطة به
+              نهائيًا.</span
+            ></label
+          >
+          <input type="hidden" name="category" value="account" />
+          <input type="hidden" name="subject" value="طلب حذف حساب VoiceBrief" />
+          <label class="trap" aria-hidden="true"
+            >الموقع<input
+              type="text"
+              name="website"
+              autocomplete="off"
+              tabindex="-1" /></label
+          ><button type="submit">إرسال طلب الحذف</button>
+        </form>
+      </section>
+      <section>
+        <h2>إلغاء الاشتراك إجراء منفصل</h2>
+        <p>
+          <strong
+            >حذف حساب VoiceBrief لا يلغي اشتراك App Store أو Google
+            Play.</strong
+          >
+          أدر الاشتراك النشط أو ألغِه بصورة منفصلة من إعدادات المتجر المعني.
+          وإذا بقي تفويض «تسجيل الدخول باستخدام Apple» بعد الحذف، يمكنك سحب وصول
+          VoiceBrief يدويًا من إعدادات حساب Apple ضمن التطبيقات التي تستخدم
+          Apple ID.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="footer-inner">
+        <span class="copy-en">VoiceBrief — Voice messages, made clear.</span
+        ><span class="copy-ar">VoiceBrief — رسائلك الصوتية، واضحة.</span>
+      </div>
+    </footer>
+  </body>
+</html>

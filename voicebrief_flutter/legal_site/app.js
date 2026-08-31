@@ -12,6 +12,7 @@ document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
 document.title =
   language === "ar"
     ? document.title
+        .replace("Delete Account", "حذف الحساب")
         .replace("Privacy", "الخصوصية")
         .replace("Terms", "الشروط")
         .replace("Support", "الدعم")
@@ -45,21 +46,37 @@ for (const link of document.querySelectorAll(
   link.href = target.toString();
 }
 
-for (const form of document.querySelectorAll("[data-support-form]")) {
+for (const form of document.querySelectorAll(
+  "[data-support-form], [data-deletion-form]",
+)) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const status = form.parentElement.querySelector("[data-form-status]");
     const button = form.querySelector("button[type='submit']");
     const isArabic = form.dataset.language === "ar";
+    const isDeletion = form.hasAttribute("data-deletion-form");
     const originalLabel = button.textContent;
     status.hidden = true;
     button.disabled = true;
     button.textContent = isArabic ? "جارٍ الإرسال…" : "Sending…";
 
     try {
+      const formData = new FormData(form);
+      if (isDeletion) {
+        const provider = form.querySelector("[data-provider]");
+        const providerName =
+          provider.selectedOptions[0]?.dataset.providerKey || "Unknown";
+        const note = String(formData.get("note") || "").trim();
+        const message = isArabic
+          ? `طلب حذف حساب VoiceBrief نهائيًا. طريقة تسجيل الدخول: ${providerName}. أكّد صاحب الطلب حذف الحساب والبيانات الخاضعة لسيطرة VoiceBrief. ملاحظة المستخدم: ${note || "لا توجد ملاحظة."}`
+          : `Permanent VoiceBrief account deletion requested. Sign-in provider: ${providerName}. The requester confirmed deletion of the account and data controlled by VoiceBrief. User note: ${note || "No note."}`;
+        formData.set("message", message);
+        formData.delete("note");
+        formData.delete("confirm");
+      }
       const response = await fetch(form.action, {
         method: "POST",
-        body: new FormData(form),
+        body: formData,
         headers: { Accept: "application/json" },
       });
       const payload = await response.json();
@@ -70,9 +87,13 @@ for (const form of document.querySelectorAll("[data-support-form]")) {
         );
       form.reset();
       status.dataset.state = "success";
-      status.textContent = isArabic
-        ? "تم إرسال طلبك. سيراجع فريق VoiceBrief الرسالة من لوحة الدعم."
-        : "Support request sent. The VoiceBrief team can review it in the support dashboard.";
+      status.textContent = isDeletion
+        ? isArabic
+          ? "تم استلام طلب حذف الحساب. سيدخل قائمة الدعم الخاصة، وسنتحقق من ملكية الحساب قبل تنفيذ الحذف."
+          : "Account deletion request received. It entered the private support queue, and ownership will be verified before deletion."
+        : isArabic
+          ? "تم إرسال طلبك. سيراجع فريق VoiceBrief الرسالة من لوحة الدعم."
+          : "Support request sent. The VoiceBrief team can review it in the support dashboard.";
     } catch (error) {
       status.dataset.state = "error";
       status.textContent =

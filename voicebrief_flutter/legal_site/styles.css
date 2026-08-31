@@ -219,7 +219,8 @@ p {
   margin: 0 0 14px;
 }
 
-ul {
+ul,
+ol {
   margin: 12px 0 0;
   padding-inline-start: 24px;
 }
@@ -279,6 +280,24 @@ textarea {
   color: var(--muted);
   font-size: 14px;
   font-weight: 400;
+}
+
+.check {
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-weight: 500;
+}
+
+.check input {
+  width: 22px;
+  min-height: 22px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+code {
+  overflow-wrap: anywhere;
 }
 
 button {

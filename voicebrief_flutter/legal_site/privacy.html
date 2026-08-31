@@ -40,6 +40,9 @@
           ><a href="/support"
             ><span class="copy-en">Support</span
             ><span class="copy-ar">الدعم</span></a
+          ><a href="/delete-account"
+            ><span class="copy-en">Delete account</span
+            ><span class="copy-ar">حذف الحساب</span></a
           ><a
             class="language"
             data-language-switch
@@ -60,7 +63,7 @@
         How VoiceBrief handles your data and the audio you choose.
       </p>
       <p class="updated">
-        Last updated: <time datetime="2026-08-24">August 24, 2026</time>
+        Last updated: <time datetime="2026-08-30">August 30, 2026</time>
       </p>
       <section>
         <h2>Scope</h2>
@@ -74,39 +77,64 @@
         <ul>
           <li>
             <strong>Account data:</strong> email address, account identifier,
-            and sign-in provider information.
+            sign-in provider, and a name or profile image when supplied by that
+            provider.
           </li>
           <li>
             <strong>Audio content:</strong> the file you choose to share,
             import, or record for processing.
           </li>
           <li>
-            <strong>Generated results:</strong> transcript, summary, tasks,
-            dates, and suggested replies.
+            <strong>Generated results:</strong> transcript, summary, key points,
+            tasks, dates, and suggested replies.
           </li>
           <li>
-            <strong>Subscription and usage:</strong> entitlement status,
-            subscription period, and processing minutes used.
+            <strong>Subscription and usage:</strong> product, entitlement
+            status, subscription period, purchase history, expiration status,
+            and processing minutes used.
           </li>
           <li>
-            <strong>Support and diagnostics:</strong> information you submit
-            through the support form and redacted operational error codes.
+            <strong>Support and diagnostics:</strong> information submitted
+            through support or deletion forms, redacted operational error codes,
+            and hashed identifiers used to prevent abuse.
           </li>
         </ul>
       </section>
       <section>
-        <h2>How Audio Is Processed</h2>
+        <h2>How Audio and Results Are Processed</h2>
         <p>
           Uploading starts only after you select or record audio. The audio is
           uploaded to private temporary storage in Supabase, then sent to OpenAI
-          for transcription and result generation. The temporary audio is
-          deleted after processing succeeds or fails. VoiceBrief does not use
-          Gemini to process or summarize your audio.
+          for transcription and result generation. The normal processing path
+          attempts to delete the temporary copy when processing succeeds or
+          fails. If an interruption prevents immediate deletion, the copy may
+          remain in private storage until operational cleanup or account
+          deletion removes it; VoiceBrief does not present it as permanent audio
+          history.
         </p>
         <p>
-          Transcripts and briefs are saved in local history only when you choose
-          Save. Limited job metadata may remain for up to 24 hours to prevent
-          duplicate billing, without keeping a permanent copy of the audio.
+          In the ordinary in-app flow, a result is written to local history only
+          when you choose Save. A Share Extension result is automatically saved
+          locally on your device after import so the completion notification can
+          open it. You can delete local results in the app.
+        </p>
+        <p>
+          The Supabase <code>processing_jobs.result</code> record may contain
+          the complete generated result—including transcript, summary, tasks,
+          dates, and replies—for up to 24 hours to support safe retries and
+          prevent duplicate charging.
+        </p>
+      </section>
+      <section>
+        <h2>OpenAI Processing</h2>
+        <p>
+          VoiceBrief sends OpenAI requests with <code>store: false</code>, so
+          Responses output is not retained as stored application data through
+          that API feature. OpenAI may nevertheless retain API inputs and
+          outputs in abuse-monitoring logs for up to 30 days unless the
+          VoiceBrief account has been approved and configured for Zero Data
+          Retention or Modified Abuse Monitoring. We do not currently claim that
+          Zero Data Retention is enabled.
         </p>
       </section>
       <section>
@@ -118,15 +146,18 @@
           </li>
           <li>
             <strong>OpenAI:</strong> audio transcription and generation of
-            summaries, tasks, and suggested replies.
+            summaries, tasks, dates, and suggested replies.
           </li>
           <li>
             <strong>RevenueCat, Apple, and Google:</strong> subscription and
-            purchase status when store products are enabled.
+            purchase status. VoiceBrief uses the Supabase account ID as the
+            RevenueCat App User ID, and these providers may process product,
+            entitlement, purchase date, expiration, and transaction history
+            under their policies.
           </li>
           <li>
-            <strong>Apple or Google:</strong> sign-in only when you choose that
-            option and it is enabled.
+            <strong>Apple or Google:</strong> sign-in when you choose that
+            option, including profile data shared by the provider.
           </li>
         </ul>
         <p>
@@ -145,18 +176,21 @@
       <section>
         <h2>Retention and Deletion</h2>
         <p>
-          Account and usage data needed to provide the service remains until you
-          delete the account or it is no longer operationally required. You can
-          delete your account in Settings; this removes the account data and
-          associated storage controlled by VoiceBrief. Canceling a subscription
-          may require a separate action in the Apple or Google store, and
-          payment records remain subject to store policies and legal
-          requirements.
+          Account and usage data needed to provide the service remains until
+          account deletion or until it is no longer operationally required. You
+          can delete a VoiceBrief account in Settings or submit a request on the
+          <a href="/delete-account?lang=en">Delete Account page</a>. Canceling
+          an App Store or Google Play subscription is a separate action and is
+          not performed by deleting the VoiceBrief account. Transaction records
+          may remain with the store or RevenueCat for legal or operational
+          reasons. A Sign in with Apple user may also need to revoke VoiceBrief
+          access manually in Apple Account settings after deletion.
         </p>
         <p>
-          Support requests are kept only as long as needed to respond and
-          protect the service, then removed under the operational retention
-          process.
+          We do not currently promise a fixed retention period for support and
+          deletion requests. They are kept as needed to respond, verify account
+          ownership, investigate abuse, protect the service, and satisfy legal
+          obligations.
         </p>
       </section>
       <section>
@@ -174,7 +208,8 @@
           This policy may change when the service or requirements change. The
           date at the top will be updated for material changes. For privacy
           questions or data requests, use the
-          <a href="/support?lang=en">Support page</a>.
+          <a href="/support?lang=en">Support page</a>. To delete an account, use
+          the <a href="/delete-account?lang=en">Delete Account page</a>.
         </p>
       </section>
     </main>
@@ -191,7 +226,7 @@
       <h1>الخصوصية</h1>
       <p class="lede">كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.</p>
       <p class="updated">
-        آخر تحديث: <time datetime="2026-08-24">24 أغسطس 2026</time>
+        آخر تحديث: <time datetime="2026-08-30">30 أغسطس 2026</time>
       </p>
       <section>
         <h2>نطاق هذه السياسة</h2>
@@ -205,38 +240,60 @@
         <ul>
           <li>
             <strong>بيانات الحساب:</strong> البريد الإلكتروني، معرّف الحساب،
-            ومعلومات مزود تسجيل الدخول.
+            مزود تسجيل الدخول، والاسم أو صورة الملف الشخصي إذا وفرهما مزود تسجيل
+            الدخول.
           </li>
           <li>
             <strong>المحتوى الصوتي:</strong> الملف الذي تختار مشاركته أو
             استيراده أو تسجيله لمعالجته.
           </li>
           <li>
-            <strong>النتائج:</strong> النص المكتوب والملخص والمهام والتواريخ
-            والردود المقترحة.
+            <strong>النتائج:</strong> النص المكتوب والملخص والنقاط والمهام
+            والمواعيد والردود المقترحة التي ينشئها التطبيق.
           </li>
           <li>
-            <strong>الاشتراك والاستخدام:</strong> حالة الاستحقاق، مدة الاشتراك،
-            والدقائق المستخدمة.
+            <strong>الاشتراك والاستخدام:</strong> المنتج وحالة الاستحقاق ومدة
+            الاشتراك وسجل الشراء وحالة انتهاء الصلاحية والدقائق المستخدمة.
           </li>
           <li>
-            <strong>الدعم والتشخيص:</strong> المعلومات التي ترسلها في نموذج
-            الدعم ورموز أخطاء تشغيلية منقحة.
+            <strong>الدعم والتشخيص:</strong> المعلومات التي ترسلها في نماذج
+            الدعم أو حذف الحساب، ورموز أخطاء تشغيلية منقحة ومعرّفات مجزأة
+            لمكافحة الإساءة.
           </li>
         </ul>
       </section>
       <section>
-        <h2>طريقة معالجة الصوت</h2>
+        <h2>طريقة معالجة الصوت والنتائج</h2>
         <p>
           لا يبدأ الرفع إلا بعد أن تختار ملفًا أو تسجيلًا. يُرفع الصوت إلى مساحة
           خاصة مؤقتة في Supabase، ثم يُرسل إلى OpenAI لتحويله إلى نص وإنشاء
-          النتيجة. يُحذف الملف المؤقت بعد اكتمال المعالجة أو فشلها. لا يستخدم
-          VoiceBrief خدمة Gemini لمعالجة الصوت أو تلخيصه.
+          النتيجة. يحاول مسار المعالجة الطبيعي حذف النسخة المؤقتة عند اكتمال
+          المعالجة أو فشلها. إذا منع انقطاعٌ الحذف الفوري، فقد تبقى النسخة في
+          التخزين الخاص إلى أن تزيلها عملية تنظيف تشغيلية أو حذف الحساب؛ ولا
+          يعرضها VoiceBrief كسجل صوتي دائم.
         </p>
         <p>
-          لا يُحفظ النص أو الملخص في سجل الجهاز إلا عندما تختار الحفظ. قد يُحتفظ
-          ببيانات عمل تقنية محدودة لمدة تصل إلى 24 ساعة لمنع تكرار احتساب الطلب
-          نفسه، من دون الاحتفاظ بنسخة دائمة من الصوت.
+          في المسار العادي داخل التطبيق، لا تُكتب النتيجة في السجل المحلي إلا
+          عندما تختار «حفظ». أما نتيجة Share Extension فتُحفظ تلقائيًا ومحليًا
+          على جهازك بعد استيرادها كي يستطيع إشعار الاكتمال فتحها. يمكنك حذف
+          النتائج المحلية من التطبيق.
+        </p>
+        <p>
+          قد يحتوي سجل <code>processing_jobs.result</code> في Supabase على
+          النتيجة المولدة كاملة، بما فيها النص والملخص والمهام والمواعيد
+          والردود، لمدة تصل إلى 24 ساعة لدعم إعادة المحاولة ومنع احتساب الطلب
+          نفسه مرتين.
+        </p>
+      </section>
+      <section>
+        <h2>معالجة OpenAI</h2>
+        <p>
+          ترسل VoiceBrief طلبات OpenAI مع <code>store: false</code> حتى لا تُحفظ
+          النتيجة كبيانات تطبيق مخزنة لدى واجهة Responses. رغم ذلك، قد تحتفظ
+          OpenAI بمدخلات ومخرجات واجهة API في سجلات مراقبة إساءة الاستخدام لمدة
+          تصل إلى 30 يومًا، ما لم يكن حساب VoiceBrief معتمدًا ومضبوطًا على Zero
+          Data Retention أو Modified Abuse Monitoring. لا ندّعي حاليًا أن Zero
+          Data Retention مفعّل.
         </p>
       </section>
       <section>
@@ -248,15 +305,17 @@
           </li>
           <li>
             <strong>OpenAI:</strong> تحويل الصوت إلى نص وإنشاء الملخص والمهام
-            والردود.
+            والمواعيد والردود.
           </li>
           <li>
             <strong>RevenueCat ومتجرا Apple وGoogle:</strong> إدارة الاشتراك
-            وحالة الشراء عند تفعيل المنتجات.
+            وحالة الشراء. يستخدم VoiceBrief معرّف حساب Supabase كمعرّف مستخدم
+            RevenueCat، وقد يعالج هؤلاء المزودون المنتج والاستحقاق وتاريخ الشراء
+            والانتهاء وسجل المعاملة وفق سياساتهم.
           </li>
           <li>
-            <strong>Apple أو Google:</strong> تسجيل الدخول فقط عندما تختار
-            أحدهما وبعد تفعيله.
+            <strong>Apple أو Google:</strong> تسجيل الدخول عندما تختار أحدهما،
+            بما في ذلك بيانات الملف الشخصي التي يشاركها المزود.
           </li>
         </ul>
         <p>
@@ -275,14 +334,18 @@
         <h2>الاحتفاظ والحذف</h2>
         <p>
           تبقى بيانات الحساب والاستخدام اللازمة لتقديم الخدمة حتى حذف الحساب أو
-          انتهاء الحاجة التشغيلية إليها. يمكنك حذف الحساب من الإعدادات؛ يشمل ذلك
-          بيانات الحساب والتخزين المرتبط به. قد يتطلب إلغاء الاشتراك إجراءً
-          منفصلًا داخل متجر Apple أو Google، وتخضع سجلات الدفع لسياسة المتجر
-          والمتطلبات النظامية.
+          انتهاء الحاجة التشغيلية إليها. يمكنك حذف حساب VoiceBrief من الإعدادات
+          أو إرسال طلب عبر
+          <a href="/delete-account?lang=ar">صفحة حذف الحساب</a>. إلغاء اشتراك
+          App Store أو Google Play إجراء منفصل لا ينفذه حذف حساب VoiceBrief، وقد
+          تبقى سجلات المعاملة لدى المتجر أو RevenueCat وفق متطلبات قانونية
+          وتشغيلية. وقد يحتاج مستخدم «تسجيل الدخول باستخدام Apple» إلى سحب وصول
+          VoiceBrief يدويًا من إعدادات حساب Apple بعد الحذف.
         </p>
         <p>
-          نحتفظ بطلبات الدعم فقط للمدة اللازمة للرد وحماية الخدمة، ثم نحذفها وفق
-          سياسة الاحتفاظ التشغيلية.
+          لا نحدد حاليًا مدة ثابتة لطلبات الدعم وطلبات الحذف؛ نحتفظ بها حسب
+          الحاجة للرد، والتحقق من الملكية، والتحقيق في الإساءة، وحماية الخدمة،
+          والوفاء بالالتزامات القانونية.
         </p>
       </section>
       <section>
@@ -298,7 +361,8 @@
         <p>
           قد نحدّث هذه السياسة عندما تتغير الخدمة أو المتطلبات. سنحدّث التاريخ
           أعلى الصفحة عند إجراء تغيير جوهري. لأسئلة الخصوصية أو طلبات البيانات،
-          استخدم <a href="/support?lang=ar">صفحة الدعم</a>.
+          استخدم <a href="/support?lang=ar">صفحة الدعم</a>، ولحذف الحساب استخدم
+          <a href="/delete-account?lang=ar">صفحة حذف الحساب</a>.
         </p>
       </section>
     </main>
