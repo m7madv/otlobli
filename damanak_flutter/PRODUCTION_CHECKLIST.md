@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.1+29`، وiPhone Buildات `24` حتى `28` في TestFlight، وGoogle Alpha على Build `23`، وإصدار Apple `4.5.0` منشور
+آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.1+29`، وiPhone Buildات `24` حتى `29` في TestFlight، وأحدثها `4.5.1 (29)` بحالة `VALID`، وGoogle Alpha على Build `23`، وإصدار Apple `4.5.0` منشور
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -86,7 +86,7 @@
 - [x] نجح web release وAndroid debug للمصدر `4.5.1+29`. أكد `aapt` أن APK المحلي يحمل `versionName=4.5.1` و`versionCode=29`؛ حجمه `180,868,636` بايت وSHA-256 `C00835D114330136AC2A7A2411C2283C8A564EFC3AAF0DD08388081011E115C1`.
 - [x] سُجلت مراجعة Apple Design في `docs/DESIGN_AUDIT.md`، ونجح RTL و`320×568` وتكبير النص `200%` والتمرير آلياً بلا overflow.
 - [x] نجح فحص iOS الموقّع بلا رفع في [33531820327](https://github.com/m7madv/otlobli/actions/runs/33531820327). رفضت Apple محاولة `4.5.0 (29)` في [33532659092](https://github.com/m7madv/otlobli/actions/runs/33532659092) فقط لأن الإصدار صار `READY_FOR_SALE` وقطاره مغلقاً؛ نُقل رقم التسويق إلى `4.5.1` مع إبقاء Build `29`.
-- [ ] رفع iPhone Build `29` الموقّع إلى TestFlight والتحقق من `VALID` وربطه بـ`Damanak Internal` من دون تغيير App Review.
+- [x] نجح فحص iOS الموقّع بلا رفع في [33534828721](https://github.com/m7madv/otlobli/actions/runs/33534828721)، ثم نجح التحقق والرفع في [33535634162](https://github.com/m7madv/otlobli/actions/runs/33535634162). أكد inspect [33537059054](https://github.com/m7madv/otlobli/actions/runs/33537059054) أن Build `4.5.1 (29)` صار `VALID` وداخل `Damanak Internal` بالمعرّف/Delivery UUID `e029d611-6d1a-44b7-a93b-be8478d6e7d0`، مع بقاء `4.5.0` في `READY_FOR_SALE` و`mutationRequested=false`. الـIPA حجمها `23,972,034` وبصمتها `297C151419D1CC4AA09BE776C1673303CF1A00782F9B840555CEA34F2BD88EA6`.
 - [ ] تثبيت Build `29` على iPhone حقيقي وتنفيذ شراء/استعادة/ترقية/تغيير دورة وقبول VoiceOver؛ لا تُعد الاختبارات الآلية بديلاً عنها.
 
 ## قبول الأجهزة قبل الإطلاق العام
