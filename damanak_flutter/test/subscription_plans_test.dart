@@ -174,16 +174,16 @@ void main() {
       240,
       scrollable: scrollable,
     );
-    expect(find.text('الباقات والترقية'), findsOneWidget);
+    expect(find.text('اختر الباقة', skipOffstage: false), findsOneWidget);
     expect(find.textContaining('الأسعار والعملات من'), findsOneWidget);
 
     final picker = find.byKey(const ValueKey('subscription-plan-picker'));
     expect(picker, findsOneWidget);
 
-    for (final (id, name, quota) in [
-      ('starter', 'بداية', '100 ضمان شهرياً'),
-      ('growth', 'نمو', '600 ضمان شهرياً'),
-      ('scale', 'توسع', '3000 ضمان شهرياً'),
+    for (final (id, name, quota, feature) in [
+      ('starter', 'بداية', '100 ضمان شهرياً', 'بطاقة ضمان رقمية برمز QR'),
+      ('growth', 'نمو', '600 ضمان شهرياً', 'فريق بأدوار مستقلة'),
+      ('scale', 'توسع', '3000 ضمان شهرياً', 'API بصلاحيات قابلة للتحديد'),
     ]) {
       final tile = find.byKey(ValueKey('subscription-plan-$id'));
       expect(tile, findsOneWidget);
@@ -193,6 +193,10 @@ void main() {
       );
       expect(
         find.descendant(of: tile, matching: find.text(quota)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tile, matching: find.text(feature)),
         findsOneWidget,
       );
     }

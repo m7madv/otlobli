@@ -72,15 +72,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(child: BrandMark()),
-                      TextButton.icon(
-                        onPressed: controller.busy ? null : controller.signOut,
-                        icon: const Icon(Icons.logout_rounded, size: 18),
-                        label: const Text('خروج'),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final textScale = MediaQuery.textScalerOf(
+                        context,
+                      ).scale(1);
+                      final compact =
+                          constraints.maxWidth < 420 || textScale >= 1.3;
+                      final iconOnly =
+                          constraints.maxWidth < 320 && textScale >= 1.6;
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: BrandMark(
+                              compact: compact,
+                              iconOnly: iconOnly,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: controller.busy
+                                ? null
+                                : controller.signOut,
+                            icon: const Icon(Icons.logout_rounded, size: 18),
+                            label: const Text('خروج'),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 28),
                   Text(
@@ -94,24 +112,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 18),
                   const MessageBanner(),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: false,
-                        icon: Icon(Icons.add_business_rounded),
-                        label: Text('إنشاء متجر'),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        icon: Icon(Icons.group_add_outlined),
-                        label: Text('الانضمام لمتجر'),
-                      ),
-                    ],
-                    selected: {_joining},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (value) {
-                      controller.clearMessages();
-                      setState(() => _joining = value.first);
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final textScale = MediaQuery.textScalerOf(
+                        context,
+                      ).scale(1);
+                      final stackChoices =
+                          constraints.maxWidth < 360 || textScale >= 1.6;
+                      return SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<bool>(
+                          direction: stackChoices
+                              ? Axis.vertical
+                              : Axis.horizontal,
+                          segments: const [
+                            ButtonSegment(
+                              value: false,
+                              icon: Icon(Icons.add_business_rounded),
+                              label: Text('إنشاء متجر'),
+                            ),
+                            ButtonSegment(
+                              value: true,
+                              icon: Icon(Icons.group_add_outlined),
+                              label: Text('الانضمام لمتجر'),
+                            ),
+                          ],
+                          selected: {_joining},
+                          showSelectedIcon: false,
+                          onSelectionChanged: (value) {
+                            controller.clearMessages();
+                            setState(() => _joining = value.first);
+                          },
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 16),
@@ -204,6 +237,7 @@ class _CreateStoreForm extends StatelessWidget {
                 builder: (context, constraints) {
                   final countryField = DropdownButtonFormField<String>(
                     initialValue: country,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'الدولة'),
                     items: const [
                       DropdownMenuItem(value: 'QA', child: Text('قطر')),
@@ -262,7 +296,7 @@ class _CreateStoreForm extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'إذا كانت التجربة متاحة فستبدأ تلقائياً. وإذا سبق استخدامها، يُنشأ المتجر من دون مزايا مجانية وتنتقل لاختيار اشتراك مدفوع.',
+                'تبدأ الخطة المجانية تلقائياً بـ20 ضماناً كل شهر على تثبيت محمي واحد. وإذا استُخدمت لهذا الحساب أو التثبيت سابقاً، يمكنك اختيار باقة مدفوعة.',
                 style: TextStyle(
                   color: context.colors.onSurfaceVariant,
                   fontSize: 12,
@@ -276,7 +310,7 @@ class _CreateStoreForm extends StatelessWidget {
                   onPressed: busy ? null : onSubmit,
                   icon: const Icon(Icons.arrow_back_rounded),
                   label: Text(
-                    busy ? 'جارٍ إنشاء المتجر…' : 'إنشاء المتجر والمتابعة',
+                    busy ? 'جارٍ إنشاء المتجر…' : 'إنشاء المتجر وبدء الخطة',
                   ),
                 ),
               ),

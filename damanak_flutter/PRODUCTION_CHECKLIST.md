@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.1+29`، وiPhone Buildات `24` حتى `29` في TestFlight، وأحدثها `4.5.1 (29)` بحالة `VALID`، وGoogle Alpha على Build `23`، وإصدار Apple `4.5.0` منشور
+آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.1+30`، وiPhone Buildات `24` حتى `29` في TestFlight، وأحدثها حالياً `4.5.1 (29)` بحالة `VALID`، ومرشح Build `30` ينتظر الرفع، وGoogle Alpha على Build `23`، وإصدار Apple `4.5.0` منشور
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -19,6 +19,9 @@
 - [x] الاستعادة الصريحة بعد حذف حساب ضمانك تتحقق من Apple JWS أو Google lineage ولا تنتقل إذا بقيت الهوية القديمة أو وُجد ربط/entitlement منافس.
 - [x] Google completion يفحص رد BillingClient الفعلي ويبقي المعاملة لإعادة المحاولة عند non-OK، مع إقرار خادمي خلفي غير حاجب.
 - [x] Build `23` رُفع إلى Apple وGoogle؛ أصبح إصدار Apple `4.5.0` لاحقاً `READY_FOR_SALE` ولا توجد مسودة مراجعة نشطة، وبقي Google Alpha قيد المراجعة.
+- [x] بُنيت خطة مجانية مستقلة عن المتجر: 20 ضماناً لكل شهر تقويمي، وحساب واحد على تثبيت محمي واحد، مع فرع وعضو واحدين، ومن دون عرض دورة أو مزود فوترة.
+- [x] أُعيدت الاستعادة وpreflight إلى refresh مشترك، وصار lineage المدفوع المخفي يجبر التحقق قبل الدفع حتى لو كانت لقطته حديثة، مع منع الحالية والأدنى والمزود الثاني.
+- [ ] migration `20260901200000` ونسخة `verify-store-purchase` المعدلة غير منشورتين؛ ينشران فقط بعد أن يصبح Build `30` متاحاً في TestFlight.
 
 ## حالة توزيع Build 24
 
@@ -88,6 +91,17 @@
 - [x] نجح فحص iOS الموقّع بلا رفع في [33531820327](https://github.com/m7madv/otlobli/actions/runs/33531820327). رفضت Apple محاولة `4.5.0 (29)` في [33532659092](https://github.com/m7madv/otlobli/actions/runs/33532659092) فقط لأن الإصدار صار `READY_FOR_SALE` وقطاره مغلقاً؛ نُقل رقم التسويق إلى `4.5.1` مع إبقاء Build `29`.
 - [x] نجح فحص iOS الموقّع بلا رفع في [33534828721](https://github.com/m7madv/otlobli/actions/runs/33534828721)، ثم نجح التحقق والرفع في [33535634162](https://github.com/m7madv/otlobli/actions/runs/33535634162). أكد inspect [33537059054](https://github.com/m7madv/otlobli/actions/runs/33537059054) أن Build `4.5.1 (29)` صار `VALID` وداخل `Damanak Internal` بالمعرّف/Delivery UUID `e029d611-6d1a-44b7-a93b-be8478d6e7d0`، مع بقاء `4.5.0` في `READY_FOR_SALE` و`mutationRequested=false`. الـIPA حجمها `23,972,034` وبصمتها `297C151419D1CC4AA09BE776C1673303CF1A00782F9B840555CEA34F2BD88EA6`.
 - [ ] تثبيت Build `29` على iPhone حقيقي وتنفيذ شراء/استعادة/ترقية/تغيير دورة وقبول VoiceOver؛ لا تُعد الاختبارات الآلية بديلاً عنها.
+
+## حالة Build 30
+
+- [x] رُفع المصدر إلى `4.5.1+30`، وفُصل المجاني عن فوترة Apple/Google وأُضيفت مزايا الباقات كاملة.
+- [x] نجح `flutter analyze --no-pub` و`225/225` اختبار Flutter و`83/83` اختبار Deno و`deno fmt --check` على 27 ملفاً و`git diff --check`.
+- [x] نجح web release وAndroid debug. أكد `aapt` أن APK المحلي يحمل `versionName=4.5.1` و`versionCode=30`؛ حجمه `180,876,532` بايت وSHA-256 `C4CA7B5F6EABF80C74FE5121067E4D0AC11B85809F0FDC36BCA9FD4526D99479`.
+- [x] نجح اختبار `320×568` مع تكبير النص `200%` لشاشتي الاشتراك والإعداد، وأُغلق overflow حقل الدولة ومحدد نوع الإعداد.
+- [x] اجتازت migration والاختبار الحي المركب `BEGIN/ROLLBACK` على قاعدة الإنتاج من دون كتابة، مع اختبار عزل الإنتاج وGoogle وحصة 20 ومنع الخفض.
+- [ ] رفع Build `30` إلى TestFlight والتحقق أنه `VALID` وداخل `Damanak Internal` من دون mutation لإصدار App Store.
+- [ ] نشر migration و`verify-store-purchase` بعد إتاحة Build `30`، ثم مقارنة بصمة الإنتاج وتشغيل الاختبار الحي وتحديث `supabase/schema.sql`.
+- [ ] تثبيت Build `30` على iPhone حقيقي وتنفيذ المجاني والشراء والاستعادة والترقية والإلغاء وقبول VoiceOver؛ لا تُعد الاختبارات الآلية بديلاً عنها.
 
 ## قبول الأجهزة قبل الإطلاق العام
 

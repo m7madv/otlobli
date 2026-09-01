@@ -228,8 +228,11 @@ void main() {
             request: request,
           );
         }
-        if (request.url.path == '/rest/v1/subscriptions') {
-          expect(request.url.queryParameters['store_id'], 'eq.$storeB');
+        if (request.url.path == '/rest/v1/rpc/current_store_access') {
+          final body = Map<String, dynamic>.from(
+            jsonDecode(request.body) as Map,
+          );
+          expect(body['target_store_id'], storeB);
           return http.Response(
             jsonEncode({
               'id': 'subscription-b',

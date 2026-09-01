@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   acknowledgeGoogleSubscription,
+  isAppleSandboxTerminalEntitlement,
   type VerifiedEntitlement,
   verifyApplePurchase,
   verifyGooglePurchase,
@@ -70,6 +71,24 @@ export function buildRefreshApplyRequest(
   row: RefreshRow,
   entitlement: VerifiedEntitlement,
 ) {
+  const appleSandboxTerminal = isAppleSandboxTerminalEntitlement(entitlement);
+  if (appleSandboxTerminal) {
+    return {
+      name: "apply_verified_sandbox_terminal_entitlement" as const,
+      params: {
+        target_store_id: String(row.storeId ?? ""),
+        target_user_id: String(row.userId ?? ""),
+        billing_platform: entitlement.platform,
+        external_transaction_id: entitlement.transactionId,
+        external_original_transaction_id: entitlement.originalTransactionId,
+        entitlement_status: entitlement.status,
+        entitlement_period_start: entitlement.periodStart,
+        entitlement_period_end: entitlement.periodEnd,
+        entitlement_auto_renews: entitlement.autoRenews,
+      },
+    };
+  }
+
   const isGoogle = entitlement.platform === "google_play";
   const rawPurchaseToken = isGoogle
     ? String(row.purchaseToken ?? "").trim()

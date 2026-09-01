@@ -18,6 +18,18 @@ class PlanPresentation {
   final List<String> features;
   final bool recommended;
 
+  static const free = PlanPresentation(
+    audience: 'للمتجر الفردي الذي يبدأ إصدار ضماناته',
+    branchLabel: 'فرع واحد',
+    suggestedBranches: 1,
+    features: [
+      '20 ضماناً تتجدد تلقائياً كل شهر',
+      'بطاقة ضمان رقمية برمز QR',
+      'رابط مشاركة آمن للضمان',
+      'مطالبات وصور ومستندات العميل',
+    ],
+  );
+
   static const starter = PlanPresentation(
     audience: 'للمتجر الذي يبدأ تنظيم ضماناته رقمياً',
     branchLabel: 'مناسب لفرع واحد',
@@ -65,6 +77,7 @@ class PlanPresentation {
   );
 
   static PlanPresentation forPlanId(String planId) => switch (planId) {
+    'free' => free,
     'starter' => starter,
     'growth' => growth,
     'scale' => scale,
@@ -150,6 +163,8 @@ class SubscriptionInfo {
     this.billingCycle,
     this.autoRenews = false,
     this.lastVerifiedAt,
+    this.hasStoreBillingLineage = false,
+    this.storeBillingLineageVerifiedAt,
   });
 
   final String id;
@@ -165,6 +180,8 @@ class SubscriptionInfo {
   final String? billingCycle;
   final bool autoRenews;
   final DateTime? lastVerifiedAt;
+  final bool hasStoreBillingLineage;
+  final DateTime? storeBillingLineageVerifiedAt;
 
   bool get isUsable {
     final now = DateTime.now();
@@ -189,7 +206,8 @@ class SubscriptionInfo {
           0,
           plan.monthlyWarranties,
         );
-  int get warrantyGraceAllowance => (plan.monthlyWarranties / 10).ceil();
+  int get warrantyGraceAllowance =>
+      isFreeAccess ? 0 : (plan.monthlyWarranties / 10).ceil();
   int get remainingTrialDays {
     final end = trialEndsAt;
     if (end == null) return 0;
@@ -198,6 +216,32 @@ class SubscriptionInfo {
   }
 
   bool get isStoreSubscription => source == 'store';
+
+  /// توجد معاملة متجر سابقة يمكن مصالحتها حتى إن كانت الخطة الفعالة مجانية.
+  bool get canRefreshStoreBilling =>
+      (isStoreSubscription && hasUnexpiredStorePeriod) ||
+      hasStoreBillingLineage;
+
+  /// وصول التطبيق المجاني ليس اشتراكاً في App Store أو Google Play.
+  bool get isFreeAccess => source == 'free' && plan.id == 'free';
+
+  SubscriptionInfo withUsedWarranties(int value) => SubscriptionInfo(
+    id: id,
+    status: status,
+    plan: plan,
+    trialEndsAt: trialEndsAt,
+    periodEndsAt: periodEndsAt,
+    usedWarranties: value,
+    source: source,
+    billingProvider: billingProvider,
+    storeProductId: storeProductId,
+    originalTransactionId: originalTransactionId,
+    billingCycle: billingCycle,
+    autoRenews: autoRenews,
+    lastVerifiedAt: lastVerifiedAt,
+    hasStoreBillingLineage: hasStoreBillingLineage,
+    storeBillingLineageVerifiedAt: storeBillingLineageVerifiedAt,
+  );
 
   bool get hasUnexpiredStorePeriod {
     if (!isStoreSubscription || (status != 'active' && status != 'past_due')) {

@@ -233,6 +233,14 @@ void main() {
       );
       expect(
         SubscriptionPolicy.evaluate(
+          current: _freeAccess(),
+          target: target,
+          devicePlatform: StoreBillingPlatform.appStore,
+        ),
+        isA<StartSubscriptionDecision>(),
+      );
+      expect(
+        SubscriptionPolicy.evaluate(
           current: _trial(),
           target: target,
           devicePlatform: StoreBillingPlatform.appStore,
@@ -331,6 +339,111 @@ void main() {
         ),
       );
     });
+
+    test('يرفض لقطة مجانية تحمل فترة فوترة أو تجربة غير متوقعة', () {
+      final invalidFree = SubscriptionInfo(
+        id: 'free-invalid',
+        status: 'active',
+        plan: _plan('free'),
+        trialEndsAt: null,
+        periodEndsAt: DateTime.utc(2099),
+        usedWarranties: 0,
+        source: 'free',
+      );
+
+      expect(
+        SubscriptionPolicy.evaluate(
+          current: invalidFree,
+          target: _appleOffer('starter', BillingCycle.monthly),
+          devicePlatform: StoreBillingPlatform.appStore,
+        ),
+        isA<BlockedSubscriptionDecision>().having(
+          (decision) => decision.reason,
+          'reason',
+          SubscriptionBlockReason.stateUnknown,
+        ),
+      );
+    });
+  });
+
+  group('حداثة تحقق المتجر', () {
+    test('يقبل تحققاً حديثاً ويرفض القديم أو زمناً مستقبلياً غير منطقي', () {
+      final now = DateTime.utc(2026, 9, 1, 12);
+      SubscriptionInfo verifiedAt(DateTime value) => SubscriptionInfo(
+        id: 'verified',
+        status: 'active',
+        plan: _plan('starter'),
+        trialEndsAt: null,
+        periodEndsAt: now.add(const Duration(days: 1)),
+        usedWarranties: 0,
+        source: 'store',
+        billingProvider: 'app_store',
+        storeProductId: DamanakStoreCatalog.appleProductId(
+          'starter',
+          BillingCycle.monthly,
+        ),
+        originalTransactionId: 'original',
+        billingCycle: 'monthly',
+        lastVerifiedAt: value,
+      );
+
+      expect(
+        storeSubscriptionVerificationIsFresh(
+          verifiedAt(now.subtract(const Duration(minutes: 4))),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        storeSubscriptionVerificationIsFresh(
+          verifiedAt(now.subtract(const Duration(minutes: 6))),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        storeSubscriptionVerificationIsFresh(
+          verifiedAt(now.add(const Duration(minutes: 3))),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('تستخدم زمن سجل المتجر عندما تكون الخطة الفعالة مجانية', () {
+      final now = DateTime.utc(2026, 9, 1, 12);
+      final freeWithLineage = SubscriptionInfo(
+        id: 'free-grant',
+        status: 'active',
+        plan: _plan('free'),
+        trialEndsAt: null,
+        periodEndsAt: null,
+        usedWarranties: 0,
+        source: 'free',
+        hasStoreBillingLineage: true,
+        storeBillingLineageVerifiedAt: now.subtract(const Duration(minutes: 4)),
+      );
+
+      expect(
+        storeSubscriptionVerificationIsFresh(freeWithLineage, now: now),
+        isTrue,
+      );
+      expect(
+        storeSubscriptionVerificationIsFresh(
+          SubscriptionInfo(
+            id: 'free-grant',
+            status: 'active',
+            plan: _plan('free'),
+            trialEndsAt: null,
+            periodEndsAt: null,
+            usedWarranties: 0,
+            source: 'free',
+          ),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
   });
 }
 
@@ -351,6 +464,23 @@ SubscriptionInfo _trial() => SubscriptionInfo(
   trialEndsAt: DateTime.utc(2099),
   periodEndsAt: null,
   usedWarranties: 0,
+);
+
+SubscriptionInfo _freeAccess() => SubscriptionInfo(
+  id: 'free-grant',
+  status: 'active',
+  plan: const PlanInfo(
+    id: 'free',
+    name: 'مجانية',
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    maxMembers: 1,
+    monthlyWarranties: 20,
+  ),
+  trialEndsAt: null,
+  periodEndsAt: null,
+  usedWarranties: 0,
+  source: 'free',
 );
 
 SubscriptionInfo _storeSubscription({
@@ -378,12 +508,13 @@ PlanInfo _plan(String id) => PlanInfo(
     'starter' => 'بداية',
     'growth' => 'نمو',
     'scale' => 'توسع',
+    'free' => 'مجانية',
     _ => 'مجهولة',
   },
   monthlyPrice: 0,
   yearlyPrice: 0,
-  maxMembers: 2,
-  monthlyWarranties: 100,
+  maxMembers: id == 'free' ? 1 : 2,
+  monthlyWarranties: id == 'free' ? 20 : 100,
 );
 
 StoreProductOffer _appleOffer(String planId, BillingCycle cycle) =>

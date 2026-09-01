@@ -571,14 +571,40 @@ abstract final class SubscriptionPolicy {
   }
 }
 
+bool storeSubscriptionVerificationIsFresh(
+  SubscriptionInfo subscription, {
+  required DateTime now,
+  Duration maxAge = const Duration(minutes: 5),
+  Duration allowedFutureSkew = const Duration(minutes: 2),
+}) {
+  if (!subscription.canRefreshStoreBilling) return false;
+  final verifiedAt = subscription.isStoreSubscription
+      ? subscription.lastVerifiedAt
+      : subscription.storeBillingLineageVerifiedAt;
+  if (verifiedAt == null) return false;
+  final age = now.toUtc().difference(verifiedAt.toUtc());
+  return age >= -allowedFutureSkew && age <= maxAge;
+}
+
 bool _knownSubscriptionSnapshot(SubscriptionInfo subscription) {
   const statuses = {'trialing', 'active', 'past_due', 'canceled'};
-  const sources = {'trial', 'activation_code', 'manual', 'store'};
+  const sources = {'free', 'trial', 'activation_code', 'manual', 'store'};
   if (!statuses.contains(subscription.status) ||
-      !sources.contains(subscription.source) ||
-      DamanakStoreCatalog.planRank(subscription.plan.id) == 0) {
+      !sources.contains(subscription.source)) {
     return false;
   }
+  if (subscription.isFreeAccess) {
+    return subscription.status == 'active' &&
+        subscription.billingProvider == null &&
+        subscription.storeProductId == null &&
+        subscription.originalTransactionId == null &&
+        subscription.billingCycle == null &&
+        !subscription.autoRenews &&
+        subscription.lastVerifiedAt == null &&
+        subscription.trialEndsAt == null &&
+        subscription.periodEndsAt == null;
+  }
+  if (DamanakStoreCatalog.planRank(subscription.plan.id) == 0) return false;
   if (!subscription.isStoreSubscription) {
     return subscription.billingProvider == null &&
         subscription.storeProductId == null &&

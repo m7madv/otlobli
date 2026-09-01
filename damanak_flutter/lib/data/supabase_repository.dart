@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -247,36 +246,38 @@ class SupabaseDamanakRepository implements DamanakRepository {
     if (membershipJson == null) return null;
     final membership = StoreMembership.fromJson(membershipJson);
     if (membership.role == MemberRole.owner && _trialDeviceClaims != null) {
-      // Protect future trial attempts without adding a serial network request
-      // to the sign-in/startup path. New-store creation remains blocking.
-      unawaited(_registerTrialDevice(membership.storeId));
+      // The effective free access snapshot is returned only after this
+      // protected installation has been bound to the owner and store.
+      await _claimFreePlanDevice(membership.storeId);
     }
     return _loadSnapshot(membership);
   }
 
-  Future<void> _registerTrialDevice(String storeId) async {
+  Future<bool> _claimFreePlanDevice(String storeId) async {
     try {
-      await _client.rpc(
-        'register_trial_device',
+      final claimed = await _client.rpc(
+        'claim_free_plan_device',
         params: {
           'target_store_id': storeId,
           'device_claim': await _trialDeviceClaims!.loadOrCreateClaim(),
         },
       );
+      return claimed == true;
     } on Object {
-      // Registration protects future trials, but a collision or unavailable
-      // secure store must never lock an existing paid owner out of their data.
+      // Device binding must never hide an existing paid entitlement. The
+      // effective-access RPC remains fail-closed and will return paid access
+      // or the non-entitled billing placeholder when no free grant is active.
+      return false;
     }
   }
 
   Future<WorkspaceSnapshot> _loadSnapshot(StoreMembership membership) async {
     final results = await Future.wait<Object>([
       _client.from('stores').select().eq('id', membership.storeId).single(),
-      _client
-          .from('subscriptions')
-          .select('*, plans(*)')
-          .eq('store_id', membership.storeId)
-          .single(),
+      _client.rpc(
+        'current_store_access',
+        params: {'target_store_id': membership.storeId},
+      ),
       _client.rpc(
         'current_warranty_usage',
         params: {'target_store_id': membership.storeId},
@@ -316,6 +317,12 @@ class SupabaseDamanakRepository implements DamanakRepository {
       billingCycle: subscriptionJson['billing_cycle'] as String?,
       autoRenews: subscriptionJson['auto_renews'] as bool? ?? false,
       lastVerifiedAt: _dateOrNull(subscriptionJson['last_store_verified_at']),
+      hasStoreBillingLineage:
+          subscriptionJson['has_store_billing_lineage'] as bool? ??
+          subscriptionJson['source'] == 'store',
+      storeBillingLineageVerifiedAt: _dateOrNull(
+        subscriptionJson['store_billing_lineage_verified_at'],
+      ),
     );
   }
 
@@ -328,11 +335,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
           .eq('user_id', _user.id)
           .eq('status', 'active')
           .maybeSingle(),
-      _client
-          .from('subscriptions')
-          .select('*, plans(*)')
-          .eq('store_id', storeId)
-          .single(),
+      _client.rpc('current_store_access', params: {'target_store_id': storeId}),
       _client.rpc(
         'current_warranty_usage',
         params: {'target_store_id': storeId},
@@ -356,7 +359,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
       throw StateError('TRIAL_DEVICE_SECURITY_UNAVAILABLE');
     }
     final value = await _client.rpc(
-      'create_store_with_subscription',
+      'create_store_with_free_access',
       params: {
         'store_name': name.trim(),
         'store_phone': phone.trim(),
@@ -1437,6 +1440,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
         .from('plans')
         .select()
         .eq('is_active', true)
+        .neq('id', 'free')
         .order('sort_order');
     return rows.map(PlanInfo.fromJson).toList();
   }

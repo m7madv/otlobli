@@ -68,19 +68,46 @@ void main() {
     expect(find.text('تأكيد الانضمام'), findsOneWidget);
   });
 
-  testWidgets('لا يعد إنشاء المتجر بتجربة مجانية غير مضمونة', (tester) async {
+  testWidgets('يشرح إنشاء المتجر الخطة المجانية الشهرية بدقة', (tester) async {
     final controller = AppController.unconfigured();
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(_screen(controller, const OnboardingScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('إنشاء المتجر والمتابعة'), findsOneWidget);
+    expect(find.text('إنشاء المتجر وبدء الخطة'), findsOneWidget);
     expect(find.text('إنشاء المتجر وبدء التجربة'), findsNothing);
     expect(
-      find.textContaining('يُنشأ المتجر من دون مزايا مجانية'),
+      find.textContaining('20 ضماناً كل شهر على تثبيت محمي واحد'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('لا يفيض رأس الإعداد عند عرض 320 وتكبير النص 200%', (
+    tester,
+  ) async {
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _screen(
+        controller,
+        const OnboardingScreen(),
+        mediaQuery: const MediaQueryData(
+          size: Size(320, 568),
+          textScaler: TextScaler.linear(2),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('خروج'), findsOneWidget);
+    expect(find.text('كيف ستعمل مع ضمانك؟'), findsOneWidget);
   });
 
   test('يقبل أطوال رموز الدعوة المدعومة فقط', () {
@@ -137,13 +164,23 @@ void main() {
   });
 }
 
-Widget _screen(AppController controller, Widget child) {
+Widget _screen(
+  AppController controller,
+  Widget child, {
+  MediaQueryData? mediaQuery,
+}) {
+  final directedChild = Directionality(
+    textDirection: TextDirection.rtl,
+    child: child,
+  );
   return AppScope(
     controller: controller,
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: Directionality(textDirection: TextDirection.rtl, child: child),
+      home: mediaQuery == null
+          ? directedChild
+          : MediaQuery(data: mediaQuery, child: directedChild),
     ),
   );
 }

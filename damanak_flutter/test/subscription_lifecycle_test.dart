@@ -205,6 +205,7 @@ void main() {
             provider: 'app_store',
             productId: 'com.damanak.subscription.growth.monthly',
             originalTransactionId: '100000000000001',
+            lastVerifiedAt: DateTime.now(),
           ),
         );
         final billing = _LifecycleBillingService(
@@ -221,6 +222,8 @@ void main() {
         final yearly = controller.storeOffer('growth', BillingCycle.yearly)!;
         await controller.purchaseSubscription(yearly);
 
+        expect(repository.loadCurrentSubscriptionCalls, 1);
+        expect(repository.refreshCalls, 0);
         expect(billing.purchaseCalls, 1);
         expect(billing.currentPlanId, 'growth');
         expect(
@@ -229,6 +232,85 @@ void main() {
         );
         expect(billing.currentOriginalTransactionId, '100000000000001');
         expect(billing.currentCycle, BillingCycle.monthly);
+      },
+    );
+
+    test('تفتح الخطة المجانية الدفع بلا تحديث مزود غير موجود', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _freeSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        offers: [
+          _testOffer(
+            StoreBillingPlatform.appStore,
+            'starter',
+            BillingCycle.monthly,
+          ),
+        ],
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.purchaseSubscription(
+        controller.storeOffer('starter', BillingCycle.monthly)!,
+      );
+
+      expect(repository.loadCurrentSubscriptionCalls, 1);
+      expect(repository.refreshCalls, 0);
+      expect(billing.purchaseCalls, 1);
+    });
+
+    test(
+      'تصالح سجل المتجر المخفي الحديث قبل الدفع ويمنع مزوداً ثانياً',
+      () async {
+        final freeWithLineage = _freeSubscription(
+          hasStoreBillingLineage: true,
+          lineageVerifiedAt: DateTime.now(),
+        );
+        final refreshedPaid = _subscription(
+          provider: 'google_play',
+          plan: _scalePlan,
+          productId: 'com.damanak.subscription.scale',
+        );
+        final refreshCompleter = Completer<SubscriptionInfo>()
+          ..complete(refreshedPaid);
+        final repository = _SubscriptionRepository(
+          subscription: freeWithLineage,
+          refreshCompleter: refreshCompleter,
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+          offers: [
+            _testOffer(
+              StoreBillingPlatform.appStore,
+              'starter',
+              BillingCycle.monthly,
+            ),
+          ],
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+        addTearDown(controller.dispose);
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        await controller.purchaseSubscription(
+          controller.storeOffer('starter', BillingCycle.monthly)!,
+        );
+
+        expect(repository.loadCurrentSubscriptionCalls, 1);
+        expect(repository.refreshCalls, 1);
+        expect(billing.purchaseCalls, 0);
+        expect(controller.subscription?.plan.id, 'scale');
+        expect(controller.errorMessage, contains('Google Play'));
       },
     );
 
@@ -1008,6 +1090,103 @@ void main() {
     });
 
     test(
+      'لا يرسل تحققاً خادمياً لحساب مقفول بلا سجل شراء عند استعادة صفرية',
+      () async {
+        final repository = _SubscriptionRepository(
+          subscription: _initialPaymentSubscription(),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+          restoreResult: const StoreRestoreResult(
+            platform: StoreBillingPlatform.appStore,
+            restoredPurchases: 0,
+          ),
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+        addTearDown(controller.dispose);
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        await controller.restoreStorePurchases();
+
+        expect(repository.refreshCalls, 0);
+        expect(controller.noticeMessage, isNull);
+        expect(controller.storeBillingMessage, contains('لم نجد مشتريات'));
+        expect(controller.storeBillingState, StoreBillingState.ready);
+      },
+    );
+
+    test(
+      'تصالح الاستعادة الصفرية سجل متجر مخفياً خلف الخطة المجانية',
+      () async {
+        final repository = _SubscriptionRepository(
+          subscription: _freeSubscription(
+            hasStoreBillingLineage: true,
+            lineageVerifiedAt: DateTime.now().subtract(
+              const Duration(minutes: 6),
+            ),
+          ),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+          restoreResult: const StoreRestoreResult(
+            platform: StoreBillingPlatform.appStore,
+            restoredPurchases: 0,
+          ),
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+        addTearDown(controller.dispose);
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        await controller.restoreStorePurchases();
+
+        expect(repository.refreshCalls, 1);
+        expect(controller.storeBillingMessage, contains('لم نجد مشتريات'));
+        expect(controller.storeBillingState, StoreBillingState.ready);
+      },
+    );
+
+    test('لا تصف فشل تحقق الاستعادة الصفرية بأنه عدم وجود مشتريات', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _freeSubscription(
+          hasStoreBillingLineage: true,
+          lineageVerifiedAt: DateTime.now().subtract(
+            const Duration(minutes: 6),
+          ),
+        ),
+        refreshError: StateError('STORE_VERIFICATION_RATE_LIMITED'),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.appStore,
+          restoredPurchases: 0,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.restoreStorePurchases();
+
+      expect(repository.refreshCalls, 1);
+      expect(controller.storeBillingMessage, contains('تكررت محاولات'));
+      expect(controller.storeBillingMessage, isNot(contains('لم نجد مشتريات')));
+      expect(controller.storeBillingState, StoreBillingState.ready);
+    });
+
+    test(
       'تُبقي الاستعادة دفعة المتجر المطابقة معلّقة رغم سجل حساب آخر',
       () async {
         final repository = _SubscriptionRepository(
@@ -1701,6 +1880,95 @@ void main() {
     });
   });
 
+  testWidgets('تعرض الخطة المجانية بلا دورة متجر وتوضح مزاياها', (
+    tester,
+  ) async {
+    final repository = _SubscriptionRepository(
+      subscription: _freeSubscription(),
+    );
+    final billing = _LifecycleBillingService(
+      platform: StoreBillingPlatform.appStore,
+      offers: [
+        _testOffer(
+          StoreBillingPlatform.appStore,
+          'starter',
+          BillingCycle.monthly,
+        ),
+      ],
+    );
+    final controller = AppController.withRepository(
+      repository,
+      billingService: billing,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await controller.refreshStoreProducts();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppScope(
+            controller: controller,
+            child: const SubscriptionScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summary = find.byKey(const ValueKey('subscription-current-summary'));
+    expect(
+      find.descendant(of: summary, matching: find.text('خطتك المجانية')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: summary,
+        matching: find.textContaining('20 ضماناً شهرياً'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: summary, matching: find.text('سنوي')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: summary,
+        matching: find.textContaining('• App Store'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: summary,
+        matching: find.text('بطاقة ضمان رقمية برمز QR'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('free-plan-monthly-reset')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('subscription-plan-free')), findsNothing);
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('subscription-plan-starter')),
+      240,
+      scrollable: scrollable,
+    );
+    expect(find.byKey(const ValueKey('plan-features-starter')), findsOneWidget);
+    final action = find.byKey(const ValueKey('subscription-primary-action'));
+    expect(tester.widget<FilledButton>(action).onPressed, isNotNull);
+    expect(
+      find.descendant(of: action, matching: find.text('الاشتراك في بداية')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('يشخص الكتالوج الجزئي دون تعطيل توسع السنوي', (tester) async {
     final yearly = _testOffer(
       StoreBillingPlatform.appStore,
@@ -2219,6 +2487,7 @@ SubscriptionInfo _subscription({
   String? originalTransactionId = '100000000000001',
   int usedWarranties = 12,
   String billingCycle = 'monthly',
+  DateTime? lastVerifiedAt,
 }) => SubscriptionInfo(
   id: 'subscription-store',
   status: 'active',
@@ -2232,7 +2501,8 @@ SubscriptionInfo _subscription({
   originalTransactionId: originalTransactionId,
   billingCycle: billingCycle,
   autoRenews: true,
-  lastVerifiedAt: DateTime.now(),
+  lastVerifiedAt:
+      lastVerifiedAt ?? DateTime.now().subtract(const Duration(minutes: 6)),
 );
 
 SubscriptionInfo _trialSubscription() => SubscriptionInfo(
@@ -2242,6 +2512,29 @@ SubscriptionInfo _trialSubscription() => SubscriptionInfo(
   trialEndsAt: DateTime.now().add(const Duration(days: 7)),
   periodEndsAt: DateTime.now().add(const Duration(days: 7)),
   usedWarranties: 0,
+);
+
+SubscriptionInfo _freeSubscription({
+  bool hasStoreBillingLineage = false,
+  DateTime? lineageVerifiedAt,
+}) => SubscriptionInfo(
+  id: 'free-plan-grant',
+  status: 'active',
+  plan: const PlanInfo(
+    id: 'free',
+    name: 'مجانية',
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    maxMembers: 1,
+    monthlyWarranties: 20,
+    maxBranches: 1,
+  ),
+  trialEndsAt: null,
+  periodEndsAt: null,
+  usedWarranties: 0,
+  source: 'free',
+  hasStoreBillingLineage: hasStoreBillingLineage,
+  storeBillingLineageVerifiedAt: lineageVerifiedAt,
 );
 
 SubscriptionInfo _initialPaymentSubscription() => const SubscriptionInfo(

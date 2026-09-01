@@ -36,7 +36,7 @@ jobs:
           DAMANAK_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAMANAK_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
-          grep -qx 'version: 4.5.1+29' pubspec.yaml
+          grep -qx 'version: 4.5.1+30' pubspec.yaml
           test -n "$DAMANAK_SUPABASE_URL"
           test -n "$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
           flutter pub get
@@ -135,7 +135,7 @@ jobs:
           GOOGLE_CALLBACK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
           test "$APP_VERSION" = "4.5.1"
-          test "$APP_BUILD" = "29"
+          test "$APP_BUILD" = "30"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
@@ -177,7 +177,7 @@ jobs:
       - name: Upload signed IPA
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-ios-4.5.1-build-29-signed
+          name: damanak-ios-4.5.1-build-30-signed
           path: damanak_flutter/build/ios/signed/*.ipa
           if-no-files-found: error
           retention-days: 30

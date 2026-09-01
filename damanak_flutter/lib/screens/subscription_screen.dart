@@ -26,8 +26,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final subscription = AppScope.of(context).subscription;
+    final controller = AppScope.of(context);
+    final subscription = controller.subscription;
     if (subscription == null) return;
+    final paidPlans =
+        controller.plans
+            .where((plan) => plan.id != 'free')
+            .toList(growable: false)
+          ..sort(
+            (left, right) => DamanakStoreCatalog.planRank(
+              left.id,
+            ).compareTo(DamanakStoreCatalog.planRank(right.id)),
+          );
     final signature = [
       subscription.id,
       subscription.plan.id,
@@ -35,15 +45,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       subscription.billingCycle,
       subscription.billingProvider,
       subscription.periodEndsAt?.toIso8601String(),
+      paidPlans.map((plan) => plan.id).join(','),
     ].join(':');
     if (_selectionSignature == signature) return;
     _selectionSignature = signature;
-    final hasCurrentPlan =
-        subscription.isUsable || subscription.hasUnexpiredStorePeriod;
-    _selectedPlanId = hasCurrentPlan ? subscription.plan.id : 'starter';
+    _selectedPlanId = subscription.hasUnexpiredStorePeriod
+        ? subscription.plan.id
+        : 'starter';
     _cycle = switch (subscription.billingCycle) {
-      'monthly' when hasCurrentPlan => BillingCycle.monthly,
-      'yearly' when hasCurrentPlan => BillingCycle.yearly,
+      'monthly' when subscription.hasUnexpiredStorePeriod =>
+        BillingCycle.monthly,
+      'yearly' when subscription.hasUnexpiredStorePeriod => BillingCycle.yearly,
       _ => BillingCycle.monthly,
     };
   }
@@ -59,14 +71,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     }
 
-    final plans = controller.plans.toList(growable: false)
-      ..sort(
-        (left, right) => DamanakStoreCatalog.planRank(
-          left.id,
-        ).compareTo(DamanakStoreCatalog.planRank(right.id)),
-      );
-    final hasCurrentPlan =
-        subscription.isUsable || subscription.hasUnexpiredStorePeriod;
+    final plans =
+        controller.plans
+            .where((plan) => plan.id != 'free')
+            .toList(growable: false)
+          ..sort(
+            (left, right) => DamanakStoreCatalog.planRank(
+              left.id,
+            ).compareTo(DamanakStoreCatalog.planRank(right.id)),
+          );
+    final hasCurrentPlan = subscription.hasUnexpiredStorePeriod;
     final selectedPlanId = plans.any((plan) => plan.id == _selectedPlanId)
         ? _selectedPlanId
         : plans.any((plan) => hasCurrentPlan && plan.id == subscription.plan.id)
@@ -504,11 +518,13 @@ class _SubscriptionSummary extends StatelessWidget {
     }
 
     final cycleLabel = switch (subscription.billingCycle) {
+      _ when !subscription.isStoreSubscription => null,
       'monthly' => 'شهري',
       'yearly' => 'سنوي',
       _ => null,
     };
     final statusLabel = switch (subscription.status) {
+      _ when subscription.isFreeAccess => 'مفعّلة',
       'trialing' => 'مفعّل مؤقتاً',
       'active' => subscription.autoRenews ? 'فعّال ويتجدد' : 'فعّال',
       'past_due' => 'تحتاج الفوترة إلى مراجعة',
@@ -520,9 +536,13 @@ class _SubscriptionSummary extends StatelessWidget {
         : (subscription.usedWarranties / subscription.plan.monthlyWarranties)
               .clamp(0.0, 1.0);
     final metadata = [
-      ?cycleLabel,
-      ?platform?.label,
-      if (subscription.periodEndsAt != null)
+      if (subscription.isFreeAccess) ...[
+        '${subscription.plan.monthlyWarranties} ضماناً شهرياً',
+        'تثبيت محمي واحد',
+      ],
+      if (subscription.isStoreSubscription) ?cycleLabel,
+      if (subscription.isStoreSubscription) ?platform?.label,
+      if (subscription.isStoreSubscription && subscription.periodEndsAt != null)
         '$periodLabel ${formatDate(subscription.periodEndsAt!)}',
     ];
     return Semantics(
@@ -538,7 +558,10 @@ class _SubscriptionSummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('باقتك الحالية', style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              subscription.isFreeAccess ? 'خطتك المجانية' : 'باقتك الحالية',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 3),
             Wrap(
               spacing: 12,
@@ -592,6 +615,36 @@ class _SubscriptionSummary extends StatelessWidget {
                   backgroundColor: colors.surfaceContainerHighest,
                 ),
               ),
+              if (subscription.isFreeAccess) ...[
+                const SizedBox(height: 9),
+                Text(
+                  'تبدأ الحصة من جديد تلقائياً مع بداية كل شهر، من دون اشتراك في App Store أو Google Play.',
+                  key: const ValueKey('free-plan-monthly-reset'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                for (final feature in subscription.plan.features)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 18,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ],
           ],
         ),
@@ -943,6 +996,7 @@ class _PlanChoiceTile extends StatelessWidget {
       },
     };
     final price = offer?.localizedPrice ?? 'السعر غير متاح';
+    final visibleFeatures = plan.features;
     final semanticStatus = switch (decision.kind) {
       SubscriptionDecisionKind.start => selected ? 'مختارة' : 'متاحة',
       SubscriptionDecisionKind.upgrade => 'متاحة للترقية',
@@ -965,7 +1019,8 @@ class _PlanChoiceTile extends StatelessWidget {
       label:
           '${plan.name}. $price، ${cycle.label}. '
           '${plan.monthlyWarranties} ضمان شهرياً، حتى '
-          '${plan.maxMembers} للفريق. $semanticStatus.',
+          '${plan.maxMembers} للفريق. ${visibleFeatures.join('. ')}. '
+          '$semanticStatus.',
       child: ExcludeSemantics(
         child: Material(
           color: selected ? colors.primaryContainer : colors.surface,
@@ -1062,6 +1117,43 @@ class _PlanChoiceTile extends StatelessWidget {
                             _PlanFact(text: plan.branchLabel),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          plan.audience,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        if (visibleFeatures.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Column(
+                            key: ValueKey('plan-features-${plan.id}'),
+                            children: [
+                              for (final feature in visibleFeatures)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 18,
+                                        color: colors.primary,
+                                      ),
+                                      const SizedBox(width: 7),
+                                      Expanded(
+                                        child: Text(
+                                          feature,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                         if (blocked && !current) ...[
                           const SizedBox(height: 7),
                           Text(

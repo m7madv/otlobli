@@ -179,7 +179,7 @@ void main() {
       }
       expect(migration, isNot(contains('raw_device_claim')));
       expect(repository, contains("'device_claim'"));
-      expect(repository, contains("'register_trial_device'"));
+      expect(repository, contains("'claim_free_plan_device'"));
     },
   );
 
@@ -207,7 +207,7 @@ void main() {
     ]) {
       expect(migration, contains(token));
     }
-    expect(repository, contains("'create_store_with_subscription'"));
+    expect(repository, contains("'create_store_with_free_access'"));
     expect(repository, isNot(contains("'create_store_with_trial'")));
     expect(
       migration,
@@ -216,6 +216,69 @@ void main() {
     expect(
       migration,
       isNot(contains("raise exception 'TRIAL_ALREADY_USED_ON_DEVICE'")),
+    );
+  });
+
+  test('الخطة المجانية منفصلة عن الفوترة ومحمية بحصة دقيقة', () {
+    final migration = File(
+      'supabase/migrations/20260901200000_damanak_free_access_and_billing_repair.sql',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/data/supabase_repository.dart',
+    ).readAsStringSync();
+
+    for (final token in [
+      "'free'",
+      'monthly_warranties',
+      'private.free_plan_grants',
+      'private.free_session_claims',
+      'private.effective_store_plan_id',
+      'current_store_access',
+      'claim_free_plan_device',
+      'create_store_with_free_access',
+      'reserve_store_subscription_refresh',
+      'apply_verified_sandbox_terminal_entitlement',
+      'store_entitlements_schedule_after_verification',
+      'subscriptions_non_store_metadata_clean_check',
+      'drop trigger if exists subscriptions_prevent_active_store_plan_downgrade',
+      'subscriptions_free_access_mirror_check',
+      'subscription.free_access_mirror',
+      'create_store_with_subscription_legacy_core',
+      'create or replace function public.create_store_with_trial(',
+      'on conflict (store_id, account_hash, device_hash) do update',
+      'and entitlement.platform = \'app_store\'',
+      "and blocked_billing.store_environment = 'production'",
+      "subscription.source = 'manual'",
+      "tester.platform = 'app_store'",
+      "when effective_plan_id = 'free' then included_limit",
+      "status = 'revoked'",
+      "WEBHOOK_PLAN_NOT_INCLUDED",
+    ]) {
+      expect(migration, contains(token));
+    }
+    expect(repository, contains("'current_store_access'"));
+    expect(repository, contains("'claim_free_plan_device'"));
+    expect(repository, contains("'create_store_with_free_access'"));
+    expect(repository, contains(".neq('id', 'free')"));
+    expect(
+      migration,
+      isNot(contains('select distinct on (entitlement.store_id')),
+    );
+    expect(
+      migration,
+      isNot(
+        contains('delete from private.store_purchase_verification_limits;'),
+      ),
+    );
+    expect(
+      migration,
+      isNot(
+        contains('delete from private.store_subscription_refresh_limits;'),
+      ),
+    );
+    expect(
+      migration,
+      isNot(contains("raise exception 'ACTIVE_STORE_PLAN_DOWNGRADE_BLOCKED'")),
     );
   });
 

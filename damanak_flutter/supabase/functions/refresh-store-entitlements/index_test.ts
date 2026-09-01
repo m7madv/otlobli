@@ -166,6 +166,72 @@ Deno.test("Apple refresh sends null receipt-lineage fields", () => {
   }
 });
 
+Deno.test("Apple Sandbox terminal refresh uses the reducing RPC", () => {
+  const request = buildRefreshApplyRequest(
+    {
+      storeId: "11111111-1111-4111-8111-111111111111",
+      userId: "22222222-2222-4222-8222-222222222222",
+      purchaseToken: "must-not-leak-to-apple",
+    },
+    {
+      platform: "app_store",
+      productId: "com.damanak.subscription.growth.monthly",
+      basePlanId: "",
+      transactionId: "2000000123456791",
+      originalTransactionId: "2000000123456789",
+      status: "canceled",
+      environment: "sandbox",
+      periodStart: "2026-08-01T00:00:00.000Z",
+      periodEnd: "2026-09-01T00:00:00.000Z",
+      autoRenews: false,
+    },
+  );
+
+  if (
+    request.name !== "apply_verified_sandbox_terminal_entitlement" ||
+    request.params.billing_platform !== "app_store" ||
+    request.params.entitlement_status !== "canceled" ||
+    request.params.external_original_transaction_id !== "2000000123456789"
+  ) {
+    throw new Error("Apple Sandbox terminal state could be reactivated");
+  }
+});
+
+Deno.test("Google Sandbox past-due refresh keeps the receipt-aware RPC", () => {
+  const purchaseToken = "google-sandbox-current-token";
+  const tokenHash = "c".repeat(64);
+  const request = buildRefreshApplyRequest(
+    {
+      storeId: "11111111-1111-4111-8111-111111111111",
+      userId: "22222222-2222-4222-8222-222222222222",
+      purchaseToken,
+    },
+    {
+      platform: "google_play",
+      productId: "com.damanak.subscription.growth",
+      basePlanId: "monthly",
+      transactionId: "google-sandbox-current-token",
+      originalTransactionId: "google-sandbox-current-token",
+      status: "past_due",
+      environment: "sandbox",
+      periodStart: "2026-08-01T00:00:00.000Z",
+      periodEnd: "2026-09-01T00:00:00.000Z",
+      autoRenews: true,
+      purchaseTokenHash: tokenHash,
+      linkedPurchaseTokenHash: null,
+    },
+  );
+
+  if (
+    request.name !== "apply_verified_store_entitlement_with_receipt" ||
+    request.params.billing_platform !== "google_play" ||
+    request.params.raw_purchase_token !== purchaseToken ||
+    request.params.purchase_token_hash !== tokenHash
+  ) {
+    throw new Error("Google Sandbox past-due refresh used Apple terminal flow");
+  }
+});
+
 Deno.test("refresh releases every claimed row after applying it", async () => {
   const calls: Array<{ name: string; params: Record<string, unknown> }> = [];
   const entitlement: VerifiedEntitlement = {

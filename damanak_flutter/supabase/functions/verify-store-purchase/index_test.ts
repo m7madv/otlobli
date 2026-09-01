@@ -25,12 +25,16 @@ import {
   googleLinkedPurchaseToken,
   googleOrphanRecoveryBinding,
   isAllowedStoreProduct,
+  isAppleSandboxTerminalEntitlement,
   parseBoundedJsonBody,
   RequestBodyTooLargeError,
   resolveTrustedGoogleOutOfAppLineage,
   scheduleBestEffortPostCommitTask,
   selectGoogleLineItem,
   setGoogleAccessTokenTestHook,
+  storeEntitlementRefreshIsAllowed,
+  storeRefreshSnapshotCanBeReused,
+  storeRefreshSnapshotIsFresh,
   verifyAppleRecoveryTransactionWithFallback,
 } from "./index.ts";
 
@@ -63,6 +67,117 @@ Deno.test("unknown Apple environment retains production-first fallback", () => {
   const order = appleEnvironmentOrder(null);
   if (order[0].name !== "production" || order[1].name !== "sandbox") {
     throw new Error("unknown transactions must retain Apple's fallback order");
+  }
+});
+
+Deno.test("recent server refresh snapshot bypasses another provider call", () => {
+  const now = Date.parse("2026-09-01T12:00:00.000Z");
+  if (
+    !storeRefreshSnapshotIsFresh("2026-09-01T11:58:30.000Z", now) ||
+    storeRefreshSnapshotIsFresh("2026-09-01T11:57:59.000Z", now) ||
+    storeRefreshSnapshotIsFresh("2026-09-01T12:00:31.000Z", now) ||
+    storeRefreshSnapshotIsFresh("invalid", now)
+  ) {
+    throw new Error("refresh snapshot freshness boundary is unsafe");
+  }
+});
+
+Deno.test("refresh cache requires a still-unexpired direct store period", () => {
+  const now = Date.parse("2026-09-01T12:00:00.000Z");
+  const fresh = "2026-09-01T11:59:00.000Z";
+  if (
+    !storeRefreshSnapshotCanBeReused({
+      status: "active",
+      current_period_end: "2026-09-01T12:05:00.000Z",
+      last_store_verified_at: fresh,
+    }, now) ||
+    storeRefreshSnapshotCanBeReused({
+      status: "active",
+      current_period_end: "2026-09-01T12:00:00.000Z",
+      last_store_verified_at: fresh,
+    }, now) ||
+    storeRefreshSnapshotCanBeReused({
+      status: "canceled",
+      current_period_end: "2026-09-01T12:05:00.000Z",
+      last_store_verified_at: fresh,
+    }, now) ||
+    storeRefreshSnapshotCanBeReused({
+      status: "active",
+      current_period_end: "invalid",
+      last_store_verified_at: fresh,
+    }, now)
+  ) {
+    throw new Error("expired or unusable store snapshot was cached");
+  }
+});
+
+Deno.test("revoked tombstones never trigger an automatic provider refresh", () => {
+  const now = Date.parse("2026-09-01T12:00:00.000Z");
+  if (
+    storeEntitlementRefreshIsAllowed({
+      status: "revoked",
+      period_end: "2030-01-01T00:00:00.000Z",
+      auto_renews: true,
+    }, now) ||
+    storeEntitlementRefreshIsAllowed({
+      status: "expired",
+      period_end: "2030-01-01T00:00:00.000Z",
+      auto_renews: true,
+    }, now) ||
+    !storeEntitlementRefreshIsAllowed({
+      status: "active",
+      period_end: "2026-09-01T12:05:00.000Z",
+      auto_renews: false,
+    }, now) ||
+    !storeEntitlementRefreshIsAllowed({
+      status: "past_due",
+      environment: "production",
+      period_end: "2026-08-01T00:00:00.000Z",
+      auto_renews: true,
+    }, now) ||
+    storeEntitlementRefreshIsAllowed({
+      platform: "app_store",
+      status: "past_due",
+      environment: "sandbox",
+      period_end: "2030-01-01T00:00:00.000Z",
+      auto_renews: true,
+    }, now) ||
+    !storeEntitlementRefreshIsAllowed({
+      platform: "google_play",
+      status: "past_due",
+      environment: "sandbox",
+      period_end: "2030-01-01T00:00:00.000Z",
+      auto_renews: true,
+    }, now)
+  ) {
+    throw new Error("terminal entitlement refresh policy is unsafe");
+  }
+});
+
+Deno.test("terminal reducing path is exclusive to Apple Sandbox", () => {
+  if (
+    !isAppleSandboxTerminalEntitlement({
+      platform: "app_store",
+      environment: "sandbox",
+      status: "canceled",
+    }) ||
+    isAppleSandboxTerminalEntitlement({
+      platform: "google_play",
+      environment: "sandbox",
+      status: "canceled",
+    }) ||
+    isAppleSandboxTerminalEntitlement({
+      platform: "app_store",
+      environment: "production",
+      status: "canceled",
+    }) ||
+    isAppleSandboxTerminalEntitlement({
+      platform: "app_store",
+      environment: "sandbox",
+      status: "active",
+    })
+  ) {
+    throw new Error("Sandbox terminal routing escaped Apple-only scope");
   }
 });
 

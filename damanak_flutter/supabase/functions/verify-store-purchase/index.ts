@@ -176,6 +176,82 @@ export type VerificationFailure = {
 
 export class RequestBodyTooLargeError extends Error {}
 
+export function storeRefreshSnapshotIsFresh(
+  lastVerifiedAt: unknown,
+  nowMs = Date.now(),
+  maxAgeMs = 2 * 60 * 1000,
+) {
+  if (typeof lastVerifiedAt !== "string" || !Number.isFinite(nowMs)) {
+    return false;
+  }
+  const verifiedMs = Date.parse(lastVerifiedAt);
+  if (!Number.isFinite(verifiedMs)) return false;
+  const ageMs = nowMs - verifiedMs;
+  return ageMs >= -30_000 && ageMs <= maxAgeMs;
+}
+
+export function storeRefreshSnapshotCanBeReused(
+  subscription: {
+    status?: unknown;
+    current_period_end?: unknown;
+    last_store_verified_at?: unknown;
+  },
+  nowMs = Date.now(),
+) {
+  if (
+    !storeRefreshSnapshotIsFresh(
+      subscription.last_store_verified_at,
+      nowMs,
+    ) ||
+    !["active", "past_due"].includes(String(subscription.status ?? "")) ||
+    typeof subscription.current_period_end !== "string"
+  ) {
+    return false;
+  }
+  const periodEndMs = Date.parse(subscription.current_period_end);
+  return Number.isFinite(periodEndMs) && periodEndMs > nowMs;
+}
+
+export function isAppleSandboxTerminalEntitlement(
+  entitlement: {
+    platform?: unknown;
+    environment?: unknown;
+    status?: unknown;
+  },
+) {
+  return entitlement.platform === "app_store" &&
+    entitlement.environment === "sandbox" &&
+    !["active", "grace"].includes(String(entitlement.status ?? ""));
+}
+
+export function storeEntitlementRefreshIsAllowed(
+  entitlement: {
+    platform?: unknown;
+    status?: unknown;
+    environment?: unknown;
+    period_end?: unknown;
+    auto_renews?: unknown;
+  },
+  nowMs = Date.now(),
+) {
+  const status = String(entitlement.status ?? "");
+  if (!["active", "grace", "past_due"].includes(status)) {
+    return false;
+  }
+  // Sandbox terminal states must stay terminal. They are recorded by the
+  // dedicated reducing RPC and never consume another refresh allowance.
+  if (
+    status === "past_due" &&
+    isAppleSandboxTerminalEntitlement(entitlement)
+  ) {
+    return false;
+  }
+  if (entitlement.auto_renews === true) return true;
+  if (typeof entitlement.period_end !== "string") return false;
+  const periodEndMs = Date.parse(entitlement.period_end);
+  return Number.isFinite(periodEndMs) && periodEndMs > nowMs;
+}
+
 function response(
   status: number,
   body: Record<string, unknown>,
@@ -1814,37 +1890,73 @@ export async function handle(request: Request) {
       const { data: subscription, error: subscriptionError } = await admin
         .from("subscriptions")
         .select(
-          "source,billing_provider,original_transaction_id,store_entitlement_id",
+          "source,billing_provider,original_transaction_id,store_entitlement_id,plan_id,status,current_period_end,auto_renews,last_store_verified_at",
         )
         .eq("store_id", storeId)
         .maybeSingle();
+      if (subscriptionError) {
+        throw new Error("STORE_SUBSCRIPTION_LOOKUP_FAILED");
+      }
+      let entitlementQuery = admin.from("store_entitlements")
+        .select(
+          "id,user_id,platform,original_transaction_id,plan_id,status,environment,period_end,auto_renews,verified_at",
+        )
+        .eq("store_id", storeId)
+        .is("superseded_at", null);
+      if (typeof subscription?.store_entitlement_id === "string") {
+        entitlementQuery = entitlementQuery.eq(
+          "id",
+          subscription.store_entitlement_id,
+        );
+      } else {
+        entitlementQuery = entitlementQuery.order("updated_at", {
+          ascending: false,
+        }).limit(1);
+      }
+      const { data: existingEntitlement, error: entitlementError } =
+        await entitlementQuery.maybeSingle();
       if (
-        subscriptionError || subscription?.source !== "store" ||
-        (subscription.billing_provider !== "app_store" &&
-          subscription.billing_provider !== "google_play") ||
-        typeof subscription.original_transaction_id !== "string" ||
-        typeof subscription.store_entitlement_id !== "string"
+        entitlementError || typeof existingEntitlement?.user_id !== "string" ||
+        (existingEntitlement.platform !== "app_store" &&
+          existingEntitlement.platform !== "google_play") ||
+        typeof existingEntitlement.original_transaction_id !== "string"
       ) {
         throw new Error("STORE_SUBSCRIPTION_NOT_REFRESHABLE");
       }
-      const { data: existingEntitlement, error: entitlementError } = await admin
-        .from("store_entitlements")
-        .select("user_id")
-        .eq("id", subscription.store_entitlement_id)
-        .eq("store_id", storeId)
-        .is("superseded_at", null)
-        .maybeSingle();
+      const directStoreSnapshot = subscription?.source === "store" &&
+        subscription.billing_provider === existingEntitlement.platform &&
+        subscription.original_transaction_id ===
+          existingEntitlement.original_transaction_id;
+      const entitlementRefreshAllowed = storeEntitlementRefreshIsAllowed(
+        existingEntitlement,
+      );
       if (
-        entitlementError || typeof existingEntitlement?.user_id !== "string"
+        !entitlementRefreshAllowed &&
+        (!directStoreSnapshot || existingEntitlement.environment === "sandbox")
       ) {
-        throw new Error("STORE_ENTITLEMENT_NOT_FOUND");
+        throw new Error("STORE_SUBSCRIPTION_NOT_REFRESHABLE");
+      }
+      if (
+        directStoreSnapshot &&
+        storeRefreshSnapshotCanBeReused(subscription)
+      ) {
+        return response(200, {
+          verified: true,
+          cached: true,
+          platform: subscription.billing_provider,
+          planId: subscription.plan_id,
+          status: subscription.status,
+          periodEnd: subscription.current_period_end,
+          autoRenews: subscription.auto_renews,
+          entitled: subscription.status === "active",
+        });
       }
       purchaserId = existingEntitlement.user_id;
-      if (subscription.billing_provider === "app_store") {
+      if (existingEntitlement.platform === "app_store") {
         body = {
           storeId,
           platform: "app_store",
-          purchaseId: subscription.original_transaction_id,
+          purchaseId: existingEntitlement.original_transaction_id,
           verificationSource: "app_store",
         };
       } else {
@@ -1853,7 +1965,7 @@ export async function handle(request: Request) {
           {
             billing_platform: "google_play",
             external_original_transaction_id:
-              subscription.original_transaction_id,
+              existingEntitlement.original_transaction_id,
           },
         );
         if (tokenError || typeof savedToken !== "string") {
@@ -1869,7 +1981,7 @@ export async function handle(request: Request) {
           binding?.store_id !== storeId ||
           binding?.user_id !== purchaserId ||
           binding?.original_transaction_id !==
-            subscription.original_transaction_id
+            existingEntitlement.original_transaction_id
         ) {
           throw new Error("GOOGLE_REFRESH_SERVER_BINDING_REQUIRED");
         }
@@ -1880,7 +1992,8 @@ export async function handle(request: Request) {
           platform: "google_play",
           verificationData: savedToken,
           verificationSource: "google_play",
-          knownOriginalTransactionId: subscription.original_transaction_id,
+          knownOriginalTransactionId:
+            existingEntitlement.original_transaction_id,
         };
       }
     } else if (
@@ -1893,7 +2006,9 @@ export async function handle(request: Request) {
     }
 
     const { data: reservation, error: reservationError } = await admin.rpc(
-      "reserve_store_purchase_verification",
+      refreshRequest
+        ? "reserve_store_subscription_refresh"
+        : "reserve_store_purchase_verification",
       {
         target_store_id: storeId,
         target_user_id: authData.user.id,
@@ -2137,47 +2252,66 @@ export async function handle(request: Request) {
       }
     }
 
+    const sandboxTerminal = isAppleSandboxTerminalEntitlement(entitlement);
     const appleAccountTokenUpdateScheduled =
       await applyThenMaybeScheduleAppleAccountTokenUpdate(
         async () => {
-          const { error: applyError } = await admin.rpc(
-            "apply_verified_store_entitlement_with_receipt",
-            {
-              target_store_id: storeId,
-              target_user_id: purchaserId,
-              billing_platform: entitlement.platform,
-              billed_product_id: entitlement.productId,
-              billed_base_plan_id: entitlement.basePlanId,
-              external_transaction_id: entitlement.transactionId,
-              external_original_transaction_id:
-                entitlement.originalTransactionId,
-              entitlement_status: entitlement.status,
-              store_environment: entitlement.environment,
-              entitlement_period_start: entitlement.periodStart,
-              entitlement_period_end: entitlement.periodEnd,
-              entitlement_auto_renews: entitlement.autoRenews,
-              raw_purchase_token: entitlement.platform === "google_play"
-                ? googlePurchaseToken
-                : null,
-              purchase_token_hash: entitlement.purchaseTokenHash ?? null,
-              linked_purchase_token_hash: entitlement.linkedPurchaseTokenHash ??
-                null,
-              expected_current_purchase_token_hash:
-                expectedCurrentPurchaseTokenHash(
-                  refreshRequest,
-                  entitlement,
-                ),
-              allow_orphan_lineage_recovery: recoveredOrphan &&
-                entitlement.platform === "google_play",
-              orphan_old_account_id: googleRecoveryOldAccountId,
-              orphan_old_store_id: googleRecoveryOldStoreId,
-            },
-          );
+          const { error: applyError } = sandboxTerminal
+            ? await admin.rpc(
+              "apply_verified_sandbox_terminal_entitlement",
+              {
+                target_store_id: storeId,
+                target_user_id: purchaserId,
+                billing_platform: entitlement.platform,
+                external_transaction_id: entitlement.transactionId,
+                external_original_transaction_id:
+                  entitlement.originalTransactionId,
+                entitlement_status: entitlement.status,
+                entitlement_period_start: entitlement.periodStart,
+                entitlement_period_end: entitlement.periodEnd,
+                entitlement_auto_renews: entitlement.autoRenews,
+              },
+            )
+            : await admin.rpc(
+              "apply_verified_store_entitlement_with_receipt",
+              {
+                target_store_id: storeId,
+                target_user_id: purchaserId,
+                billing_platform: entitlement.platform,
+                billed_product_id: entitlement.productId,
+                billed_base_plan_id: entitlement.basePlanId,
+                external_transaction_id: entitlement.transactionId,
+                external_original_transaction_id:
+                  entitlement.originalTransactionId,
+                entitlement_status: entitlement.status,
+                store_environment: entitlement.environment,
+                entitlement_period_start: entitlement.periodStart,
+                entitlement_period_end: entitlement.periodEnd,
+                entitlement_auto_renews: entitlement.autoRenews,
+                raw_purchase_token: entitlement.platform === "google_play"
+                  ? googlePurchaseToken
+                  : null,
+                purchase_token_hash: entitlement.purchaseTokenHash ?? null,
+                linked_purchase_token_hash:
+                  entitlement.linkedPurchaseTokenHash ??
+                    null,
+                expected_current_purchase_token_hash:
+                  expectedCurrentPurchaseTokenHash(
+                    refreshRequest,
+                    entitlement,
+                  ),
+                allow_orphan_lineage_recovery: recoveredOrphan &&
+                  entitlement.platform === "google_play",
+                orphan_old_account_id: googleRecoveryOldAccountId,
+                orphan_old_store_id: googleRecoveryOldStoreId,
+              },
+            );
           if (applyError) {
             throw new Error(`ENTITLEMENT_APPLY_${applyError.message}`);
           }
         },
-        recoveredOrphan && entitlement.platform === "app_store"
+        !sandboxTerminal &&
+          recoveredOrphan && entitlement.platform === "app_store"
           ? () =>
             runBestEffortPostCommitTask(
               () => updateAppleAppAccountToken(entitlement, storeId),

@@ -1504,20 +1504,8 @@ class DemoDamanakRepository implements DamanakRepository {
       paymentMethod: paymentMethod,
     );
     _warranties.insert(0, warranty);
-    _subscription = SubscriptionInfo(
-      id: _subscription.id,
-      status: _subscription.status,
-      plan: _subscription.plan,
-      trialEndsAt: _subscription.trialEndsAt,
-      periodEndsAt: _subscription.periodEndsAt,
-      usedWarranties: _subscription.usedWarranties + 1,
-      source: _subscription.source,
-      billingProvider: _subscription.billingProvider,
-      storeProductId: _subscription.storeProductId,
-      originalTransactionId: _subscription.originalTransactionId,
-      billingCycle: _subscription.billingCycle,
-      autoRenews: _subscription.autoRenews,
-      lastVerifiedAt: _subscription.lastVerifiedAt,
+    _subscription = _subscription.withUsedWarranties(
+      _subscription.usedWarranties + 1,
     );
     return warranty;
   }
