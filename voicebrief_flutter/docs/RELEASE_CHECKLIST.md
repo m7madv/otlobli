@@ -142,6 +142,8 @@
 - [x] Publish App Privacy responses after owner confirmation. No App Review submission has occurred.
 - [ ] Save App Review credentials, add the iOS version to the existing three-item review draft, and obtain immediate owner confirmation before `Submit for Review`.
 - [ ] Resolve French encryption compliance. The owner retained France and the questionnaire requires a `French encryption declaration approval form` for bundled Flutter/Dart BoringSSL TLS. Build 18 incorrectly declares `ITSAppUsesNonExemptEncryption=false`; obtain the ANSSI approval, upload it, wait for Apple's compliance code, create a replacement build with `ITSAppUsesNonExemptEncryption=true` and `ITSEncryptionExportComplianceCode`, then attach it before submission.
+- [x] Prepare and visually verify the three-page French technical annex `output/pdf/VoiceBrief-ANSSI-technical-annex.pdf` from the actual build 18 IPA: `82,233` bytes, SHA-256 `045E6138E5B319D5E66FA606709F14283D159D000827E2B2C18C261873CE4D11`. It documents Flutter `3.41.6`, Dart `3.11.4`, bundled BoringSSL, TLS 1.2/1.3, and the standard algorithms; it is not an ANSSI filing or approval.
+- [ ] Complete the official ANSSI form with declarant type, nationality, full postal address, and owner signature; submit the saved electronic form, signed scan, and technical annex to `controle@ssi.gouv.fr`, then wait for `Attestation de déclaration` before uploading anything to Apple.
 
 ## Owner/external configuration
 
