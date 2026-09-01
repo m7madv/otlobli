@@ -824,6 +824,66 @@ void main() {
     });
   });
 
+  group('تصنيف انتقال الاشتراك', () {
+    test('يميز البدء والخطة الحالية وتغيير دورة الفوترة', () {
+      final monthly = _googleOffer('growth', BillingCycle.monthly);
+      final yearly = _googleOffer('growth', BillingCycle.yearly);
+
+      expect(
+        DamanakStoreCatalog.subscriptionTransition(
+          hasActiveStoreSubscription: false,
+          currentPlanId: 'growth',
+          currentBillingCycle: 'monthly',
+          targetPlanId: monthly.planId,
+          targetCycle: monthly.cycle,
+        ),
+        StoreSubscriptionTransitionKind.start,
+      );
+      expect(
+        DamanakStoreCatalog.subscriptionTransition(
+          hasActiveStoreSubscription: true,
+          currentPlanId: 'growth',
+          currentBillingCycle: 'monthly',
+          targetPlanId: monthly.planId,
+          targetCycle: monthly.cycle,
+        ),
+        StoreSubscriptionTransitionKind.current,
+      );
+      expect(
+        DamanakStoreCatalog.subscriptionTransition(
+          hasActiveStoreSubscription: true,
+          currentPlanId: 'growth',
+          currentBillingCycle: 'monthly',
+          targetPlanId: yearly.planId,
+          targetCycle: yearly.cycle,
+        ),
+        StoreSubscriptionTransitionKind.billingCycleChange,
+      );
+    });
+
+    test('يصنف كل انتقال بين بداية ونمو وتوسع حسب ترتيب الباقة', () {
+      const plans = ['starter', 'growth', 'scale'];
+      for (final current in plans) {
+        for (final target in plans) {
+          final result = DamanakStoreCatalog.subscriptionTransition(
+            hasActiveStoreSubscription: true,
+            currentPlanId: current,
+            currentBillingCycle: 'monthly',
+            targetPlanId: target,
+            targetCycle: BillingCycle.monthly,
+          );
+          final expected = current == target
+              ? StoreSubscriptionTransitionKind.current
+              : DamanakStoreCatalog.planRank(target) >
+                    DamanakStoreCatalog.planRank(current)
+              ? StoreSubscriptionTransitionKind.upgrade
+              : StoreSubscriptionTransitionKind.downgrade;
+          expect(result, expected, reason: '$current → $target');
+        }
+      }
+    });
+  });
+
   group('تغيير اشتراك Google', () {
     test('يستخدم مصفوفة صريحة للترقية والتخفيض وتغيير الدورة', () {
       expect(

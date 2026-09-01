@@ -39,6 +39,14 @@ enum StoreBillingState {
 
 enum StorePurchaseStatus { pending, purchased, restored, canceled, error }
 
+enum StoreSubscriptionTransitionKind {
+  start,
+  current,
+  upgrade,
+  downgrade,
+  billingCycleChange,
+}
+
 abstract final class DamanakStoreCatalog {
   static const packageName = 'com.damanak.damanak';
 
@@ -96,6 +104,28 @@ abstract final class DamanakStoreCatalog {
     'scale' => 3,
     _ => 0,
   };
+
+  static StoreSubscriptionTransitionKind subscriptionTransition({
+    required bool hasActiveStoreSubscription,
+    required String? currentPlanId,
+    required String? currentBillingCycle,
+    required String targetPlanId,
+    required BillingCycle targetCycle,
+  }) {
+    final currentRank = planRank(currentPlanId);
+    final targetRank = planRank(targetPlanId);
+    if (!hasActiveStoreSubscription || currentRank == 0 || targetRank == 0) {
+      return StoreSubscriptionTransitionKind.start;
+    }
+    if (currentPlanId == targetPlanId) {
+      return currentBillingCycle == targetCycle.value
+          ? StoreSubscriptionTransitionKind.current
+          : StoreSubscriptionTransitionKind.billingCycleChange;
+    }
+    return targetRank > currentRank
+        ? StoreSubscriptionTransitionKind.upgrade
+        : StoreSubscriptionTransitionKind.downgrade;
+  }
 
   static bool contains(StoreBillingPlatform platform, String productId) =>
       switch (platform) {

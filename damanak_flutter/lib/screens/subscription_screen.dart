@@ -64,6 +64,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final selectedPlan = selectedPlanId == null
         ? null
         : plans.firstWhere((plan) => plan.id == selectedPlanId);
+    final selectedOffer = selectedPlan == null
+        ? null
+        : controller.storeOffer(selectedPlan.id, _cycle);
+    final selectedTransition = selectedPlan == null
+        ? null
+        : DamanakStoreCatalog.subscriptionTransition(
+            hasActiveStoreSubscription: subscription.hasUnexpiredStorePeriod,
+            currentPlanId: subscription.plan.id,
+            currentBillingCycle: subscription.billingCycle,
+            targetPlanId: selectedPlan.id,
+            targetCycle: _cycle,
+          );
     final canManage = controller.membership!.role.canManageSubscription;
     final currentProvider = StoreBillingPlatformText.fromValue(
       subscription.billingProvider,
@@ -234,16 +246,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 _PlanCard(
                   key: ValueKey('subscription-plan-${selectedPlan.id}'),
                   plan: selectedPlan,
-                  offer: controller.storeOffer(selectedPlan.id, _cycle),
+                  offer: selectedOffer,
+                  subscription: subscription,
+                  transition: selectedTransition,
                   current:
                       !widget.requiredActivation &&
                       selectedPlan.id == subscription.plan.id,
-                  sameStoreSelection:
-                      subscription.isStoreSubscription &&
-                      subscription.isUsable &&
-                      currentProvider == controller.storeBillingPlatform &&
-                      selectedPlan.id == subscription.plan.id &&
-                      subscription.billingCycle == _cycle.value,
                   canBuy:
                       canManage &&
                       !storeBusy &&
@@ -254,6 +262,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     context,
                     controller.purchaseSubscription,
                     subscription,
+                    selectedPlan,
                     offer,
                   ),
                 ),
@@ -272,47 +281,95 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     BuildContext context,
     ValueChanged<StoreProductOffer> onConfirmed,
     SubscriptionInfo current,
+    PlanInfo targetPlan,
     StoreProductOffer offer,
   ) async {
-    final startsSubscription =
-        widget.requiredActivation || current.isAwaitingSubscription;
-    final isDowngrade =
-        !startsSubscription &&
-        DamanakStoreCatalog.planRank(offer.planId) <
-            DamanakStoreCatalog.planRank(current.plan.id);
-    final changesCycle =
-        current.billingCycle != null &&
-        current.billingCycle != offer.cycle.value;
+    final transition = DamanakStoreCatalog.subscriptionTransition(
+      hasActiveStoreSubscription: current.hasUnexpiredStorePeriod,
+      currentPlanId: current.plan.id,
+      currentBillingCycle: current.billingCycle,
+      targetPlanId: offer.planId,
+      targetCycle: offer.cycle,
+    );
+    final remainingAfterUpgrade =
+        (targetPlan.monthlyWarranties - current.usedWarranties).clamp(
+          0,
+          targetPlan.monthlyWarranties,
+        );
+    final title = switch (transition) {
+      StoreSubscriptionTransitionKind.start => 'تأكيد الاشتراك',
+      StoreSubscriptionTransitionKind.current => 'الباقة مفعّلة',
+      StoreSubscriptionTransitionKind.upgrade => 'تأكيد الترقية',
+      StoreSubscriptionTransitionKind.downgrade => 'تأكيد الخفض عند التجديد',
+      StoreSubscriptionTransitionKind.billingCycleChange =>
+        'تأكيد تغيير الفوترة',
+    };
+    final summary = switch (transition) {
+      StoreSubscriptionTransitionKind.start =>
+        'الاشتراك في باقة ${targetPlan.name} • ${offer.cycle.label}',
+      StoreSubscriptionTransitionKind.current =>
+        'باقة ${targetPlan.name} • ${offer.cycle.label} مفعّلة بالفعل',
+      StoreSubscriptionTransitionKind.upgrade =>
+        'ترقية من ${current.plan.name} إلى ${targetPlan.name} • ${offer.cycle.label}',
+      StoreSubscriptionTransitionKind.downgrade =>
+        'خفض من ${current.plan.name} إلى ${targetPlan.name} • ${offer.cycle.label}',
+      StoreSubscriptionTransitionKind.billingCycleChange =>
+        'تغيير فوترة ${targetPlan.name} إلى ${offer.cycle.label}',
+    };
+    final actionLabel = switch (transition) {
+      StoreSubscriptionTransitionKind.start => 'المتابعة للاشتراك',
+      StoreSubscriptionTransitionKind.current => 'إغلاق',
+      StoreSubscriptionTransitionKind.upgrade => 'المتابعة للترقية',
+      StoreSubscriptionTransitionKind.downgrade => 'جدولة الخفض في المتجر',
+      StoreSubscriptionTransitionKind.billingCycleChange =>
+        'متابعة تغيير الفوترة',
+    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         scrollable: true,
-        title: const Text('تأكيد اختيار الاشتراك'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              startsSubscription
-                  ? 'تفعيل باقة ${_planName(offer.planId)} • ${offer.cycle.label}'
-                  : 'من ${current.plan.name} إلى ${_planName(offer.planId)} • '
-                        '${offer.cycle.label}',
-              style: Theme.of(dialogContext).textTheme.titleMedium,
-            ),
+            Text(summary, style: Theme.of(dialogContext).textTheme.titleMedium),
             const SizedBox(height: 10),
             Text(
               '${offer.localizedPrice} حسب متجر التطبيقات. '
               'يعرض المتجر السعر والعملة وموعد تطبيق التغيير النهائي قبل التأكيد.',
             ),
-            if (isDowngrade) ...[
+            if (transition == StoreSubscriptionTransitionKind.upgrade) ...[
               const SizedBox(height: 10),
-              const Text(
-                'تنبيه: خفض الباقة يقلل حدود الضمانات والفريق والفروع، وقد يوقف مزايا الباقة الأعلى بعد تطبيق التغيير.',
+              Text(
+                'يرتفع حد هذا الشهر من ${current.plan.monthlyWarranties} إلى '
+                '${targetPlan.monthlyWarranties} ضماناً. تبقى '
+                '${current.usedWarranties} ضماناً أصدرتها هذا الشهر محسوبة، '
+                'فيصبح المتاح $remainingAfterUpgrade. لا تُجمع حصص الباقات.',
               ),
-            ] else if (changesCycle) ...[
+            ] else if (transition ==
+                StoreSubscriptionTransitionKind.downgrade) ...[
+              const SizedBox(height: 10),
+              Text(
+                'تبقى باقة ${current.plan.name} وحدودها فعّالة حتى التجديد. '
+                'بعد اعتماد المتجر للخفض يصبح الحد '
+                '${targetPlan.monthlyWarranties} ضماناً شهرياً. لا تُحذف '
+                'الضمانات السابقة؛ وإذا تجاوز استخدام الشهر الحد الجديد '
+                'يتوقف الإصدار الجديد حتى يتجدد الحد أول الشهر. عند التطبيق '
+                'تُعلّق العضويات الزائدة وتُعطّل الفروع الزائدة ومزايا الباقة '
+                'الأعلى مثل API وWebhooks.',
+              ),
+            ] else if (transition ==
+                StoreSubscriptionTransitionKind.billingCycleChange) ...[
               const SizedBox(height: 10),
               const Text(
-                'ستتغير دورة الفوترة. راجع تاريخ التجديد الظاهر في نافذة المتجر قبل الإقرار.',
+                'تتغير دورة الفوترة فقط؛ لا تتغير الباقة ولا تبدأ حصة شهرية جديدة. راجع تاريخ التطبيق والتجديد في نافذة المتجر.',
+              ),
+            ] else if (transition == StoreSubscriptionTransitionKind.start) ...[
+              const SizedBox(height: 10),
+              Text(
+                'حد الباقة ${targetPlan.monthlyWarranties} ضماناً شهرياً، '
+                'وتبقى إصدارات الشهر الجاري محسوبة ضمنه.',
               ),
             ],
           ],
@@ -324,20 +381,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('المتابعة إلى المتجر'),
+            child: Text(actionLabel),
           ),
         ],
       ),
     );
     if (confirmed == true && context.mounted) onConfirmed(offer);
   }
-
-  String _planName(String id) => switch (id) {
-    'starter' => 'بداية',
-    'growth' => 'نمو',
-    'scale' => 'توسع',
-    _ => id,
-  };
 }
 
 class _SubscriptionRequiredNotice extends StatelessWidget {
@@ -989,16 +1039,18 @@ class _PlanCard extends StatelessWidget {
     super.key,
     required this.plan,
     required this.offer,
+    required this.subscription,
+    required this.transition,
     required this.current,
-    required this.sameStoreSelection,
     required this.canBuy,
     required this.onBuy,
   });
 
   final PlanInfo plan;
   final StoreProductOffer? offer;
+  final SubscriptionInfo subscription;
+  final StoreSubscriptionTransitionKind? transition;
   final bool current;
-  final bool sameStoreSelection;
   final bool canBuy;
   final ValueChanged<StoreProductOffer> onBuy;
 
@@ -1006,6 +1058,51 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final available = offer != null;
+    final effectiveTransition =
+        transition ?? StoreSubscriptionTransitionKind.start;
+    final remainingAfterUpgrade =
+        (plan.monthlyWarranties - subscription.usedWarranties).clamp(
+          0,
+          plan.monthlyWarranties,
+        );
+    final transitionMessage = switch (effectiveTransition) {
+      StoreSubscriptionTransitionKind.start => null,
+      StoreSubscriptionTransitionKind.current =>
+        'هذه باقتك ودورة الفوترة الحالية.',
+      StoreSubscriptionTransitionKind.upgrade =>
+        'ترقية فورية: يصبح حد هذا الشهر ${plan.monthlyWarranties} ضماناً. '
+            'استخدمت ${subscription.usedWarranties}، والمتاح بعد الترقية '
+            '$remainingAfterUpgrade. لا تُجمع حصص الباقات.',
+      StoreSubscriptionTransitionKind.downgrade =>
+        'خفض مجدول: تبقى باقة ${subscription.plan.name} وحدودها حتى '
+            'التجديد، ثم يطبّق المتجر باقة ${plan.name}.',
+      StoreSubscriptionTransitionKind.billingCycleChange =>
+        'تغيير دورة الفوترة فقط: تبقى باقة ${plan.name} وحصة الشهر كما هي، '
+            'ويحدد المتجر موعد التطبيق النهائي.',
+    };
+    final actionLabel =
+        effectiveTransition == StoreSubscriptionTransitionKind.current
+        ? 'الخطة الحالية'
+        : !available
+        ? 'سعر المتجر غير متاح'
+        : switch (effectiveTransition) {
+            StoreSubscriptionTransitionKind.start => 'الاشتراك في ${plan.name}',
+            StoreSubscriptionTransitionKind.current => 'الخطة الحالية',
+            StoreSubscriptionTransitionKind.upgrade => 'ترقية إلى ${plan.name}',
+            StoreSubscriptionTransitionKind.downgrade =>
+              'خفض إلى ${plan.name} عند التجديد',
+            StoreSubscriptionTransitionKind.billingCycleChange =>
+              'تغيير الفوترة إلى ${offer!.cycle.label.toLowerCase()}',
+          };
+    final secondaryAction = const {
+      StoreSubscriptionTransitionKind.current,
+      StoreSubscriptionTransitionKind.downgrade,
+      StoreSubscriptionTransitionKind.billingCycleChange,
+    }.contains(effectiveTransition);
+    final actionEnabled =
+        available &&
+        canBuy &&
+        effectiveTransition != StoreSubscriptionTransitionKind.current;
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(
@@ -1081,32 +1178,75 @@ class _PlanCard extends StatelessWidget {
             Text('تشمل', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             ...plan.features.map((feature) => _PlanFeature(text: feature)),
+            if (transitionMessage != null) ...[
+              const SizedBox(height: 14),
+              _PlanTransitionNotice(
+                icon: switch (effectiveTransition) {
+                  StoreSubscriptionTransitionKind.current =>
+                    Icons.check_circle_outline_rounded,
+                  StoreSubscriptionTransitionKind.upgrade =>
+                    Icons.arrow_upward_rounded,
+                  StoreSubscriptionTransitionKind.downgrade =>
+                    Icons.schedule_rounded,
+                  StoreSubscriptionTransitionKind.billingCycleChange =>
+                    Icons.sync_rounded,
+                  StoreSubscriptionTransitionKind.start =>
+                    Icons.lock_open_rounded,
+                },
+                message: transitionMessage,
+              ),
+            ],
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: current
+              child: secondaryAction
                   ? OutlinedButton(
-                      onPressed: available && canBuy && !sameStoreSelection
-                          ? () => onBuy(offer!)
-                          : null,
-                      child: Text(
-                        sameStoreSelection
-                            ? 'الخطة الحالية'
-                            : available
-                            ? 'اختيار الفوترة ${offer!.cycle.label.toLowerCase()}'
-                            : 'سعر المتجر غير متاح',
-                      ),
+                      onPressed: actionEnabled ? () => onBuy(offer!) : null,
+                      child: Text(actionLabel),
                     )
                   : FilledButton(
-                      onPressed: available && canBuy
-                          ? () => onBuy(offer!)
-                          : null,
-                      child: Text(
-                        available
-                            ? 'اختيار ${plan.name}'
-                            : 'سعر المتجر غير متاح',
-                      ),
+                      onPressed: actionEnabled ? () => onBuy(offer!) : null,
+                      child: Text(actionLabel),
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanTransitionNotice extends StatelessWidget {
+  const _PlanTransitionNotice({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: colors.primary),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 12.5,
+                  height: 1.45,
+                ),
+              ),
             ),
           ],
         ),

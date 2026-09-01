@@ -110,6 +110,33 @@ void main() {
       expect(billing.purchasedOffers.single.productId, yearly.productId);
     });
 
+    test('يمنع فتح المتجر لنفس الباقة والدورة بعد الفحص الخادمي', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _subscription(provider: 'app_store'),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final currentOffer = controller.storeOffer(
+        'growth',
+        BillingCycle.monthly,
+      )!;
+      await controller.purchaseSubscription(currentOffer);
+
+      expect(repository.refreshCalls, 1);
+      expect(billing.purchaseCalls, 0);
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.errorMessage, contains('فعّالتان بالفعل'));
+    });
+
     test('يمسح الخطأ القديم عند بدء شراء جديد لمتجر مقفول', () async {
       final repository = _SubscriptionRepository(
         subscription: _initialPaymentSubscription(),
@@ -1350,10 +1377,149 @@ void main() {
     final scaleCard = find.byKey(const ValueKey('subscription-plan-scale'));
     final buyButton = find.descendant(
       of: scaleCard,
-      matching: find.widgetWithText(FilledButton, 'اختيار توسع'),
+      matching: find.widgetWithText(FilledButton, 'الاشتراك في توسع'),
     );
     expect(buyButton, findsOneWidget);
     expect(tester.widget<FilledButton>(buyButton).onPressed, isNotNull);
+  });
+
+  testWidgets('يعرض ترقية بداية إلى نمو وحصة الشهر الجديدة دون تكديس', (
+    tester,
+  ) async {
+    final repository = _SubscriptionRepository(
+      subscription: _subscription(
+        provider: 'app_store',
+        plan: _starterPlan,
+        productId: 'com.damanak.subscription.starter.monthly',
+        usedWarranties: 30,
+      ),
+    );
+    final billing = _LifecycleBillingService(
+      platform: StoreBillingPlatform.appStore,
+    );
+    final controller = AppController.withRepository(
+      repository,
+      billingService: billing,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await controller.refreshStoreProducts();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppScope(
+            controller: controller,
+            child: const SubscriptionScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('subscription-plan-picker')),
+      240,
+      scrollable: scrollable,
+    );
+    final growthPicker = find.descendant(
+      of: find.byKey(const ValueKey('subscription-plan-picker')),
+      matching: find.text('نمو'),
+    );
+    await tester.tap(growthPicker);
+    await tester.pumpAndSettle();
+
+    final upgradeButton = find.descendant(
+      of: find.byKey(const ValueKey('subscription-plan-growth')),
+      matching: find.widgetWithText(FilledButton, 'ترقية إلى نمو'),
+    );
+    await tester.scrollUntilVisible(upgradeButton, 240, scrollable: scrollable);
+    expect(upgradeButton, findsOneWidget);
+    expect(find.textContaining('المتاح بعد الترقية 570'), findsOneWidget);
+    expect(find.textContaining('لا تُجمع حصص الباقات'), findsOneWidget);
+
+    await tester.drag(scrollable, const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.tap(upgradeButton.hitTestable());
+    await tester.pumpAndSettle();
+
+    expect(find.text('تأكيد الترقية'), findsOneWidget);
+    expect(find.text('المتابعة للترقية'), findsOneWidget);
+    expect(find.textContaining('فيصبح المتاح 570'), findsOneWidget);
+  });
+
+  testWidgets('يعرض نمو لمشترك توسع كخفض مجدول لا كاشتراك ثان', (tester) async {
+    final repository = _SubscriptionRepository(
+      subscription: _subscription(
+        provider: 'app_store',
+        plan: _scalePlan,
+        productId: 'com.damanak.subscription.scale.monthly',
+      ),
+    );
+    final billing = _LifecycleBillingService(
+      platform: StoreBillingPlatform.appStore,
+    );
+    final controller = AppController.withRepository(
+      repository,
+      billingService: billing,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await controller.refreshStoreProducts();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppScope(
+            controller: controller,
+            child: const SubscriptionScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('subscription-plan-picker')),
+      240,
+      scrollable: scrollable,
+    );
+    final growthPicker = find.descendant(
+      of: find.byKey(const ValueKey('subscription-plan-picker')),
+      matching: find.text('نمو'),
+    );
+    await tester.tap(growthPicker);
+    await tester.pumpAndSettle();
+
+    final downgradeButton = find.descendant(
+      of: find.byKey(const ValueKey('subscription-plan-growth')),
+      matching: find.widgetWithText(OutlinedButton, 'خفض إلى نمو عند التجديد'),
+    );
+    await tester.scrollUntilVisible(
+      downgradeButton,
+      240,
+      scrollable: scrollable,
+    );
+    expect(downgradeButton, findsOneWidget);
+    expect(find.textContaining('تبقى باقة توسع وحدودها'), findsOneWidget);
+    expect(find.text('الاشتراك في نمو'), findsNothing);
+
+    await tester.drag(scrollable, const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.tap(downgradeButton.hitTestable());
+    await tester.pumpAndSettle();
+
+    expect(find.text('تأكيد الخفض عند التجديد'), findsOneWidget);
+    expect(find.text('جدولة الخفض في المتجر'), findsOneWidget);
+    expect(find.textContaining('لا تُحذف الضمانات السابقة'), findsOneWidget);
+    expect(find.textContaining('تُعلّق العضويات الزائدة'), findsOneWidget);
+    expect(find.textContaining('تُعطّل الفروع الزائدة'), findsOneWidget);
   });
 
   testWidgets('تعرض الدورة والمزود وروابط المستندات القانونية', (tester) async {
@@ -1529,13 +1695,13 @@ void main() {
         )
         .map((text) => text.data)
         .toList(growable: false);
-    expect(planActionLabels, contains('اختيار الفوترة سنوي'));
+    expect(planActionLabels, contains('تغيير الفوترة إلى سنوي'));
     await tester.tap(planAction.hitTestable());
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('تأكيد اختيار الاشتراك'), findsOneWidget);
-    expect(find.text('المتابعة إلى المتجر'), findsOneWidget);
+    expect(find.text('تأكيد تغيير الفوترة'), findsOneWidget);
+    expect(find.text('متابعة تغيير الفوترة'), findsOneWidget);
   });
 }
 
@@ -1620,6 +1786,16 @@ const _growthPlan = PlanInfo(
   maxBranches: 3,
 );
 
+const _starterPlan = PlanInfo(
+  id: 'starter',
+  name: 'بداية',
+  monthlyPrice: 0,
+  yearlyPrice: 0,
+  maxMembers: 2,
+  monthlyWarranties: 100,
+  maxBranches: 1,
+);
+
 const _scalePlan = PlanInfo(
   id: 'scale',
   name: 'توسع',
@@ -1634,17 +1810,19 @@ SubscriptionInfo _subscription({
   required String provider,
   PlanInfo plan = _growthPlan,
   String? productId,
+  int usedWarranties = 12,
+  String billingCycle = 'monthly',
 }) => SubscriptionInfo(
   id: 'subscription-store',
   status: 'active',
   plan: plan,
   trialEndsAt: null,
   periodEndsAt: DateTime.now().add(const Duration(days: 30)),
-  usedWarranties: 12,
+  usedWarranties: usedWarranties,
   source: 'store',
   billingProvider: provider,
   storeProductId: productId ?? 'com.damanak.subscription.growth.monthly',
-  billingCycle: 'monthly',
+  billingCycle: billingCycle,
   autoRenews: true,
   lastVerifiedAt: DateTime.now(),
 );

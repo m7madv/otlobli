@@ -1546,6 +1546,20 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final transition = DamanakStoreCatalog.subscriptionTransition(
+      hasActiveStoreSubscription: subscription?.hasUnexpiredStorePeriod == true,
+      currentPlanId: subscription?.plan.id,
+      currentBillingCycle: subscription?.billingCycle,
+      targetPlanId: offer.planId,
+      targetCycle: offer.cycle,
+    );
+    if (transition == StoreSubscriptionTransitionKind.current) {
+      _storeBillingState = _idleStoreBillingState;
+      _storeBillingMessage = null;
+      _setStoreBillingError('هذه الخطة ودورة الفوترة فعّالتان بالفعل.');
+      notifyListeners();
+      return;
+    }
     final currentCycle = switch (subscription?.billingCycle) {
       'monthly' when subscription?.hasUnexpiredStorePeriod == true =>
         BillingCycle.monthly,
