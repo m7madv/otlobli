@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { decodeJwt, importPKCS8, SignJWT } from "jose";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { verifyAppleTransactionJwsCompatibility } from "./apple_jws_compat.ts";
 
 const bundleId = "com.damanak.damanak";
 const appAppleId = 6804792494;
@@ -873,6 +874,11 @@ export type AppleRecoveryVerificationRunner = (
   enableOnlineChecks: boolean,
 ) => Promise<Record<string, unknown>>;
 
+export type AppleRecoveryCompatibilityRunner = (
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) => Promise<Record<string, unknown>>;
+
 async function runAppleRecoveryVerification(
   signedTransaction: string,
   environment: "sandbox" | "production",
@@ -901,6 +907,17 @@ async function runAppleRecoveryVerification(
   } finally {
     if (timeoutId != null) clearTimeout(timeoutId);
   }
+}
+
+async function runAppleRecoveryCompatibilityVerification(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) {
+  return verifyAppleTransactionJwsCompatibility(signedTransaction, {
+    bundleId,
+    environment,
+    trustedRoots: appleRootCertificates(),
+  });
 }
 
 function appleRecoveryVerificationStatus(error: unknown) {
@@ -987,11 +1004,18 @@ function throwAppleRecoveryVerificationError(error: unknown): never {
   throw new Error("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE");
 }
 
+function isAppleVerificationFailure(error: unknown) {
+  return error instanceof VerificationException &&
+    error.status === VerificationStatus.VERIFICATION_FAILURE;
+}
+
 export async function verifyAppleRecoveryTransactionWithFallback(
   signedTransaction: string,
   environment: "sandbox" | "production",
   runVerification: AppleRecoveryVerificationRunner =
     runAppleRecoveryVerification,
+  runCompatibilityVerification: AppleRecoveryCompatibilityRunner =
+    runAppleRecoveryCompatibilityVerification,
 ) {
   try {
     return await runVerification(signedTransaction, environment, true);
@@ -1019,6 +1043,25 @@ export async function verifyAppleRecoveryTransactionWithFallback(
         ...appleRecoveryVerificationStatus(signedDateError),
         environment,
       });
+      if (
+        isAppleVerificationFailure(onlineError) &&
+        isAppleVerificationFailure(signedDateError)
+      ) {
+        try {
+          const verified = await runCompatibilityVerification(
+            signedTransaction,
+            environment,
+          );
+          console.warn("APPLE_RECOVERY_RUNTIME_COMPATIBILITY_SUCCEEDED", {
+            environment,
+          });
+          return verified;
+        } catch {
+          console.warn("APPLE_RECOVERY_RUNTIME_COMPATIBILITY_REJECTED", {
+            environment,
+          });
+        }
+      }
       throwAppleRecoveryVerificationError(signedDateError);
     }
   }
