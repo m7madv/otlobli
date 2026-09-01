@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.0+27`، وiPhone Buildات `24` و`25` و`26` في TestFlight، وحزمة App Review/Google Build `23`
+آخر تحديث: 2026-09-01 — المصدر `4.5.0+27`، وiPhone Buildات `24` و`25` و`26` و`27` في TestFlight، وحزمة App Review/Google Build `23`
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -50,19 +50,22 @@
 - [x] نُشرت `verify-store-purchase` v28 بحالة `ACTIVE` وبصمة `ecee6ad20c0efd25c452d581552aafe903be8316cc43c767a0b551bd83dd7262`. أزالت اعتماد X509 غير المتوافق، ونجح الاختبار الموجه `6/6` على Deno `2.1.4` وDeno الحديث، وأعاد runtime الحي بلا جلسة `401`. لم تجد المراجعة الأمنية المستقلة مانعاً.
 - [ ] لا ترفع Android Build `26` ولا تضف Build `26` إلى App Review بلا قرار إصدار منفصل.
 
-## حالة مصدر Build 27
+## حالة توزيع Build 27
 
 - [x] رُفع رقم المصدر المحلي إلى `4.5.0+27`، وأضيف عقد مركزي لانتقالات الباقات تستخدمه الشاشة و`AppController` بعد preflight.
 - [x] تعرض الواجهة الترقية كإجراء أساسي فورياً، والخفض كإجراء ثانوي عند التجديد، وتغيير الدورة مستقلاً، وتوضح أن حد الخطة الجديدة يحل محل القديم مع بقاء استخدام الشهر محسوباً.
 - [x] نجح `flutter analyze` و`186/186` اختبار Flutter و`77/77` اختبار Deno و`deno fmt --check` على 27 ملفاً و`git diff --check`.
 - [x] نجح web release وAndroid debug. APK المحلي `build/app/outputs/flutter-apk/app-debug.apk` حجمه `207,989,448` بايت وSHA-256 `33295CBE76936B806F7FA21C2FAA663C0B1294159A3DCA03A378FD7ED924DE37`.
-- [x] بقي submission Apple Build `23` وGoogle Alpha Build `23` وTestFlight Build `26` وقائمة المختبرين الاثني عشر بلا تغيير؛ لم تُنشأ أو تُرفع IPA/AAB لـBuild `27`.
+- [x] رفع run [33481729437](https://github.com/m7madv/otlobli/actions/runs/33481729437) iPhone Build `27` من الالتزام `e073cd5f7fad489f094337a142c46786eda2d57f`؛ نجح التوقيع والتحقق والرفع. Delivery UUID هو `5b04b5da-22e5-4cc9-affc-691e3b7e840f`، والـIPA `23,943,985` بايت وبصمتها `808712BDD6E46942C9CE837B01FC329ED1CE25A3FC47E95F577BEC03790E2547`.
+- [x] أكد فحص القراءة [33482932576](https://github.com/m7madv/otlobli/actions/runs/33482932576) أن Build `4.5.0 (27)` صار `VALID` وداخل `Damanak Internal` ذات المختبر الواحد، وبقي إصدار `4.5.0` في `Waiting for Review` مع `mutationRequested=false`.
+- [x] بقي submission Apple Build `23` وGoogle Alpha Build `23` وقائمة المختبرين الاثني عشر بلا تغيير؛ لم تُرفع AAB لـBuild `27` ولم يُضف Build `27` إلى App Review.
 - [x] سُجلت مراجعة Apple Design في `docs/DESIGN_AUDIT.md` مع نجاح `320×568` وتكبير النص `200%` آلياً، من دون ادعاء قبول VoiceOver أو جهاز حقيقي.
-- [ ] يلزم قرار إصدار منفصل قبل إنشاء/رفع Build `27`، ثم قبول ترقية وخفض وتغيير دورة حقيقي على iPhone وAndroid.
+- [ ] يلزم قرار إصدار منفصل قبل رفع Android Build `27` أو إضافة iOS Build `27` إلى App Review، وما يزال قبول الترقية والخفض وتغيير الدورة الحقيقي مطلوباً على iPhone وAndroid.
 
 ## قبول الأجهزة قبل الإطلاق العام
 
 - [x] تثبيت Build `26` من TestFlight ونجاح شراء Apple حقيقي قبل حذف حساب ضمانك؛ حذف الحساب لم يلغ الاشتراك.
+- [ ] تثبيت Build `27` من TestFlight وقبول واجهة وانتقالات الاشتراك الجديدة على iPhone حقيقي.
 - [ ] اختبار حساب/تثبيت غير مؤهل للتجربة: ينشئ المتجر بحصة صفر، ويبقى مقفلاً حتى شراء أو استعادة متحققة.
 - [x] نجحت حالة Apple orphan المبلغ عنها بعد v28 عند `2026-09-01 09:22:26` بتوقيت الرياض: `APPLE_RECOVERY_RUNTIME_COMPATIBILITY_SUCCEEDED` وHTTP `200`، ثم `scale/active/source=store/provider=app_store/monthly/sandbox` وentitlement حالي مع `auto_renews=true`. أعاد التحديث المجدول التحقق عند `09:25:03` بـHTTP `200`، بلا شراء ثانٍ أو منح يدوي.
 - [ ] شراء Sandbox/اختبار حقيقي واستعادة وتجديد وترقية وخفض وتبديل دورة على iPhone.
