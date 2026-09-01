@@ -62,7 +62,7 @@
 - [x] سُجلت مراجعة Apple Design في `docs/DESIGN_AUDIT.md` مع نجاح `320×568` وتكبير النص `200%` آلياً، من دون ادعاء قبول VoiceOver أو جهاز حقيقي.
 - [x] لم يُقبل مسار الخفض في Build `27` على جهاز حقيقي، ثم استُبدل بسياسة Build `28` التي تمنع بدء الخفض من داخل ضمانك؛ لا يُعد اختبار خفض Build `27` شرط إصدار حالياً. بقي رفع Android أو تغيير App Review قرار إصدار منفصل.
 
-## حالة مصدر Build 28
+## حالة Build 28
 
 - [x] رُفع رقم المصدر المحلي إلى `4.5.0+28`، وأصبح عقد الانتقال `start/current/upgrade/blockedDowngrade/billingCycleChange`.
 - [x] الباقات الأدنى معلوماتية بزر معطل، ويمنعها `AppController` بعد preflight ثم تعيد خدمة المتجر الحراسة؛ Google لا يستخدم `ReplacementMode.deferred` للخفض.
@@ -71,14 +71,15 @@
 - [x] نجح `flutter analyze` و`198/198` اختبار Flutter و`77/77` اختبار Deno و`deno fmt --check` على 27 ملفاً و`git diff --check`.
 - [x] نجح web release وAndroid debug. APK المحلي `build/app/outputs/flutter-apk/app-debug.apk` حجمه `208,000,201` بايت وSHA-256 `A3DF9A22739B3E1E7938FA6EC3E9BE8CE21C6B3E0CABECBD22C6513832459BBD`.
 - [x] سُجلت مراجعة Apple Design المحدثة في `docs/DESIGN_AUDIT.md` من دون ادعاء قبول جهاز أو قارئ شاشة.
-- [ ] Build `28` غير مرفوع إلى TestFlight أو Google Play ولم يُضف إلى App Review. Build `27` لا يحتوي منع الخفض الجديد.
+- [x] نجح فحص macOS الموقّع run [33520286056](https://github.com/m7madv/otlobli/actions/runs/33520286056)، ثم رفع run [33520953615](https://github.com/m7madv/otlobli/actions/runs/33520953615) Build `28`. أكد inspect [33522527864](https://github.com/m7madv/otlobli/actions/runs/33522527864) أنه `VALID` بالمعرّف `a9038423-e4fc-4499-8c04-bba4c0f1d317` وداخل `Damanak Internal`، مع بقاء Build `23` في App Review وGoogle Alpha وعدم رفع Android Build `28`.
+- [x] IPA Build `28` المحلية `output/github-run-33520953615/ضمانك.ipa` حجمها `23,963,467` بايت وSHA-256 `230304290CE79C5E8F47A1D511DC8C845846C88BF529F7D167CA87B07BA65561`.
 - [ ] يلزم مسح Purchase History لحساب Apple `sandbox` قبل شراء جديد نظيف؛ reset Supabase لا يمحو ملكية Apple وقد تعيد الاستعادة السجل السابق.
 - [ ] منع الخفض مضمون داخل ضمانك فقط؛ صفحة إدارة Apple قد تعرض الباقات الأدنى داخل المجموعة، ويجب أن يبقى التحقق الخادمي مصالحاً لحقيقة المزود.
 
 ## قبول الأجهزة قبل الإطلاق العام
 
 - [x] تثبيت Build `26` من TestFlight ونجاح شراء Apple حقيقي قبل حذف حساب ضمانك؛ حذف الحساب لم يلغ الاشتراك.
-- [ ] رفع Build `28` إلى TestFlight بقرار إصدار منفصل، ثم قبوله على iPhone حقيقي والتأكد أن الباقة الأدنى تبقى معلوماتية ولا تفتح الدفع.
+- [ ] تثبيت Build `28` من TestFlight على iPhone حقيقي والتأكد أن الباقة الأدنى تبقى معلوماتية ولا تفتح الدفع.
 - [ ] اختبار حساب/تثبيت غير مؤهل للتجربة: ينشئ المتجر بحصة صفر، ويبقى مقفلاً حتى شراء أو استعادة متحققة.
 - [x] نجحت تاريخياً، قبل reset، حالة Apple orphan المبلغ عنها بعد v28 عند `2026-09-01 09:22:26` بتوقيت الرياض: `APPLE_RECOVERY_RUNTIME_COMPATIBILITY_SUCCEEDED` وHTTP `200`، ثم `scale/active/source=store/provider=app_store/monthly/sandbox` وentitlement حالي مع `auto_renews=true`. أعاد التحديث المجدول التحقق عند `09:25:03` بـHTTP `200`، بلا شراء ثانٍ أو منح يدوي. الحالة الحية الحالية بعد reset هي صفر اشتراك متجر وصفر entitlement حالي.
 - [ ] شراء Sandbox/اختبار حقيقي واستعادة وتجديد وترقية وتبديل دورة على iPhone، والتأكد أن الباقة الأدنى لا تفتح الدفع داخل Build `28`.

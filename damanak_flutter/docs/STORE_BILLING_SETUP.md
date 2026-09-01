@@ -2,7 +2,7 @@
 
 إصدار المصدر الحالي: `4.5.0+28` — معرّف التطبيق: `com.damanak.damanak`
 
-Build `23` هو حزمة App Review وGoogle Alpha، وBuildات `24` و`25` و`26` و`27` موجودة في iPhone TestFlight فقط. Build `27` يحمل تنظيم الانتقالات السابق، ولم يُضف إلى App Review أو Google. المصدر المحلي Build `28` يمنع بدء الخفض من داخل ضمانك، ولم يُرفع بعد. Build `26` ينظم الاستعادة بعد حذف حساب ضمانك وحالات الفوترة العالقة، وإصلاح `verify-store-purchase` v28 خادمي ويستفيد منه Build `26` فوراً. لا تنسب تغييرات Build `28` إلى بناء أقدم، ولا تضف بناءً إلى App Review أو Google من دون قرار منفصل.
+Build `23` هو حزمة App Review وGoogle Alpha، وBuildات `24` حتى `28` موجودة في iPhone TestFlight فقط. Build `28` يمنع بدء الخفض من داخل ضمانك ويفحص ملكية Apple قبل الدفع؛ لم يُضف إلى App Review أو Google. Build `26` ينظم الاستعادة بعد حذف حساب ضمانك وحالات الفوترة العالقة، وإصلاح `verify-store-purchase` v28 خادمي ويستفيد منه Build `26` فوراً. لا تنسب تغييرات Build `28` إلى بناء أقدم، ولا تضف بناءً إلى App Review أو Google من دون قرار منفصل.
 
 ## الحالة الخارجية
 
@@ -11,6 +11,7 @@ Build `23` هو حزمة App Review وGoogle Alpha، وBuildات `24` و`25` و`
 - رفع run [33449769807](https://github.com/m7madv/otlobli/actions/runs/33449769807) Build `4.5.0 (25)` إلى Apple بنجاح. أنهت Apple المعالجة؛ البناء `VALID` ومعرّفه `8e864062-28e0-4250-abd2-dac25f8df1b9` وداخل `Damanak Internal` ذات المختبر الواحد. الـIPA حجمها `23,930,380` بايت وبصمتها `D2DAF9EF0A97B3C8A6328C32D1B71276352DEAA29A97E144653978983F13A14F`. لم يُضف إلى App Review.
 - رفع run [33458183412](https://github.com/m7madv/otlobli/actions/runs/33458183412) الالتزام `4a5e96bdd1eefd3f27ff89fccf47fe18012ef4f7` بوصفه iPhone Build `4.5.0 (26)`. نجح التحقق والرفع، ثم أكد فحص القراءة [33459040483](https://github.com/m7madv/otlobli/actions/runs/33459040483) أن البناء `VALID` بالمعرّف/Delivery UUID `10a1e004-c6c1-4b56-9cff-618406c3881b` وداخل `Damanak Internal` ذات المختبر الواحد. الـIPA حجمها `23,942,352` بايت وبصمتها `FE66B7F77FB1892FE8F3D55F0AC85AB6B0A7DF783286C77C2EDA735A82C32A37`. لم يُضف إلى App Review.
 - رفع run [33481729437](https://github.com/m7madv/otlobli/actions/runs/33481729437) الالتزام `e073cd5f7fad489f094337a142c46786eda2d57f` بوصفه iPhone Build `4.5.0 (27)`. نجح التوقيع والتحقق والرفع، ثم أكد فحص القراءة [33482932576](https://github.com/m7madv/otlobli/actions/runs/33482932576) أن البناء `VALID` بالمعرّف/Delivery UUID `5b04b5da-22e5-4cc9-affc-691e3b7e840f` وداخل `Damanak Internal` ذات المختبر الواحد، مع بقاء إصدار App Store في `Waiting for Review` ومن دون mutation. الـIPA حجمها `23,943,985` بايت وبصمتها `808712BDD6E46942C9CE837B01FC329ED1CE25A3FC47E95F577BEC03790E2547`. لم يُضف إلى App Review.
+- نجح فحص Build `4.5.0 (28)` الموقّع بلا رفع في run [33520286056](https://github.com/m7madv/otlobli/actions/runs/33520286056)، ثم رفعه run [33520953615](https://github.com/m7madv/otlobli/actions/runs/33520953615) من الالتزام `baaa3e151036d280d8c2ca17f5b069f3aa9e44e8`. أكد inspect [33522527864](https://github.com/m7madv/otlobli/actions/runs/33522527864) أنه `VALID` بالمعرّف/Delivery UUID `a9038423-e4fc-4499-8c04-bba4c0f1d317` وداخل `Damanak Internal` ذات المختبر الواحد، مع بقاء App Store `Waiting for Review` و`mutationRequested=false`. الـIPA حجمها `23,963,467` بايت وبصمتها `230304290CE79C5E8F47A1D511DC8C845846C88BF529F7D167CA87B07BA65561`. لم يُثبت على جهاز حقيقي ولم يُضف إلى App Review.
 - أضيف رابط EULA القياسي إلى وصف App Store، وأُكد للمراجعة أن أسعار «توسع» المقصودة تأتي من App Store. لا توجد أسعار بديلة داخل التطبيق.
 - Google Build `23` موجود على مسار Alpha رقم `4699097266255892286` وقيد المراجعة. قائمة `All Apps - Closed Testers` دائمة وتضم بالضبط 12 مختبراً؛ لا تُنشئ قائمة أخرى ولا تعدّلها.
 - رابط الانضمام هو `https://play.google.com/apps/testing/com.damanak.damanak`. لا يبدأ عداد 14 يوماً إلا بعد قبول Google وانضمام المختبرين فعلياً.
@@ -94,9 +95,9 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 - legacy Google غير المربوط ممنوع عمداً من تغيير الخطة. قد تنجح استعادته إذا أثبت الخادم سلسلة واحدة دقيقة؛ عند الغموض يجب إدارة الاشتراك من Google Play أو استخدام الحساب الصحيح.
 - حذف حساب ضمانك لا يلغي اشتراك المتجر تلقائياً؛ واجهة الحذف تحذر المستخدم وتوجه الاشتراك المعروف إلى إدارة المتجر. الاستعادة الآمنة لا تستبدل قرار الإلغاء.
 
-## اختبار القبول الإلزامي لـBuild 28 بعد قرار رفع TestFlight
+## اختبار القبول الإلزامي لـBuild 28 بعد رفع TestFlight
 
-Build `28` مصدر محلي غير مرفوع؛ Build `27` المنشور في iPhone TestFlight يحتوي سلوك الخفض السابق ولا يثبت هذا الإصلاح. عند قرار رفع Build `28` استخدمه لقبول iPhone من دون تغيير App Review الجاري. Android Build `28` غير مرفوع؛ عند قرار إصداره استخدم مسار Play الاختباري ولا تعتمد على APK الجانبي وحده لقبول فوترة المتجر:
+Build `28` مرفوع و`VALID` في iPhone TestFlight لكنه لم يُثبت أو يُقبل على جهاز بعد؛ استخدمه لقبول iPhone من دون تغيير App Review الجاري. Android Build `28` غير مرفوع؛ عند قرار إصداره استخدم مسار Play الاختباري ولا تعتمد على APK الجانبي وحده لقبول فوترة المتجر:
 
 1. شراء شهري وسنوي على iPhone وAndroid والتأكد أن السعر والعملة من المتجر وأن الاستحقاق لا يفتح قبل تحقق الخادم.
 2. استعادة على الجهاز نفسه وجهاز آخر، مع متجر واحد ثم حساب ضمانك يملك متجرين.
