@@ -98,7 +98,7 @@
 - [x] نجح `flutter analyze --no-pub` و`225/225` اختبار Flutter و`83/83` اختبار Deno و`deno fmt --check` على 27 ملفاً و`git diff --check`.
 - [x] نجح web release وAndroid debug. أكد `aapt` أن APK المحلي يحمل `versionName=4.5.1` و`versionCode=30`؛ حجمه `180,876,532` بايت وSHA-256 `C4CA7B5F6EABF80C74FE5121067E4D0AC11B85809F0FDC36BCA9FD4526D99479`.
 - [x] نجح اختبار `320×568` مع تكبير النص `200%` لشاشتي الاشتراك والإعداد، وأُغلق overflow حقل الدولة ومحدد نوع الإعداد.
-- [x] اجتازت migration والاختبار الحي المركب `BEGIN/ROLLBACK` على قاعدة الإنتاج من دون كتابة، مع اختبار عزل الإنتاج وGoogle وحصة 20 ومنع الخفض.
+- [x] اجتازت migration والاختبار الحي المركب `BEGIN/ROLLBACK` على قاعدة الإنتاج من دون كتابة؛ قورنت snapshots قبل تطبيقها وبعده للإنتاج وكل Google وسلسلته وإيصالاته وعدادات الحماية، واختُبرت حصة 20 ورفض مسار Apple لـGoogle ومصالحة `scale→growth` عبر RPC المزود.
 - [ ] رفع Build `30` إلى TestFlight والتحقق أنه `VALID` وداخل `Damanak Internal` من دون mutation لإصدار App Store.
 - [ ] نشر migration و`verify-store-purchase` بعد إتاحة Build `30`، ثم مقارنة بصمة الإنتاج وتشغيل الاختبار الحي وتحديث `supabase/schema.sql`.
 - [ ] تثبيت Build `30` على iPhone حقيقي وتنفيذ المجاني والشراء والاستعادة والترقية والإلغاء وقبول VoiceOver؛ لا تُعد الاختبارات الآلية بديلاً عنها.

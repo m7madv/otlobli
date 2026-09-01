@@ -238,6 +238,8 @@ void main() {
       'create_store_with_free_access',
       'reserve_store_subscription_refresh',
       'apply_verified_sandbox_terminal_entitlement',
+      "if billing_platform <> 'app_store'",
+      'NON_STORE_BILLING_METADATA_REQUIRES_REVIEW',
       'store_entitlements_schedule_after_verification',
       'subscriptions_non_store_metadata_clean_check',
       'drop trigger if exists subscriptions_prevent_active_store_plan_downgrade',
@@ -272,13 +274,19 @@ void main() {
     );
     expect(
       migration,
-      isNot(
-        contains('delete from private.store_subscription_refresh_limits;'),
-      ),
+      isNot(contains('delete from private.store_subscription_refresh_limits;')),
     );
     expect(
       migration,
       isNot(contains("raise exception 'ACTIVE_STORE_PLAN_DOWNGRADE_BLOCKED'")),
+    );
+    expect(
+      migration,
+      isNot(
+        contains(
+          'update public.subscriptions subscription\nset billing_provider = null',
+        ),
+      ),
     );
   });
 

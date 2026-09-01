@@ -2155,7 +2155,7 @@ begin
   if (select auth.role()) <> 'service_role' then
     raise exception 'SERVICE_ROLE_REQUIRED';
   end if;
-  if billing_platform not in ('app_store', 'google_play')
+  if billing_platform <> 'app_store'
      or entitlement_status not in (
        'past_due', 'canceled', 'expired', 'revoked'
      )
@@ -2502,27 +2502,30 @@ where subscription.source = 'trial'
      and subscription.billing_provider = 'app_store'
    );
 
-update public.subscriptions subscription
-set billing_provider = null,
-    store_product_id = null,
-    billing_cycle = null,
-    original_transaction_id = null,
-    auto_renews = false,
-    last_store_verified_at = null,
-    store_environment = null,
-    store_entitlement_id = null,
-    updated_at = pg_catalog.now()
-where subscription.source <> 'store'
-  and (
-    subscription.billing_provider is not null
-    or subscription.store_product_id is not null
-    or subscription.billing_cycle is not null
-    or subscription.original_transaction_id is not null
-    or subscription.auto_renews
-    or subscription.last_store_verified_at is not null
-    or subscription.store_environment is not null
-    or subscription.store_entitlement_id is not null
-  );
+-- لا تصلح صفوف manual/activation_code غير المتسقة بصمت؛ قد تمثل وصولاً
+-- إنتاجياً أو Google خارج نطاق تنظيف Apple Sandbox. إن وُجدت حالة قديمة
+-- كهذه تفشل migration كلها وتحتاج مراجعة صفية صريحة قبل إعادة النشر.
+do $$
+begin
+  if exists (
+    select 1
+    from public.subscriptions subscription
+    where subscription.source in ('manual', 'activation_code')
+      and (
+        subscription.billing_provider is not null
+        or subscription.store_product_id is not null
+        or subscription.billing_cycle is not null
+        or subscription.original_transaction_id is not null
+        or subscription.auto_renews
+        or subscription.last_store_verified_at is not null
+        or subscription.store_environment is not null
+        or subscription.store_entitlement_id is not null
+      )
+  ) then
+    raise exception 'NON_STORE_BILLING_METADATA_REQUIRES_REVIEW';
+  end if;
+end;
+$$;
 
 alter table public.subscriptions
   drop constraint if exists subscriptions_non_store_metadata_clean_check;

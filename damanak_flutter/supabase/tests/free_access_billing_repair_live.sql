@@ -22,6 +22,41 @@ from public.subscriptions subscription
 where subscription.source = 'store'
   and subscription.store_environment = 'production';
 
+create temporary table google_sandbox_entitlements_before
+on commit drop
+as
+select entitlement.id, pg_catalog.to_jsonb(entitlement) as payload
+from public.store_entitlements entitlement
+where entitlement.platform = 'google_play'
+  and entitlement.environment = 'sandbox';
+
+create temporary table google_sandbox_subscriptions_before
+on commit drop
+as
+select subscription.id, pg_catalog.to_jsonb(subscription) as payload
+from public.subscriptions subscription
+where subscription.source = 'store'
+  and subscription.billing_provider = 'google_play'
+  and subscription.store_environment = 'sandbox';
+
+create temporary table purchase_limits_before
+on commit drop
+as
+select
+  limits.user_id,
+  limits.store_id,
+  pg_catalog.to_jsonb(limits) as payload
+from private.store_purchase_verification_limits limits;
+
+create temporary table refresh_limits_before
+on commit drop
+as
+select
+  limits.user_id,
+  limits.store_id,
+  pg_catalog.to_jsonb(limits) as payload
+from private.store_subscription_refresh_limits limits;
+
 create or replace function pg_temp.assume_actor(
   target_user uuid,
   target_role text,
@@ -109,9 +144,12 @@ declare
   legacy_store uuid;
   customer_a uuid := extensions.gen_random_uuid();
   sandbox_entitlement_id uuid := extensions.gen_random_uuid();
-  production_entitlement_id uuid := extensions.gen_random_uuid();
+  google_sandbox_entitlement_id uuid := extensions.gen_random_uuid();
+  production_entitlement_id uuid;
   sandbox_original text :=
     'DMN-LIVE-SANDBOX-' || extensions.gen_random_uuid()::text;
+  google_sandbox_original text :=
+    'DMN-LIVE-GOOGLE-SANDBOX-' || extensions.gen_random_uuid()::text;
   production_original text :=
     'DMN-LIVE-PRODUCTION-' || extensions.gen_random_uuid()::text;
   access_snapshot jsonb;
@@ -120,6 +158,7 @@ declare
   warranty_count integer;
   production_entitlement_snapshot jsonb;
   production_subscription_snapshot jsonb;
+  google_sandbox_entitlement_snapshot jsonb;
 begin
   insert into auth.users (
     id,
@@ -169,6 +208,39 @@ begin
       pg_catalog.now(),
       pg_catalog.now()
     );
+
+  insert into public.stores (
+    id,
+    name,
+    phone,
+    city,
+    country_code,
+    owner_id,
+    currency_code
+  ) values (
+    store_c,
+    'متجر إنتاج اصطناعي',
+    '70000005',
+    'الدوحة',
+    'QA',
+    owner_c,
+    'QAR'
+  );
+  insert into public.store_members(store_id, user_id, role, status)
+  values (store_c, owner_c, 'owner', 'active');
+  insert into public.subscriptions (
+    store_id,
+    plan_id,
+    status,
+    source,
+    auto_renews
+  ) values (
+    store_c,
+    'starter',
+    'canceled',
+    'trial',
+    false
+  );
 
   if not exists (
     select 1
@@ -491,7 +563,74 @@ begin
     where subscription.store_id = store_a
       and subscription.plan_id = 'growth'
   ) then
+    raise exception 'DIRECT_PROVIDER_DOWNGRADE_WAS_BLOCKED';
+  end if;
+
+  -- مصالحة حقيقية عبر RPC المزود: يبدأ المتجر الاصطناعي على توسع ثم يعيد
+  -- Apple خطة نمو موثقة من السلسلة نفسها، فيجب أن تصبح نمو بلا trigger حاجب.
+  perform pg_temp.assume_actor(owner_c, 'service_role', session_a_new);
+  perform public.apply_verified_store_entitlement_with_receipt(
+    store_c,
+    owner_c,
+    'app_store',
+    'com.damanak.subscription.scale.monthly',
+    '',
+    'DMN-LIVE-PRODUCTION-SCALE-' || extensions.gen_random_uuid()::text,
+    production_original,
+    'active',
+    'production',
+    pg_catalog.now(),
+    pg_catalog.now() + interval '1 year',
+    true,
+    null,
+    null,
+    null,
+    null
+  );
+  perform public.apply_verified_store_entitlement_with_receipt(
+    store_c,
+    owner_c,
+    'app_store',
+    'com.damanak.subscription.growth.monthly',
+    '',
+    'DMN-LIVE-PRODUCTION-GROWTH-' || extensions.gen_random_uuid()::text,
+    production_original,
+    'active',
+    'production',
+    pg_catalog.now(),
+    pg_catalog.now() + interval '1 year',
+    true,
+    null,
+    null,
+    null,
+    null
+  );
+  if not exists (
+    select 1
+    from public.subscriptions subscription
+    where subscription.store_id = store_c
+      and subscription.plan_id = 'growth'
+      and subscription.source = 'store'
+      and subscription.billing_provider = 'app_store'
+      and subscription.store_environment = 'production'
+  ) then
     raise exception 'VERIFIED_PROVIDER_DOWNGRADE_WAS_NOT_RECONCILED';
+  end if;
+  select entitlement.id
+  into production_entitlement_id
+  from public.store_entitlements entitlement
+  where entitlement.store_id = store_c
+    and entitlement.platform = 'app_store'
+    and entitlement.original_transaction_id = production_original
+    and entitlement.environment = 'production'
+    and entitlement.superseded_at is null;
+  if production_entitlement_id is null or not exists (
+    select 1
+    from public.store_entitlements entitlement
+    where entitlement.id = production_entitlement_id
+      and entitlement.plan_id = 'growth'
+  ) then
+    raise exception 'VERIFIED_PROVIDER_ENTITLEMENT_DOWNGRADE_MISSING';
   end if;
 
   perform pg_temp.assume_actor(owner_a, 'service_role', session_a_new);
@@ -555,6 +694,77 @@ begin
   if terminal_result then
     raise exception 'UNKNOWN_TERMINAL_RECEIPT_CREATED_ENTITLEMENT';
   end if;
+
+  -- المسار المخفّض خاص بـApple Sandbox؛ لا يجوز أن يمس Google حتى لو كان
+  -- صفه الاختباري terminal ومعروف السلسلة.
+  insert into public.store_entitlements (
+    id,
+    store_id,
+    user_id,
+    platform,
+    product_id,
+    base_plan_id,
+    plan_id,
+    billing_cycle,
+    transaction_id,
+    original_transaction_id,
+    status,
+    environment,
+    period_start,
+    period_end,
+    auto_renews,
+    verified_at,
+    next_verification_at
+  ) values (
+    google_sandbox_entitlement_id,
+    store_b,
+    owner_b,
+    'google_play',
+    'com.damanak.subscription.growth',
+    'monthly',
+    'growth',
+    'monthly',
+    'DMN-LIVE-GOOGLE-SANDBOX-TX-' || extensions.gen_random_uuid()::text,
+    google_sandbox_original,
+    'canceled',
+    'sandbox',
+    pg_catalog.now() - interval '1 month',
+    pg_catalog.now() - interval '1 minute',
+    false,
+    pg_catalog.now(),
+    pg_catalog.now() + interval '100 years'
+  );
+  select pg_catalog.to_jsonb(entitlement)
+  into google_sandbox_entitlement_snapshot
+  from public.store_entitlements entitlement
+  where entitlement.id = google_sandbox_entitlement_id;
+  begin
+    perform public.apply_verified_sandbox_terminal_entitlement(
+      store_b,
+      owner_b,
+      'google_play',
+      'DMN-LIVE-GOOGLE-SANDBOX-END-' || extensions.gen_random_uuid()::text,
+      google_sandbox_original,
+      'revoked',
+      pg_catalog.now() - interval '1 month',
+      pg_catalog.now() - interval '1 minute',
+      false
+    );
+    raise exception 'GOOGLE_SANDBOX_ACCEPTED_APPLE_TERMINAL_PATH';
+  exception when others then
+    get stacked diagnostics hit_message = message_text;
+    if hit_message <> 'INVALID_STORE_ENTITLEMENT' then
+      raise;
+    end if;
+  end;
+  if (
+    select pg_catalog.to_jsonb(entitlement)
+    from public.store_entitlements entitlement
+    where entitlement.id = google_sandbox_entitlement_id
+  ) is distinct from google_sandbox_entitlement_snapshot then
+    raise exception 'GOOGLE_SANDBOX_TERMINAL_ROW_CHANGED';
+  end if;
+
   perform pg_temp.assume_actor(owner_a, 'authenticated', session_a_new);
   if not public.register_trial_device(store_a, device_a) then
     raise exception 'LEGACY_FREE_DEVICE_REBIND_REJECTED';
@@ -585,92 +795,7 @@ begin
     raise exception 'LEGACY_LOGIN_REACTIVATED_SANDBOX_TOMBSTONE';
   end if;
 
-  perform pg_temp.assume_actor(owner_a, 'service_role', session_a_new);
-  insert into public.stores (
-    id,
-    name,
-    phone,
-    city,
-    country_code,
-    owner_id,
-    currency_code
-  ) values (
-    store_c,
-    'متجر إنتاج اصطناعي',
-    '70000005',
-    'الدوحة',
-    'QA',
-    owner_c,
-    'QAR'
-  );
-  insert into public.store_members(store_id, user_id, role, status)
-  values (store_c, owner_c, 'owner', 'active');
-  insert into public.store_entitlements (
-    id,
-    store_id,
-    user_id,
-    platform,
-    product_id,
-    plan_id,
-    billing_cycle,
-    transaction_id,
-    original_transaction_id,
-    status,
-    environment,
-    period_start,
-    period_end,
-    auto_renews,
-    verified_at,
-    next_verification_at
-  ) values (
-    production_entitlement_id,
-    store_c,
-    owner_c,
-    'app_store',
-    'com.damanak.subscription.growth',
-    'growth',
-    'yearly',
-    'DMN-LIVE-PRODUCTION-TX-' || extensions.gen_random_uuid()::text,
-    production_original,
-    'active',
-    'production',
-    pg_catalog.now(),
-    pg_catalog.now() + interval '1 year',
-    true,
-    pg_catalog.now(),
-    pg_catalog.now() + interval '5 minutes'
-  );
-  insert into public.subscriptions (
-    store_id,
-    plan_id,
-    status,
-    current_period_start,
-    current_period_end,
-    source,
-    billing_provider,
-    store_product_id,
-    billing_cycle,
-    original_transaction_id,
-    auto_renews,
-    last_store_verified_at,
-    store_environment,
-    store_entitlement_id
-  ) values (
-    store_c,
-    'growth',
-    'active',
-    pg_catalog.now(),
-    pg_catalog.now() + interval '1 year',
-    'store',
-    'app_store',
-    'com.damanak.subscription.growth',
-    'yearly',
-    production_original,
-    true,
-    pg_catalog.now(),
-    'production',
-    production_entitlement_id
-  );
+  perform pg_temp.assume_actor(owner_c, 'service_role', session_a_new);
   select pg_catalog.to_jsonb(entitlement)
   into production_entitlement_snapshot
   from public.store_entitlements entitlement
@@ -724,6 +849,116 @@ begin
     where pg_catalog.to_jsonb(subscription) is distinct from snapshot.payload
   ) then
     raise exception 'EXISTING_PRODUCTION_BILLING_CHANGED';
+  end if;
+  if exists (
+    (
+      select snapshot.id, snapshot.payload
+      from google_sandbox_entitlements_before snapshot
+    )
+    except
+    (
+      select entitlement.id, pg_catalog.to_jsonb(entitlement)
+      from public.store_entitlements entitlement
+      where entitlement.platform = 'google_play'
+        and entitlement.environment = 'sandbox'
+        and entitlement.id <> google_sandbox_entitlement_id
+    )
+  ) or exists (
+    (
+      select entitlement.id, pg_catalog.to_jsonb(entitlement)
+      from public.store_entitlements entitlement
+      where entitlement.platform = 'google_play'
+        and entitlement.environment = 'sandbox'
+        and entitlement.id <> google_sandbox_entitlement_id
+    )
+    except
+    (
+      select snapshot.id, snapshot.payload
+      from google_sandbox_entitlements_before snapshot
+    )
+  ) or exists (
+    (
+      select snapshot.id, snapshot.payload
+      from google_sandbox_subscriptions_before snapshot
+    )
+    except
+    (
+      select subscription.id, pg_catalog.to_jsonb(subscription)
+      from public.subscriptions subscription
+      where subscription.source = 'store'
+        and subscription.billing_provider = 'google_play'
+        and subscription.store_environment = 'sandbox'
+    )
+  ) or exists (
+    (
+      select subscription.id, pg_catalog.to_jsonb(subscription)
+      from public.subscriptions subscription
+      where subscription.source = 'store'
+        and subscription.billing_provider = 'google_play'
+        and subscription.store_environment = 'sandbox'
+    )
+    except
+    (
+      select snapshot.id, snapshot.payload
+      from google_sandbox_subscriptions_before snapshot
+    )
+  ) then
+    raise exception 'EXISTING_GOOGLE_SANDBOX_BILLING_CHANGED';
+  end if;
+  if exists (
+    (
+      select snapshot.user_id, snapshot.store_id, snapshot.payload
+      from purchase_limits_before snapshot
+    )
+    except
+    (
+      select
+        limits.user_id,
+        limits.store_id,
+        pg_catalog.to_jsonb(limits)
+      from private.store_purchase_verification_limits limits
+    )
+  ) or exists (
+    (
+      select
+        limits.user_id,
+        limits.store_id,
+        pg_catalog.to_jsonb(limits)
+      from private.store_purchase_verification_limits limits
+    )
+    except
+    (
+      select snapshot.user_id, snapshot.store_id, snapshot.payload
+      from purchase_limits_before snapshot
+    )
+  ) or exists (
+    (
+      select snapshot.user_id, snapshot.store_id, snapshot.payload
+      from refresh_limits_before snapshot
+    )
+    except
+    (
+      select
+        limits.user_id,
+        limits.store_id,
+        pg_catalog.to_jsonb(limits)
+      from private.store_subscription_refresh_limits limits
+    )
+  ) or exists (
+    (
+      select
+        limits.user_id,
+        limits.store_id,
+        pg_catalog.to_jsonb(limits)
+      from private.store_subscription_refresh_limits limits
+    )
+    except
+    (
+      select snapshot.user_id, snapshot.store_id, snapshot.payload
+      from refresh_limits_before snapshot
+    )
+  ) then
+    raise exception 'RATE_LIMIT_HISTORY_CHANGED';
   end if;
   if exists (
     select 1

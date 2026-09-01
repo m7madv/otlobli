@@ -70,7 +70,7 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 
 مشروع Supabase الصحيح هو `exxayzlklvgeyqhvtzgi`:
 
-- migrations الإنتاجية مطبقة حتى `20260901012000`. migration `20260901200000` محققة محلياً وداخل `BEGIN/ROLLBACK` لكنها غير منشورة بعد؛ تضيف الخطة المجانية الخاصة وتنظف Apple Sandbox/legacy فقط مع حفظ إنتاج Apple وGoogle وسجل التدقيق وعدادات الحماية.
+- migrations الإنتاجية مطبقة حتى `20260901012000`. migration `20260901200000` محققة محلياً وداخل `BEGIN/ROLLBACK` لكنها غير منشورة بعد؛ تضيف الخطة المجانية الخاصة وتنظف Apple Sandbox/legacy فقط. نجحت مقارنة snapshot قبل التطبيق وبعده لإنتاج Apple وكل Google وسلسلته وإيصالاته وعدادات الحماية، وRPC الطرفي محصور في Apple، وصفوف manual/activation_code غير المتسقة تفشل النشر بدلاً من تعديلها.
 - `verify-store-purchase` v28 `ACTIVE` مع `verify_jwt=false` والتحقق اليدوي من الجلسة وSHA-256 للحزمة `ecee6ad20c0efd25c452d581552aafe903be8316cc43c767a0b551bd83dd7262`، و`refresh-store-entitlements` v7 نشطة. استجاب runtime الحي لطلب بلا جلسة بـ`401`.
 - `dispatch-webhooks` v11، `damanak-api` v10، `analyze-claim-ai` v10، `import-products-ai` v12، `legal` v16، و`warranty-card` v14 نشطة.
 - جدولة `damanak-entitlement-refresh` تعمل كل 5 دقائق.
