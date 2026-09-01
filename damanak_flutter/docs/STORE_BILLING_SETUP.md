@@ -2,14 +2,14 @@
 
 إصدار المصدر الحالي: `4.5.0+26` — معرّف التطبيق: `com.damanak.damanak`
 
-Build `23` هو حزمة App Review وGoogle Alpha، وBuildا `24` و`25` موجودان في iPhone TestFlight فقط. مصدر Build `26` يصلح الاستعادة بعد حذف حساب ضمانك وحالات الفوترة العالقة؛ لم يُرفع بعد عند هذا التحديث. لا تنسب تغييراته إلى بناء أقدم، ولا تضفه إلى App Review أو Google من دون قرار منفصل.
+Build `23` هو حزمة App Review وGoogle Alpha، وBuildات `24` و`25` و`26` موجودة في iPhone TestFlight فقط. Build `26` يصلح الاستعادة بعد حذف حساب ضمانك وحالات الفوترة العالقة. لا تنسب تغييراته إلى بناء أقدم، ولا تضفه إلى App Review أو Google من دون قرار منفصل.
 
 ## الحالة الخارجية
 
 - Apple App ID: `6804792494`. submission `69104e50-7a9a-4102-a717-ca341d442897` يضم الإصدار `4.5.0` ومجموعة الاشتراك والمنتجات الستة، أي 8 عناصر، وحالته `Waiting for Review` على Build `23`.
 - iPhone TestFlight Build `4.5.0 (24)` رُفع في run [33443358450](https://github.com/m7madv/otlobli/actions/runs/33443358450)، وأنهت Apple معالجته. حالته `Ready to Submit` ومربوط بمجموعة `Damanak Internal` الداخلية ذات المختبر الواحد؛ لم يُضف إلى App Review. IPA حجمها `23,923,863` وبصمتها `EA55D5F1192886EE9019F0048E3476C1D5416E047B4F1F1823D234FC56BCF768`.
 - رفع run [33449769807](https://github.com/m7madv/otlobli/actions/runs/33449769807) Build `4.5.0 (25)` إلى Apple بنجاح. أنهت Apple المعالجة؛ البناء `VALID` ومعرّفه `8e864062-28e0-4250-abd2-dac25f8df1b9` وداخل `Damanak Internal` ذات المختبر الواحد. الـIPA حجمها `23,930,380` بايت وبصمتها `D2DAF9EF0A97B3C8A6328C32D1B71276352DEAA29A97E144653978983F13A14F`. لم يُضف إلى App Review.
-- Build `26` مصدر محلي فقط في هذه النقطة؛ يلزم تسجيل run وDelivery UUID وحجم/بصمة IPA وحالة المعالجة قبل اعتباره موجوداً في TestFlight.
+- رفع run [33458183412](https://github.com/m7madv/otlobli/actions/runs/33458183412) الالتزام `4a5e96bdd1eefd3f27ff89fccf47fe18012ef4f7` بوصفه iPhone Build `4.5.0 (26)`. نجح التحقق والرفع، ثم أكد فحص القراءة [33459040483](https://github.com/m7madv/otlobli/actions/runs/33459040483) أن البناء `VALID` بالمعرّف/Delivery UUID `10a1e004-c6c1-4b56-9cff-618406c3881b` وداخل `Damanak Internal` ذات المختبر الواحد. الـIPA حجمها `23,942,352` بايت وبصمتها `FE66B7F77FB1892FE8F3D55F0AC85AB6B0A7DF783286C77C2EDA735A82C32A37`. لم يُضف إلى App Review.
 - أضيف رابط EULA القياسي إلى وصف App Store، وأُكد للمراجعة أن أسعار «توسع» المقصودة تأتي من App Store. لا توجد أسعار بديلة داخل التطبيق.
 - Google Build `23` موجود على مسار Alpha رقم `4699097266255892286` وقيد المراجعة. قائمة `All Apps - Closed Testers` دائمة وتضم بالضبط 12 مختبراً؛ لا تُنشئ قائمة أخرى ولا تعدّلها.
 - رابط الانضمام هو `https://play.google.com/apps/testing/com.damanak.damanak`. لا يبدأ عداد 14 يوماً إلا بعد قبول Google وانضمام المختبرين فعلياً.
@@ -88,7 +88,7 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 
 ## اختبار القبول الإلزامي لـBuild 26
 
-ارفع iPhone Build `26` إلى TestFlight فقط، ولا ترفع Android Build `26` أو تغيّر App Review الجاري. نفّذ على حزمة منشورة في مسار اختبار المتجر، لا على APK جانبي فقط:
+استخدم iPhone Build `26` المنشور في TestFlight فقط، ولا ترفع Android Build `26` أو تغيّر App Review الجاري. نفّذ على حزمة منشورة في مسار اختبار المتجر، لا على APK جانبي فقط:
 
 1. شراء شهري وسنوي على iPhone وAndroid والتأكد أن السعر والعملة من المتجر وأن الاستحقاق لا يفتح قبل تحقق الخادم.
 2. استعادة على الجهاز نفسه وجهاز آخر، مع متجر واحد ثم حساب ضمانك يملك متجرين.

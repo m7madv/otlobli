@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر `4.5.0+26`، وiPhone Buildا `25` و`24` في TestFlight، وحزمة App Review/Google Build `23`
+آخر تحديث: 2026-09-01 — المصدر `4.5.0+26`، وiPhone Buildات `24` و`25` و`26` في TestFlight، وحزمة App Review/Google Build `23`
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -43,7 +43,8 @@
 - [x] نُشرت migration `20260901012000` و`verify-store-purchase` v25، ونجحت اختبارات SQL الحية الخمسة داخل `BEGIN/ROLLBACK`.
 - [x] نجح web release وAndroid debug. APK المحلي `207,970,698` بايت وSHA-256 `7450DF31BF6D3E94AAEDF87C61687DDC2BE92EC3A0ADC3FDE558B5CF462F82DA`.
 - [x] بقي submission Apple Build `23` وGoogle Alpha Build `23` وقائمة المختبرين الاثني عشر بلا تغيير.
-- [ ] رفع iPhone Build `26` إلى TestFlight والتحقق من `VALID` وربطه بمجموعة `Damanak Internal`، من دون إضافته إلى App Review.
+- [x] رفع run [33458183412](https://github.com/m7madv/otlobli/actions/runs/33458183412) iPhone Build `26`، ونجح التحقق والرفع؛ Delivery UUID هو `10a1e004-c6c1-4b56-9cff-618406c3881b`، والـIPA `23,942,352` بايت وبصمتها `FE66B7F77FB1892FE8F3D55F0AC85AB6B0A7DF783286C77C2EDA735A82C32A37`.
+- [x] أكد فحص القراءة [33459040483](https://github.com/m7madv/otlobli/actions/runs/33459040483) أن Build `4.5.0 (26)` صار `VALID` وداخل `Damanak Internal` ذات المختبر الواحد، من دون إضافته إلى App Review.
 - [ ] لا ترفع Android Build `26` ولا تضف Build `26` إلى App Review بلا قرار إصدار منفصل.
 
 ## قبول الأجهزة قبل الإطلاق العام

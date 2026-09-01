@@ -31,7 +31,7 @@
 - إقرار Google بعد commit يعمل خادمياً في الخلفية ومحلياً على الجهاز؛ رد Play غير `OK` لا يُعامل كنجاح ولا يحذف المعاملة. حوار حذف الحساب يوضح أن حذف ضمانك لا يلغي فوترة المتجر.
 - نُشرت migration `20260901012000` ودالة `verify-store-purchase` v25 على `exxayzlklvgeyqhvtzgi`. نجحت اختبارات الإنتاج الخمسة داخل `BEGIN/ROLLBACK`. المخطط حجمه `395,324` وبصمته `5A1E083994801006E3C620E6D91C611E2097D3B216FA1D3E8123F97DAD2F8F3C`.
 - نجح `flutter analyze` و`181/181` اختبار Flutter و`67/67` اختبار Deno واختبار migration `1/1` وفحص التنسيق و`git diff --check` وبناء web release وAndroid debug. APK Build `26` المحلي حجمه `207,970,698` وبصمته `7450DF31BF6D3E94AAEDF87C61687DDC2BE92EC3A0ADC3FDE558B5CF462F82DA`.
-- بقي Build `23` في App Review وGoogle Alpha بلا تغيير، وبقي Buildا `24` و`25` في TestFlight. Build `26` لم يُرفع بعد عند هذا التحديث ولن يُضاف إلى App Review. لم يُنفذ شراء/استعادة أو VoiceOver/TalkBack أو تثبيت Build `26` على جهاز حقيقي.
+- بقي Build `23` في App Review وGoogle Alpha بلا تغيير. رفع run [33458183412](https://github.com/m7madv/otlobli/actions/runs/33458183412) Build `4.5.0 (26)` إلى iPhone TestFlight، وصار `VALID` بالمعرّف `10a1e004-c6c1-4b56-9cff-618406c3881b` وداخل `Damanak Internal` ذات المختبر الواحد، من دون إضافته إلى App Review. IPA حجمها `23,942,352` وبصمتها `FE66B7F77FB1892FE8F3D55F0AC85AB6B0A7DF783286C77C2EDA735A82C32A37`. لم يُنفذ شراء/استعادة أو VoiceOver/TalkBack أو تثبيت Build `26` على جهاز حقيقي.
 - بقيت نقطتا إثبات الجهاز وروابط الضمان v1 مفتوحتين كما هما؛ لا يُدعى إغلاقهما.
 
 ## ضمانك 4.3.2+20 — الباقات والتجربة والخروج (2026-08-30)
