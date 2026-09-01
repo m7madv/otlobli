@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/damanak_repository.dart';
 import '../data/demo_repository.dart';
+import '../features/subscriptions/domain/subscription_flow.dart';
 import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
@@ -106,6 +107,7 @@ class AppController extends ChangeNotifier {
   int _billingSessionEpoch = 0;
   int _billingOperationGeneration = 0;
   int _billingReconciliationSerial = 0;
+  int _storeSubscriptionRefreshSerial = 0;
   DateTime? _lastBillingReconciliationAt;
   DateTime? _lastStoreCatalogRefreshAt;
   DateTime? _lastGooglePurchaseDiscoveryAt;
@@ -115,7 +117,7 @@ class AppController extends ChangeNotifier {
   AccountIdentity? _account;
   StoreWorkspace? _store;
   StoreMembership? _membership;
-  SubscriptionInfo? _subscription;
+  final SubscriptionFlowMachine _subscriptionFlow = SubscriptionFlowMachine();
   final List<Product> _products = [];
   final List<StoreBranch> _branches = [];
   final List<CustomerProfile> _customers = [];
@@ -136,13 +138,9 @@ class AppController extends ChangeNotifier {
   final Map<String, ClaimAiReview> _claimAiReviews = {};
   NotificationPreferences _notificationPreferences =
       const NotificationPreferences();
-  final List<StoreProductOffer> _storeOffers = [];
   final Set<String> _processingPurchases = {};
   final Set<String> _verifiedPurchaseEvents = {};
   int _storeProductRefreshSerial = 0;
-  StoreBillingState _storeBillingState = StoreBillingState.idle;
-  StoreBillingPlatform _storeBillingPlatform = StoreBillingPlatform.unavailable;
-  String? _storeBillingMessage;
   bool _disposed = false;
   bool _busy = false;
   bool _hasMoreWarranties = false;
@@ -159,9 +157,10 @@ class AppController extends ChangeNotifier {
   AccountIdentity? get account => _account;
   StoreWorkspace? get store => _store;
   StoreMembership? get membership => _membership;
-  SubscriptionInfo? get subscription => _subscription;
+  SubscriptionInfo? get subscription => _subscriptionFlow.state.entitlement;
+  SubscriptionFlowState get subscriptionFlow => _subscriptionFlow.state;
   bool get requiresInitialSubscriptionActivation {
-    final current = _subscription;
+    final current = subscription;
     return current?.isAwaitingSubscription == true ||
         (current != null && !current.isUsable && _branches.isEmpty);
   }
@@ -178,17 +177,42 @@ class AppController extends ChangeNotifier {
   String? get noticeMessage => _noticeMessage;
   String? get pendingInvitationCode => _pendingInvitationCode;
   MemberRole? get pendingInvitationRole => _pendingInvitationRole;
-  StoreBillingState get storeBillingState => _storeBillingState;
-  StoreBillingPlatform get storeBillingPlatform => _storeBillingPlatform;
-  String? get storeBillingMessage => _storeBillingMessage;
+  StoreBillingState get storeBillingState {
+    final state = _subscriptionFlow.state;
+    final operation = state.operation;
+    if (operation != null) {
+      return switch (operation.kind) {
+        BillingOperationKind.pending => StoreBillingState.pending,
+        BillingOperationKind.restoring => StoreBillingState.restoring,
+        BillingOperationKind.reconciling => _catalogBillingState(state.catalog),
+        BillingOperationKind.preflighting ||
+        BillingOperationKind.awaitingStore ||
+        BillingOperationKind.verifying ||
+        BillingOperationKind.provisioning =>
+          operation.origin == BillingOperationOrigin.purchase
+              ? StoreBillingState.purchasing
+              : _activeRestoreSession == null
+              ? _catalogBillingState(state.catalog)
+              : StoreBillingState.restoring,
+      };
+    }
+    return _catalogBillingState(state.catalog);
+  }
+
+  StoreBillingPlatform get storeBillingPlatform =>
+      _subscriptionFlow.state.catalog.platform;
+  String? get storeBillingMessage =>
+      _subscriptionFlow.state.message ??
+      _subscriptionFlow.state.catalog.message;
   bool get storeBillingOperationInProgress =>
+      _subscriptionFlow.state.operationInProgress ||
       _activePurchaseIntent != null ||
       _activeRestoreSession != null ||
       _processingPurchases.isNotEmpty;
   StoreBillingPlatform? get currentSubscriptionPlatform =>
-      StoreBillingPlatformText.fromValue(_subscription?.billingProvider);
+      StoreBillingPlatformText.fromValue(subscription?.billingProvider);
   UnmodifiableListView<StoreProductOffer> get storeOffers =>
-      UnmodifiableListView(_storeOffers);
+      UnmodifiableListView(_subscriptionFlow.state.catalog.offers);
   StoreProfile get profile => StoreProfile(
     name: _store?.name ?? 'متجر ضمانك',
     phone: _store?.phone ?? '',
@@ -241,11 +265,51 @@ class AppController extends ChangeNotifier {
       UnmodifiableListView(_webhooks);
   ClaimAiReview? claimAiReview(String requestId) => _claimAiReviews[requestId];
 
-  StoreProductOffer? storeOffer(String planId, BillingCycle cycle) {
-    for (final offer in _storeOffers) {
-      if (offer.planId == planId && offer.cycle == cycle) return offer;
+  SubscriptionInfo? get _subscription => _subscriptionFlow.state.entitlement;
+
+  BillingScope? get _currentBillingScope {
+    final account = _account;
+    final store = _store;
+    if (account == null || store == null) return null;
+    return BillingScope(
+      accountId: account.id,
+      storeId: store.id,
+      epoch: _billingSessionEpoch,
+    );
+  }
+
+  bool _attachSubscriptionScope(SubscriptionInfo? entitlement) {
+    _storeSubscriptionRefreshSerial += 1;
+    final scope = _currentBillingScope;
+    if (scope == null) return false;
+    if (_subscriptionFlow.state.scope == scope) {
+      return _subscriptionFlow.updateEntitlement(
+        scope: scope,
+        entitlement: entitlement,
+      );
     }
-    return null;
+    return _subscriptionFlow.attach(scope: scope, entitlement: entitlement);
+  }
+
+  bool _updateSubscription(
+    SubscriptionInfo? entitlement, {
+    String? operationId,
+  }) {
+    _storeSubscriptionRefreshSerial += 1;
+    final scope = _currentBillingScope;
+    if (scope == null) return false;
+    return _subscriptionFlow.updateEntitlement(
+      scope: scope,
+      entitlement: entitlement,
+      operationId: operationId,
+    );
+  }
+
+  String _nextBillingOperationId(String purpose) =>
+      '$_billingSessionEpoch:${++_billingOperationGeneration}:$purpose';
+
+  StoreProductOffer? storeOffer(String planId, BillingCycle cycle) {
+    return _subscriptionFlow.state.catalog.offer(planId, cycle);
   }
 
   StoreBranch? get activeBranch {
@@ -890,20 +954,23 @@ class AppController extends ChangeNotifier {
       _warranties.insert(0, created!);
       final current = _subscription;
       if (current != null) {
-        _subscription = SubscriptionInfo(
-          id: current.id,
-          status: current.status,
-          plan: current.plan,
-          trialEndsAt: current.trialEndsAt,
-          periodEndsAt: current.periodEndsAt,
-          usedWarranties: current.usedWarranties + 1,
-          source: current.source,
-          billingProvider: current.billingProvider,
-          storeProductId: current.storeProductId,
-          originalTransactionId: current.originalTransactionId,
-          billingCycle: current.billingCycle,
-          autoRenews: current.autoRenews,
-          lastVerifiedAt: current.lastVerifiedAt,
+        _updateSubscription(
+          SubscriptionInfo(
+            id: current.id,
+            status: current.status,
+            plan: current.plan,
+            trialEndsAt: current.trialEndsAt,
+            periodEndsAt: current.periodEndsAt,
+            usedWarranties: current.usedWarranties + 1,
+            source: current.source,
+            billingProvider: current.billingProvider,
+            storeProductId: current.storeProductId,
+            originalTransactionId: current.originalTransactionId,
+            billingCycle: current.billingCycle,
+            autoRenews: current.autoRenews,
+            lastVerifiedAt: current.lastVerifiedAt,
+          ),
+          operationId: _subscriptionFlow.state.operation?.operationId,
         );
       }
     });
@@ -1317,16 +1384,12 @@ class AppController extends ChangeNotifier {
         _purchaseEventSerial = _purchaseEventSerial
             .then((_) => _handleStorePurchaseUpdates(events))
             .catchError((Object error, StackTrace _) {
-              _finishActivePurchaseAfterStreamFailure();
-              _storeBillingState = StoreBillingState.unavailable;
-              _storeBillingMessage = _friendlyError(error);
+              _recordStoreBillingFailure(error);
               notifyListeners();
             });
       },
       onError: (Object error) {
-        _finishActivePurchaseAfterStreamFailure();
-        _storeBillingState = StoreBillingState.unavailable;
-        _storeBillingMessage = _friendlyError(error);
+        _recordStoreBillingFailure(error);
         notifyListeners();
       },
     );
@@ -1334,19 +1397,19 @@ class AppController extends ChangeNotifier {
 
   Future<void> refreshStoreProducts() async {
     final account = _account;
-    if (_stage != AppStage.ready || account == null) return;
-    if (_storeBillingState == StoreBillingState.purchasing ||
-        _storeBillingState == StoreBillingState.restoring ||
-        _storeBillingState == StoreBillingState.pending) {
-      return;
-    }
+    final scope = _currentBillingScope;
+    if (_stage != AppStage.ready || account == null || scope == null) return;
+    if (_subscriptionFlow.state.operationInProgress) return;
     final refreshSerial = ++_storeProductRefreshSerial;
     final sessionEpoch = _billingSessionEpoch;
     final accountId = account.id;
+    final requestId = '$sessionEpoch:$refreshSerial:catalog';
+    final previousPlatform = _subscriptionFlow.state.catalog.platform;
     // لا تبقِ سعراً قديماً قابلاً للشراء بعد تغيّر الحساب أو بلد المتجر.
-    _storeOffers.clear();
-    _storeBillingState = StoreBillingState.loading;
-    _storeBillingMessage = null;
+    if (!_subscriptionFlow.beginCatalog(scope: scope, requestId: requestId)) {
+      return;
+    }
+    _subscriptionFlow.setMessage(scope: scope, message: null);
     notifyListeners();
     try {
       final result = await _billingService
@@ -1356,19 +1419,29 @@ class AppController extends ChangeNotifier {
           !_billingContextMatches(sessionEpoch, accountId: accountId)) {
         return;
       }
-      _storeBillingPlatform = result.platform;
-      _storeOffers
-        ..clear()
-        ..addAll(
-          result.offers.where(
-            (offer) =>
-                DamanakStoreCatalog.contains(result.platform, offer.productId),
-          ),
-        );
-      _storeBillingState = result.available && _storeOffers.isNotEmpty
-          ? StoreBillingState.ready
-          : StoreBillingState.unavailable;
-      if (_storeBillingState == StoreBillingState.ready) {
+      final missingProductsMessage = result.missingProductIds.isEmpty
+          ? null
+          : _missingStoreProductsMessage(
+              result.platform,
+              result.missingProductIds,
+            );
+      final message = switch ((result.errorMessage, missingProductsMessage)) {
+        (final String error, final String missing) => '$error $missing',
+        (final String error, null) => error,
+        (null, final String missing) => missing,
+        (null, null) when result.offers.isEmpty =>
+          'لم يُرجع المتجر خططاً متاحة لهذا الحساب.',
+        _ => null,
+      };
+      final completed = _subscriptionFlow.completeCatalog(
+        scope: scope,
+        requestId: requestId,
+        platform: result.platform,
+        offers: result.available ? result.offers : const [],
+        message: message,
+      );
+      if (!completed) return;
+      if (_subscriptionFlow.state.catalog.status == CatalogStatus.ready) {
         _lastStoreCatalogRefreshAt = DateTime.now();
         unawaited(
           _reconcileGooglePurchasesAfterCatalogOnce(
@@ -1377,38 +1450,29 @@ class AppController extends ChangeNotifier {
           ),
         );
       }
-      final missingProductsMessage = result.missingProductIds.isEmpty
-          ? null
-          : _missingStoreProductsMessage(
-              result.platform,
-              result.missingProductIds,
-            );
-      if (result.errorMessage != null) {
-        _storeBillingMessage = missingProductsMessage == null
-            ? result.errorMessage
-            : '${result.errorMessage} $missingProductsMessage';
-      } else if (missingProductsMessage != null) {
-        _storeBillingMessage = missingProductsMessage;
-      } else if (result.offers.isEmpty) {
-        _storeBillingMessage = 'لم يُرجع المتجر خططاً متاحة لهذا الحساب.';
-      }
     } on TimeoutException {
       if (refreshSerial != _storeProductRefreshSerial ||
           !_billingContextMatches(sessionEpoch, accountId: accountId)) {
         return;
       }
-      _storeOffers.clear();
-      _storeBillingState = StoreBillingState.unavailable;
-      _storeBillingMessage =
-          'استغرق متجر التطبيقات وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.';
+      _subscriptionFlow.failCatalog(
+        scope: scope,
+        requestId: requestId,
+        platform: previousPlatform,
+        message:
+            'استغرق متجر التطبيقات وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
+      );
     } catch (error) {
       if (refreshSerial != _storeProductRefreshSerial ||
           !_billingContextMatches(sessionEpoch, accountId: accountId)) {
         return;
       }
-      _storeOffers.clear();
-      _storeBillingState = StoreBillingState.unavailable;
-      _storeBillingMessage = _friendlyError(error);
+      _subscriptionFlow.failCatalog(
+        scope: scope,
+        requestId: requestId,
+        platform: previousPlatform,
+        message: _friendlyError(error),
+      );
     }
     notifyListeners();
   }
@@ -1434,7 +1498,7 @@ class AppController extends ChangeNotifier {
             StoreBillingPlatform.googlePlay => 'شهري وسنوي',
             _ => 'دورة غير معروفة',
           };
-          return '$planName — $cycle ($productId)';
+          return '$planName — $cycle';
         })
         .join('، ');
     return 'لم يُرجع ${platform.label} المنتجات التالية: $labels. يمكنك اختيار المنتجات الظاهرة أو إعادة المحاولة.';
@@ -1458,8 +1522,9 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    if (_storeBillingState != StoreBillingState.ready ||
-        !_storeOffers.any(
+    final catalog = _subscriptionFlow.state.catalog;
+    if (catalog.status != CatalogStatus.ready ||
+        !catalog.offers.any(
           (item) =>
               item.key == offer.key &&
               item.productId == offer.productId &&
@@ -1471,19 +1536,58 @@ class AppController extends ChangeNotifier {
     }
     final account = _account!;
     final store = _store!;
+    final scope = _currentBillingScope!;
+    final operationId = _nextBillingOperationId('purchase');
     final billingGenerationBeforePreflight = _billingOperationGeneration;
+    final started = _subscriptionFlow.beginOperation(
+      BillingOperation(
+        kind: BillingOperationKind.preflighting,
+        origin: BillingOperationOrigin.purchase,
+        operationId: operationId,
+        scope: scope,
+        productId: offer.productId,
+      ),
+    );
+    if (!started) {
+      _setStoreBillingError(_billingVerificationInProgressMessage);
+      notifyListeners();
+      return;
+    }
     _errorMessage = null;
     _noticeMessage = null;
-    _storeBillingMessage = null;
-    var subscription = _subscription;
-    if (subscription?.isStoreSubscription == true) {
-      final sessionEpoch = _billingSessionEpoch;
-      _storeBillingState = StoreBillingState.purchasing;
-      _storeBillingMessage =
-          'جارٍ تأكيد حالة الاشتراك الحالية مع المتجر قبل فتح الدفع…';
-      _errorMessage = null;
-      notifyListeners();
-      try {
+    _subscriptionFlow.setMessage(
+      scope: scope,
+      operationId: operationId,
+      message: 'جارٍ تأكيد حالة الاشتراك قبل فتح الدفع…',
+    );
+    SubscriptionInfo? subscription;
+    notifyListeners();
+    final sessionEpoch = _billingSessionEpoch;
+    try {
+      subscription = await _repository!
+          .loadCurrentSubscription(store.id)
+          .timeout(const Duration(seconds: 20));
+      if (!_billingContextMatches(
+            sessionEpoch,
+            accountId: account.id,
+            storeId: store.id,
+          ) ||
+          _subscriptionFlow.state.operation?.operationId != operationId ||
+          _subscriptionFlow.state.operation?.scope != scope ||
+          _billingOperationGeneration != billingGenerationBeforePreflight) {
+        _subscriptionFlow.finishOperation(
+          scope: scope,
+          operationId: operationId,
+        );
+        _setStoreBillingError(_billingStateChangedDuringPreflightMessage);
+        notifyListeners();
+        return;
+      }
+      if (!_updateSubscription(subscription, operationId: operationId)) {
+        throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
+      }
+
+      if (subscription.isStoreSubscription) {
         final refreshed = await _repository!
             .refreshStoreSubscription(store.id)
             .timeout(const Duration(seconds: 35));
@@ -1494,111 +1598,129 @@ class AppController extends ChangeNotifier {
         )) {
           return;
         }
-        if (storeBillingOperationInProgress ||
+        final currentOperation = _subscriptionFlow.state.operation;
+        if (currentOperation?.operationId != operationId ||
+            currentOperation?.scope != scope ||
             _billingOperationGeneration != billingGenerationBeforePreflight) {
-          _storeBillingState = _idleStoreBillingState;
-          _storeBillingMessage = null;
+          _subscriptionFlow.finishOperation(
+            scope: scope,
+            operationId: operationId,
+          );
           _setStoreBillingError(
-            storeBillingOperationInProgress
+            currentOperation != null &&
+                    currentOperation.operationId != operationId
                 ? _billingVerificationInProgressMessage
                 : _billingStateChangedDuringPreflightMessage,
           );
           notifyListeners();
           return;
         }
-        _subscription = refreshed;
-        subscription = refreshed;
-      } catch (error) {
-        if (_billingContextMatches(
-          sessionEpoch,
-          accountId: account.id,
-          storeId: store.id,
-        )) {
-          _storeBillingState = _idleStoreBillingState;
-          _storeBillingMessage = null;
-          _setStoreBillingError(
-            'تعذر تأكيد حالة الاشتراك الحالية قبل فتح الدفع. لم يبدأ أي اشتراك جديد؛ حاول الاستعادة أو أعد المحاولة لاحقاً.',
-          );
-          notifyListeners();
+        if (!_updateSubscription(refreshed, operationId: operationId)) {
+          throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
         }
-        return;
+        subscription = refreshed;
       }
+    } catch (error) {
+      if (_billingContextMatches(
+        sessionEpoch,
+        accountId: account.id,
+        storeId: store.id,
+      )) {
+        _subscriptionFlow.finishOperation(
+          scope: scope,
+          operationId: operationId,
+        );
+        _setStoreBillingError(
+          'تعذر تأكيد حالة الاشتراك الحالية قبل فتح الدفع. لم يبدأ أي اشتراك جديد؛ حاول الاستعادة أو أعد المحاولة لاحقاً.',
+        );
+        notifyListeners();
+      }
+      return;
     }
     // قد تصل معاملة متأخرة أو تبدأ مصالحة Google أثناء انتظار فحص الاشتراك
     // الخادمي أعلاه. أعد الحراسة قبل إنشاء intent وفتح واجهة الدفع.
-    if (storeBillingOperationInProgress) {
-      _storeBillingState = _idleStoreBillingState;
-      _storeBillingMessage = null;
-      _setStoreBillingError(_billingVerificationInProgressMessage);
-      notifyListeners();
-      return;
-    }
-    final currentProvider = StoreBillingPlatformText.fromValue(
-      subscription?.billingProvider,
-    );
-    if (subscription?.hasUnexpiredStorePeriod == true &&
-        currentProvider != null &&
-        currentProvider != _storeBillingPlatform) {
-      _storeBillingState = _idleStoreBillingState;
-      _storeBillingMessage = null;
+    final operationStillCurrent =
+        _subscriptionFlow.state.operation?.operationId == operationId &&
+        _subscriptionFlow.state.operation?.scope == scope;
+    if (!operationStillCurrent ||
+        _activePurchaseIntent != null ||
+        _activeRestoreSession != null ||
+        _processingPurchases.isNotEmpty) {
+      _subscriptionFlow.finishOperation(scope: scope, operationId: operationId);
       _setStoreBillingError(
-        'اشتراك المتجر ما زال سارياً عبر ${currentProvider.label}. أدره هناك أولاً لتجنب اشتراكين مدفوعين.',
+        operationStillCurrent
+            ? _billingVerificationInProgressMessage
+            : _billingStateChangedDuringPreflightMessage,
       );
       notifyListeners();
       return;
     }
-    final transition = DamanakStoreCatalog.subscriptionTransition(
-      hasActiveStoreSubscription: subscription?.hasUnexpiredStorePeriod == true,
-      currentPlanId: subscription?.plan.id,
-      currentBillingCycle: subscription?.billingCycle,
-      targetPlanId: offer.planId,
-      targetCycle: offer.cycle,
+    final decision = SubscriptionPolicy.evaluate(
+      current: subscription,
+      target: offer,
+      devicePlatform: catalog.platform,
     );
-    if (!transition.canStartPurchase) {
-      _storeBillingState = _idleStoreBillingState;
-      _storeBillingMessage = null;
-      _setStoreBillingError(
-        transition == StoreSubscriptionTransitionKind.current
-            ? 'هذه الخطة ودورة الفوترة فعّالتان بالفعل.'
-            : 'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.',
-      );
+    if (!decision.allowed) {
+      _subscriptionFlow.finishOperation(scope: scope, operationId: operationId);
+      _setStoreBillingError(switch (decision.blockedReason) {
+        SubscriptionBlockReason.alreadyActive =>
+          'هذه الخطة ودورة الفوترة فعّالتان بالفعل.',
+        SubscriptionBlockReason.downgrade =>
+          'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.',
+        SubscriptionBlockReason.providerConflict =>
+          'اشتراك المتجر ما زال سارياً عبر ${StoreBillingPlatformText.fromValue(subscription.billingProvider)?.label ?? 'متجر آخر'}. أدره هناك أولاً لتجنب اشتراكين مدفوعين.',
+        SubscriptionBlockReason.stateUnknown || null =>
+          'حالة الاشتراك الحالية غير مكتملة. لم نفتح الدفع؛ استخدم استعادة المشتريات أو أعد المحاولة.',
+      });
       notifyListeners();
       return;
     }
-    final currentPlanId = subscription?.hasUnexpiredStorePeriod == true
-        ? subscription?.plan.id
+    final currentPlanId = subscription.hasUnexpiredStorePeriod
+        ? subscription.plan.id
         : null;
-    final currentProductId = subscription?.hasUnexpiredStorePeriod == true
-        ? subscription?.storeProductId
+    final currentProductId = subscription.hasUnexpiredStorePeriod
+        ? subscription.storeProductId
         : null;
-    final currentOriginalTransactionId =
-        subscription?.hasUnexpiredStorePeriod == true
-        ? subscription?.originalTransactionId
+    final currentOriginalTransactionId = subscription.hasUnexpiredStorePeriod
+        ? subscription.originalTransactionId
         : null;
-    final currentCycle = switch (subscription?.billingCycle) {
-      'monthly' when subscription?.hasUnexpiredStorePeriod == true =>
+    final currentCycle = switch (subscription.billingCycle) {
+      'monthly' when subscription.hasUnexpiredStorePeriod =>
         BillingCycle.monthly,
-      'yearly' when subscription?.hasUnexpiredStorePeriod == true =>
-        BillingCycle.yearly,
+      'yearly' when subscription.hasUnexpiredStorePeriod => BillingCycle.yearly,
       _ => null,
     };
     final requireExistingSubscription =
-        subscription?.hasUnexpiredStorePeriod == true &&
-        currentProvider == StoreBillingPlatform.googlePlay &&
-        _storeBillingPlatform == StoreBillingPlatform.googlePlay;
+        subscription.hasUnexpiredStorePeriod &&
+        StoreBillingPlatformText.fromValue(subscription.billingProvider) ==
+            StoreBillingPlatform.googlePlay &&
+        catalog.platform == StoreBillingPlatform.googlePlay;
+    if (!_subscriptionFlow.advanceOperation(
+      scope: scope,
+      operationId: operationId,
+      kind: BillingOperationKind.awaitingStore,
+    )) {
+      _setStoreBillingError(_billingStateChangedDuringPreflightMessage);
+      notifyListeners();
+      return;
+    }
     final intent = _StorePurchaseIntent(
+      operationId: operationId,
       sessionEpoch: _billingSessionEpoch,
       accountId: account.id,
       storeId: store.id,
-      platform: _storeBillingPlatform,
+      platform: catalog.platform,
       productId: offer.productId,
       planId: offer.planId,
       cycle: offer.cycle,
       startedAt: DateTime.now(),
     );
     _activePurchaseIntent = intent;
-    _storeBillingState = StoreBillingState.purchasing;
-    _storeBillingMessage = 'أكمل العملية في نافذة المتجر الآمنة.';
+    _subscriptionFlow.setMessage(
+      scope: scope,
+      operationId: operationId,
+      message: 'أكمل العملية في نافذة المتجر الآمنة.',
+    );
     _startPurchaseWatchdog(intent);
     notifyListeners();
     try {
@@ -1620,8 +1742,6 @@ class AppController extends ChangeNotifier {
             storeId: intent.storeId,
           )) {
         _finishPurchaseIntent(intent);
-        _storeBillingState = _idleStoreBillingState;
-        _storeBillingMessage = null;
         _setStoreBillingError(_friendlyError(error));
         notifyListeners();
       }
@@ -1646,8 +1766,8 @@ class AppController extends ChangeNotifier {
     );
     if (_subscription?.hasUnexpiredStorePeriod == true &&
         currentProvider != null &&
-        _storeBillingPlatform != StoreBillingPlatform.unavailable &&
-        currentProvider != _storeBillingPlatform) {
+        storeBillingPlatform != StoreBillingPlatform.unavailable &&
+        currentProvider != storeBillingPlatform) {
       _setStoreBillingError(
         'الاشتراك الحالي مرتبط بـ${currentProvider.label}. نفّذ الاستعادة من جهاز يستخدم المتجر نفسه.',
       );
@@ -1661,17 +1781,35 @@ class AppController extends ChangeNotifier {
     }
     final account = _account!;
     final store = _store!;
+    final scope = _currentBillingScope!;
+    final operationId = _nextBillingOperationId('restore');
     final session = _StoreRestoreSession(
+      operationId: operationId,
       sessionEpoch: _billingSessionEpoch,
       accountId: account.id,
       storeId: store.id,
       silent: false,
     );
+    final started = _subscriptionFlow.beginOperation(
+      BillingOperation(
+        kind: BillingOperationKind.restoring,
+        origin: BillingOperationOrigin.explicitRestore,
+        operationId: operationId,
+        scope: scope,
+      ),
+    );
+    if (!started) {
+      _setStoreBillingError(_billingVerificationInProgressMessage);
+      notifyListeners();
+      return;
+    }
     _activeRestoreSession = session;
-    _billingOperationGeneration += 1;
     _purchaseWatchdog?.cancel();
-    _storeBillingState = StoreBillingState.restoring;
-    _storeBillingMessage = 'جارٍ طلب مشترياتك السابقة من المتجر…';
+    _subscriptionFlow.setMessage(
+      scope: scope,
+      operationId: operationId,
+      message: 'جارٍ طلب مشترياتك السابقة من المتجر…',
+    );
     _errorMessage = null;
     _noticeMessage = null;
     notifyListeners();
@@ -1686,12 +1824,15 @@ class AppController extends ChangeNotifier {
             )
             .timeout(_storeRestoreTimeout);
       } on TimeoutException {
-        if (_storeBillingPlatform != StoreBillingPlatform.appStore ||
+        if (storeBillingPlatform != StoreBillingPlatform.appStore ||
             !_restoreSessionMatches(session)) {
           rethrow;
         }
-        _storeBillingMessage =
-            'استغرق طلب App Store وقتاً أطول. ننتظر وصول الإيصال بأمان…';
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: operationId,
+          message: 'استغرق طلب App Store وقتاً أطول. ننتظر وصول الإيصال بأمان…',
+        );
         notifyListeners();
         final outcome = await _waitForRestoreVerificationOutcome(session);
         if (!_restoreSessionMatches(session)) return;
@@ -1705,12 +1846,35 @@ class AppController extends ChangeNotifier {
         throw StateError('STORE_ACCOUNT_MISMATCH');
       }
       if (result.pendingPurchases > 0 && (result.restoredPurchases ?? 0) == 0) {
-        _storeBillingState = StoreBillingState.pending;
-        _storeBillingMessage =
-            'وجد المتجر دفعة معلّقة. لن تتفعّل الخطة قبل أن يؤكدها المتجر.';
+        _subscriptionFlow.markPending(
+          scope: scope,
+          operationId: operationId,
+          message:
+              'وجد المتجر دفعة معلّقة. لن تتفعّل الخطة قبل أن يؤكدها المتجر.',
+        );
         return;
       }
       if (result.restoredPurchases == 0) {
+        // Google يرسل عناصر الاستعادة عبر stream منفصل. أعطِ stream دورة
+        // event loop ثم صرّف كل الأحداث التي سبق أن أرسلها قبل اعتبار النتيجة
+        // فارغة، كي لا يتنافس fallback خادمي مع تحقق إيصال أحدث.
+        await Future<void>.delayed(Duration.zero);
+        await _purchaseEventSerial;
+        if (!_restoreSessionMatches(session)) return;
+        if (session.completer.isCompleted) {
+          await _applyRestoreVerificationOutcome(
+            session,
+            await session.completer.future,
+          );
+          return;
+        }
+        if (session.sawInactivePurchase || session.verificationFailed) {
+          await _applyRestoreVerificationOutcome(
+            session,
+            session.timeoutOutcome,
+          );
+          return;
+        }
         await _finishRestoreWithoutStoreEvents(session);
         return;
       }
@@ -1721,23 +1885,28 @@ class AppController extends ChangeNotifier {
     } catch (error) {
       if (_restoreSessionMatches(session)) {
         _setStoreBillingError(_friendlyError(error));
-        _storeBillingMessage =
-            'تعذر التحقق من المشتريات السابقة على حساب المتجر الحالي.';
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: operationId,
+          message: 'تعذر التحقق من المشتريات السابقة على حساب المتجر الحالي.',
+        );
       }
     } finally {
       if (_restoreSessionMatches(session)) {
         _activeRestoreSession = null;
-        if (_storeBillingState == StoreBillingState.restoring) {
-          _storeBillingState = _idleStoreBillingState;
+        final operation = _subscriptionFlow.state.operation;
+        if (operation?.operationId == operationId &&
+            operation?.kind == BillingOperationKind.restoring) {
+          _subscriptionFlow.finishOperation(
+            scope: scope,
+            operationId: operationId,
+            message: _subscriptionFlow.state.message,
+          );
         }
         notifyListeners();
       }
     }
   }
-
-  StoreBillingState get _idleStoreBillingState => _storeOffers.isEmpty
-      ? StoreBillingState.unavailable
-      : StoreBillingState.ready;
 
   void _setStoreBillingError(String message) {
     _errorMessage = message;
@@ -1756,17 +1925,37 @@ class AppController extends ChangeNotifier {
     _StoreRestoreSession session,
     _RestoreVerificationOutcome outcome,
   ) async {
+    final scope = BillingScope(
+      accountId: session.accountId,
+      storeId: session.storeId,
+      epoch: session.sessionEpoch,
+    );
     switch (outcome) {
       case _RestoreVerificationOutcome.active:
         _noticeMessage = 'تمت استعادة الاشتراك والتحقق منه بأمان.';
-        _storeBillingMessage = null;
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: session.operationId,
+          message: null,
+        );
       case _RestoreVerificationOutcome.inactive:
-        _storeBillingMessage =
-            'وجد المتجر اشتراكاً سابقاً، لكنه لا يمنح فترة فعّالة الآن.';
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: session.operationId,
+          message: 'وجد المتجر اشتراكاً سابقاً، لكنه لا يمنح فترة فعّالة الآن.',
+        );
       case _RestoreVerificationOutcome.failed:
       // رسالة الخطأ التفصيلية عُرضت من مسار التحقق.
       case _RestoreVerificationOutcome.notFound:
         await _finishRestoreWithoutStoreEvents(session);
+    }
+    final operation = _subscriptionFlow.state.operation;
+    if (operation?.operationId == session.operationId) {
+      _subscriptionFlow.finishOperation(
+        scope: scope,
+        operationId: session.operationId,
+        message: _subscriptionFlow.state.message,
+      );
     }
   }
 
@@ -1799,13 +1988,15 @@ class AppController extends ChangeNotifier {
         : _purchaseEventTimeout;
     _purchaseWatchdog = Timer(effectiveTimeout, () {
       if (!identical(_activePurchaseIntent, intent) ||
-          _storeBillingState != StoreBillingState.purchasing) {
+          _subscriptionFlow.state.operation?.operationId !=
+              intent.operationId) {
         return;
       }
-      _finishPurchaseIntent(intent);
-      _storeBillingState = _idleStoreBillingState;
-      _storeBillingMessage =
-          'لم يصل تأكيد من المتجر، ولم تُفعّل أي خطة. استخدم استعادة المشتريات قبل إعادة المحاولة.';
+      _finishPurchaseIntent(
+        intent,
+        message:
+            'لم يصل تأكيد من المتجر، ولم تُفعّل أي خطة. استخدم استعادة المشتريات قبل إعادة المحاولة.',
+      );
       notifyListeners();
     });
   }
@@ -1869,8 +2060,18 @@ class AppController extends ChangeNotifier {
       final restoreSession = _activeRestoreSession;
       final matchesRestore =
           restoreSession != null && _restoreSessionMatches(restoreSession);
+      final currentScope = _currentBillingScope;
+      final pendingOperation = _subscriptionFlow.state.operation;
+      final matchesPendingExplicitRestore =
+          intent == null &&
+          restoreSession == null &&
+          currentScope != null &&
+          pendingOperation?.scope == currentScope &&
+          pendingOperation?.origin == BillingOperationOrigin.explicitRestore &&
+          pendingOperation?.kind == BillingOperationKind.pending;
       final explicitRecovery =
-          matchesRestore && restoreSession.recoveryRequested;
+          (matchesRestore && restoreSession.recoveryRequested) ||
+          matchesPendingExplicitRestore;
       final conflictsWithActiveAppleIntent =
           intent != null &&
           identical(_activePurchaseIntent, intent) &&
@@ -1879,14 +2080,13 @@ class AppController extends ChangeNotifier {
           !matchesIntent;
       if (conflictsWithActiveAppleIntent) {
         _finishPurchaseIntent(intent);
-        _storeBillingState = _idleStoreBillingState;
-        _storeBillingMessage = null;
         _setStoreBillingError(
           'وجد App Store اشتراكاً أو معاملة سابقة لا تطابق اختيارك الحالي. لم يبدأ ضمانك دفعة أخرى؛ استخدم استعادة المشتريات أولاً.',
         );
         continue;
       }
-      final matchesBillingOperation = matchesIntent || matchesRestore;
+      final matchesBillingOperation =
+          matchesIntent || matchesRestore || matchesPendingExplicitRestore;
       final appleAccountToken = _normalizedAppleBindingId(
         event.appAccountToken,
       );
@@ -1908,12 +2108,11 @@ class AppController extends ChangeNotifier {
       }
       if (!_eventMatchesCurrentBillingContext(
         event,
-        allowUnboundGoogle: matchesIntent || matchesRestore,
+        allowUnboundGoogle: matchesBillingOperation,
         allowLegacyBindingRecovery: explicitRecovery,
       )) {
         if (matchesIntent && intent != null) {
           _finishPurchaseIntent(intent);
-          _storeBillingState = _idleStoreBillingState;
           _setStoreBillingError(
             _friendlyError(StateError('STORE_ACCOUNT_MISMATCH')),
           );
@@ -1930,27 +2129,66 @@ class AppController extends ChangeNotifier {
       }
       switch (event.status) {
         case StorePurchaseStatus.pending:
-          if (matchesIntent || matchesRestore) {
+          if (matchesBillingOperation) {
             if (matchesIntent && intent != null) {
               _purchaseWatchdog?.cancel();
             }
-            _storeBillingState = StoreBillingState.pending;
-            _storeBillingMessage =
-                'الدفعة معلّقة لدى المتجر. لن تتفعّل الخطة قبل تأكيدها.';
+            final operationId =
+                intent?.operationId ??
+                restoreSession?.operationId ??
+                pendingOperation?.operationId;
+            final scope = currentScope;
+            if (operationId != null && scope != null) {
+              _subscriptionFlow.markPending(
+                scope: scope,
+                operationId: operationId,
+                message:
+                    'الدفعة معلّقة لدى المتجر. لن تتفعّل الخطة قبل تأكيدها.',
+              );
+            }
           }
         case StorePurchaseStatus.canceled:
           if (matchesIntent && intent != null) {
             _finishPurchaseIntent(intent);
-            _storeBillingState = _idleStoreBillingState;
-            _storeBillingMessage = null;
             _noticeMessage = 'أُغلقت عملية الشراء من دون تأكيد اشتراك.';
+          }
+          if (matchesRestore) {
+            restoreSession.verificationFailed = true;
+            restoreSession.complete(_RestoreVerificationOutcome.failed);
+            if (!restoreSession.silent) {
+              _setStoreBillingError(
+                'أُغلقت استعادة المشتريات من المتجر من دون تأكيد اشتراك.',
+              );
+            }
+          }
+          if (matchesPendingExplicitRestore && pendingOperation != null) {
+            _subscriptionFlow.finishOperation(
+              scope: currentScope,
+              operationId: pendingOperation.operationId,
+              message: 'أُغلقت الاستعادة من دون تأكيد اشتراك.',
+            );
+            _noticeMessage = 'أُغلقت الاستعادة من دون تأكيد اشتراك.';
           }
         case StorePurchaseStatus.error:
           if (matchesIntent && intent != null) {
             _finishPurchaseIntent(intent);
-            _storeBillingState = _idleStoreBillingState;
-            _storeBillingMessage = null;
             _setStoreBillingError(_friendlyStoreEventError(event));
+          }
+          if (matchesRestore) {
+            restoreSession.verificationFailed = true;
+            restoreSession.complete(_RestoreVerificationOutcome.failed);
+            if (!restoreSession.silent) {
+              _setStoreBillingError(_friendlyStoreEventError(event));
+            }
+          }
+          if (matchesPendingExplicitRestore && pendingOperation != null) {
+            final message = _friendlyStoreEventError(event);
+            _subscriptionFlow.finishOperation(
+              scope: currentScope,
+              operationId: pendingOperation.operationId,
+              message: message,
+            );
+            _setStoreBillingError(message);
           }
         case StorePurchaseStatus.purchased:
         case StorePurchaseStatus.restored:
@@ -1961,6 +2199,7 @@ class AppController extends ChangeNotifier {
             event,
             intent: matchesIntent ? intent : null,
             restoreSession: matchesRestore ? restoreSession : null,
+            recoveryRequested: explicitRecovery,
             displayProgress:
                 matchesIntent || (matchesRestore && !restoreSession.silent),
           );
@@ -1973,6 +2212,7 @@ class AppController extends ChangeNotifier {
     StorePurchaseEvent event, {
     _StorePurchaseIntent? intent,
     _StoreRestoreSession? restoreSession,
+    bool recoveryRequested = false,
     required bool displayProgress,
   }) async {
     final sessionEpoch = _billingSessionEpoch;
@@ -1980,8 +2220,6 @@ class AppController extends ChangeNotifier {
     if (_verifiedPurchaseEvents.contains(eventKey)) {
       if (intent != null && identical(_activePurchaseIntent, intent)) {
         _finishPurchaseIntent(intent);
-        _storeBillingState = _idleStoreBillingState;
-        _storeBillingMessage = null;
         _noticeMessage = 'سبق التحقق من هذه العملية بأمان.';
       }
       if (restoreSession != null && _restoreSessionMatches(restoreSession)) {
@@ -2001,6 +2239,27 @@ class AppController extends ChangeNotifier {
     if (tracksRestoreVerification) restoreSession.beginVerification();
     final account = _account;
     final store = _store;
+    final currentScope = _currentBillingScope;
+    final pendingOperation = _subscriptionFlow.state.operation;
+    final operationId =
+        intent?.operationId ??
+        restoreSession?.operationId ??
+        (intent == null &&
+                restoreSession == null &&
+                pendingOperation?.scope == currentScope
+            ? pendingOperation?.operationId
+            : null);
+    if (currentScope != null && operationId != null) {
+      final kind = _subscriptionFlow.state.operation?.kind;
+      if (kind != BillingOperationKind.verifying &&
+          kind != BillingOperationKind.provisioning) {
+        _subscriptionFlow.advanceOperation(
+          scope: currentScope,
+          operationId: operationId,
+          kind: BillingOperationKind.verifying,
+        );
+      }
+    }
     final requiresInitialWorkspaceReload =
         requiresInitialSubscriptionActivation;
     try {
@@ -2012,16 +2271,20 @@ class AppController extends ChangeNotifier {
       }
       if (!_eventMatchesCurrentBillingContext(
         event,
-        allowUnboundGoogle: intent != null || restoreSession != null,
-        allowLegacyBindingRecovery: restoreSession?.recoveryRequested == true,
+        allowUnboundGoogle:
+            intent != null || restoreSession != null || recoveryRequested,
+        allowLegacyBindingRecovery: recoveryRequested,
       )) {
         throw StateError('STORE_ACCOUNT_MISMATCH');
       }
       if (displayProgress) {
-        _storeBillingState = restoreSession == null
-            ? StoreBillingState.purchasing
-            : StoreBillingState.restoring;
-        _storeBillingMessage = 'جارٍ التحقق من إيصال المتجر بأمان…';
+        if (currentScope != null && operationId != null) {
+          _subscriptionFlow.setMessage(
+            scope: currentScope,
+            operationId: operationId,
+            message: 'جارٍ التحقق من إيصال المتجر بأمان…',
+          );
+        }
         notifyListeners();
       }
       final verifiedSubscription = await _repository!
@@ -2035,7 +2298,7 @@ class AppController extends ChangeNotifier {
               transactionDate: event.transactionDate,
               verificationData: event.verificationData,
               verificationSource: event.verificationSource,
-              recoveryRequested: restoreSession?.recoveryRequested == true,
+              recoveryRequested: recoveryRequested,
             ),
           )
           .timeout(
@@ -2054,6 +2317,13 @@ class AppController extends ChangeNotifier {
             storeId: store.id,
           );
           if (completionContextMatches) {
+            if (currentScope != null && operationId != null) {
+              _subscriptionFlow.advanceOperation(
+                scope: currentScope,
+                operationId: operationId,
+                kind: BillingOperationKind.provisioning,
+              );
+            }
             final workspaceReady = await _prepareInitialActivationWorkspace(
               verifiedSubscription: verifiedSubscription,
               requiresReload: requiresInitialWorkspaceReload,
@@ -2065,7 +2335,6 @@ class AppController extends ChangeNotifier {
               _finishBillingOperationAfterWorkspacePreparationFailure(
                 intent: intent,
                 restoreSession: restoreSession,
-                displayProgress: displayProgress,
               );
               return;
             }
@@ -2076,7 +2345,12 @@ class AppController extends ChangeNotifier {
             )) {
               return;
             }
-            _subscription = verifiedSubscription;
+            if (!_updateSubscription(
+              verifiedSubscription,
+              operationId: operationId,
+            )) {
+              throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
+            }
           }
           final operationMatches =
               completionContextMatches &&
@@ -2092,9 +2366,14 @@ class AppController extends ChangeNotifier {
                 restoreSession.sawInactivePurchase = true;
               }
             }
-            if (displayProgress) {
-              _storeBillingState = _idleStoreBillingState;
-              _storeBillingMessage = null;
+            if (intent == null &&
+                restoreSession == null &&
+                currentScope != null &&
+                operationId != null) {
+              _subscriptionFlow.finishOperation(
+                scope: currentScope,
+                operationId: operationId,
+              );
             }
             _setStoreBillingError(
               'تم التحقق من الاشتراك، لكن تعذر إغلاق معاملة المتجر. لا تدفع مرة أخرى؛ استخدم الاستعادة لإكمالها.',
@@ -2110,6 +2389,13 @@ class AppController extends ChangeNotifier {
       )) {
         return;
       }
+      if (currentScope != null && operationId != null) {
+        _subscriptionFlow.advanceOperation(
+          scope: currentScope,
+          operationId: operationId,
+          kind: BillingOperationKind.provisioning,
+        );
+      }
       final workspaceReady = await _prepareInitialActivationWorkspace(
         verifiedSubscription: verifiedSubscription,
         requiresReload: requiresInitialWorkspaceReload,
@@ -2121,7 +2407,6 @@ class AppController extends ChangeNotifier {
         _finishBillingOperationAfterWorkspacePreparationFailure(
           intent: intent,
           restoreSession: restoreSession,
-          displayProgress: displayProgress,
         );
         return;
       }
@@ -2132,8 +2417,13 @@ class AppController extends ChangeNotifier {
       )) {
         return;
       }
+      if (!_updateSubscription(
+        verifiedSubscription,
+        operationId: operationId,
+      )) {
+        throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
+      }
       _rememberVerifiedPurchaseEvent(eventKey);
-      _subscription = verifiedSubscription;
       _clearStoreBillingErrorAfterReceiptSuccess();
       final operationMatches =
           (intent == null || identical(_activePurchaseIntent, intent)) &&
@@ -2146,17 +2436,22 @@ class AppController extends ChangeNotifier {
           restoreSession.sawInactivePurchase = true;
         }
       }
-      final canResolveLatePending =
+      final canResolveOrphanOperation =
           intent == null &&
-          restoreSession == null &&
           _activePurchaseIntent == null &&
           _activeRestoreSession == null &&
-          _storeBillingState == StoreBillingState.pending;
-      if ((displayProgress && operationMatches) || canResolveLatePending) {
-        _storeBillingState = _idleStoreBillingState;
-        _storeBillingMessage = verifiedSubscription.isUsable
-            ? null
-            : 'تحققنا من العملية، لكنها لا تمنح فترة اشتراك فعّالة الآن.';
+          operationId != null &&
+          (restoreSession == null || !_restoreSessionMatches(restoreSession));
+      if (canResolveOrphanOperation &&
+          currentScope != null &&
+          _subscriptionFlow.state.operation?.operationId == operationId) {
+        _subscriptionFlow.finishOperation(
+          scope: currentScope,
+          operationId: operationId,
+          message: verifiedSubscription.isUsable
+              ? null
+              : 'تحققنا من العملية، لكنها لا تمنح فترة اشتراك فعّالة الآن.',
+        );
       }
       if (operationMatches && restoreSession != null) {
         if (!restoreSession.silent && verifiedSubscription.isUsable) {
@@ -2193,9 +2488,14 @@ class AppController extends ChangeNotifier {
           restoreSession.verificationFailed = true;
           restoreSession.complete(_RestoreVerificationOutcome.failed);
         }
-        if (displayProgress && operationMatches) {
-          _storeBillingState = _idleStoreBillingState;
-          _storeBillingMessage = null;
+        if (intent == null &&
+            restoreSession == null &&
+            currentScope != null &&
+            operationId != null) {
+          _subscriptionFlow.finishOperation(
+            scope: currentScope,
+            operationId: operationId,
+          );
         }
         final reportFailure =
             intent != null ||
@@ -2236,7 +2536,17 @@ class AppController extends ChangeNotifier {
     )) {
       return false;
     }
-    _storeBillingMessage = 'تم التحقق من الاشتراك. جارٍ تهيئة المتجر…';
+    final scope = BillingScope(
+      accountId: accountId,
+      storeId: storeId,
+      epoch: sessionEpoch,
+    );
+    final operationId = _subscriptionFlow.state.operation?.operationId;
+    _subscriptionFlow.setMessage(
+      scope: scope,
+      operationId: operationId,
+      message: 'تم التحقق من الاشتراك. جارٍ تهيئة المتجر…',
+    );
     notifyListeners();
     try {
       final loaded =
@@ -2259,8 +2569,12 @@ class AppController extends ChangeNotifier {
         accountId: accountId,
         storeId: storeId,
       )) {
-        _storeBillingState = _idleStoreBillingState;
-        _storeBillingMessage = null;
+        if (operationId != null) {
+          _subscriptionFlow.finishOperation(
+            scope: scope,
+            operationId: operationId,
+          );
+        }
         _setStoreBillingError(
           'تم التحقق من الاشتراك، لكن تعذّر تهيئة بيانات المتجر. أغلق التطبيق وافتحه مجدداً؛ لا تدف مرة أخرى.',
         );
@@ -2273,7 +2587,6 @@ class AppController extends ChangeNotifier {
   void _finishBillingOperationAfterWorkspacePreparationFailure({
     _StorePurchaseIntent? intent,
     _StoreRestoreSession? restoreSession,
-    required bool displayProgress,
   }) {
     if (intent != null && identical(_activePurchaseIntent, intent)) {
       _finishPurchaseIntent(intent);
@@ -2282,17 +2595,13 @@ class AppController extends ChangeNotifier {
       restoreSession.verificationFailed = true;
       restoreSession.complete(_RestoreVerificationOutcome.failed);
     }
-    if (displayProgress) {
-      _storeBillingState = _idleStoreBillingState;
-      _storeBillingMessage = null;
-    }
   }
 
   void handleAppResumed() {
     final intent = _activePurchaseIntent;
     if (intent != null &&
         intent.platform == StoreBillingPlatform.appStore &&
-        _storeBillingState == StoreBillingState.purchasing) {
+        storeBillingState == StoreBillingState.purchasing) {
       _startPurchaseWatchdog(intent, timeout: _purchaseResumeGracePeriod);
     }
     unawaited(_reconcileStoreBillingAfterResume());
@@ -2368,7 +2677,8 @@ class AppController extends ChangeNotifier {
     required String storeId,
     bool force = false,
   }) async {
-    if (_storeBillingPlatform != StoreBillingPlatform.googlePlay ||
+    if (storeBillingPlatform != StoreBillingPlatform.googlePlay ||
+        _subscriptionFlow.state.operationInProgress ||
         _activePurchaseIntent != null ||
         _activeRestoreSession != null) {
       return;
@@ -2389,14 +2699,30 @@ class AppController extends ChangeNotifier {
       return;
     }
     _lastGooglePurchaseDiscoveryAt = now;
+    final scope = BillingScope(
+      accountId: accountId,
+      storeId: storeId,
+      epoch: sessionEpoch,
+    );
+    final operationId = _nextBillingOperationId('reconcile');
     final session = _StoreRestoreSession(
+      operationId: operationId,
       sessionEpoch: sessionEpoch,
       accountId: accountId,
       storeId: storeId,
       silent: true,
     );
+    if (!_subscriptionFlow.beginOperation(
+      BillingOperation(
+        kind: BillingOperationKind.reconciling,
+        origin: BillingOperationOrigin.backgroundReconciliation,
+        operationId: operationId,
+        scope: scope,
+      ),
+    )) {
+      return;
+    }
     _activeRestoreSession = session;
-    _billingOperationGeneration += 1;
     if (!_disposed) notifyListeners();
     try {
       final result = await _billingService
@@ -2418,6 +2744,12 @@ class AppController extends ChangeNotifier {
     } finally {
       if (_restoreSessionMatches(session)) {
         _activeRestoreSession = null;
+        if (_subscriptionFlow.state.operation?.operationId == operationId) {
+          _subscriptionFlow.finishOperation(
+            scope: scope,
+            operationId: operationId,
+          );
+        }
         if (!_disposed) notifyListeners();
       }
     }
@@ -2429,7 +2761,7 @@ class AppController extends ChangeNotifier {
   }) async {
     final store = _store;
     if (_didAttemptInitialGoogleReconciliation ||
-        _storeBillingPlatform != StoreBillingPlatform.googlePlay ||
+        storeBillingPlatform != StoreBillingPlatform.googlePlay ||
         store == null ||
         _membership?.role.canManageSubscription != true ||
         isDemo ||
@@ -2458,6 +2790,7 @@ class AppController extends ChangeNotifier {
     _StoreRestoreSession session,
   ) async {
     if (!_restoreSessionMatches(session)) return;
+    final subscriptionSerialBeforeRefresh = _storeSubscriptionRefreshSerial;
     final current = _subscription;
     final requiresInitialWorkspaceReload =
         requiresInitialSubscriptionActivation;
@@ -2467,7 +2800,28 @@ class AppController extends ChangeNotifier {
         final refreshed = await _repository!
             .refreshStoreSubscription(session.storeId)
             .timeout(const Duration(seconds: 35));
+        await Future<void>.delayed(Duration.zero);
+        await _purchaseEventSerial;
         if (!_restoreSessionMatches(session)) return;
+        if (session.completer.isCompleted) {
+          final outcome = await session.completer.future;
+          if (outcome == _RestoreVerificationOutcome.active ||
+              outcome == _RestoreVerificationOutcome.inactive) {
+            await _applyRestoreVerificationOutcome(session, outcome);
+            return;
+          }
+        }
+        if (session.sawInactivePurchase) {
+          await _applyRestoreVerificationOutcome(
+            session,
+            _RestoreVerificationOutcome.inactive,
+          );
+          return;
+        }
+        if (subscriptionSerialBeforeRefresh !=
+            _storeSubscriptionRefreshSerial) {
+          return;
+        }
         if (refreshed.isUsable) {
           final workspaceReady = await _prepareInitialActivationWorkspace(
             verifiedSubscription: refreshed,
@@ -2477,19 +2831,34 @@ class AppController extends ChangeNotifier {
             storeId: session.storeId,
           );
           if (!workspaceReady || !_restoreSessionMatches(session)) return;
-          _subscription = refreshed;
+          _updateSubscription(refreshed, operationId: session.operationId);
           _noticeMessage =
               'لم يرسل المتجر عملية جديدة، وتم تحديث حالة الاشتراك الحالي من الخادم.';
-          _storeBillingMessage = null;
+          _subscriptionFlow.setMessage(
+            scope: BillingScope(
+              accountId: session.accountId,
+              storeId: session.storeId,
+              epoch: session.sessionEpoch,
+            ),
+            operationId: session.operationId,
+            message: null,
+          );
           return;
         }
-        _subscription = refreshed;
+        _updateSubscription(refreshed, operationId: session.operationId);
       } catch (_) {
         if (!_restoreSessionMatches(session)) return;
       }
     }
-    _storeBillingMessage =
-        'لم نجد مشتريات قابلة للاستعادة على حساب المتجر الحالي.';
+    _subscriptionFlow.setMessage(
+      scope: BillingScope(
+        accountId: session.accountId,
+        storeId: session.storeId,
+        epoch: session.sessionEpoch,
+      ),
+      operationId: session.operationId,
+      message: 'لم نجد مشتريات قابلة للاستعادة على حساب المتجر الحالي.',
+    );
   }
 
   bool _restoreSessionMatches(_StoreRestoreSession session) =>
@@ -2544,11 +2913,21 @@ class AppController extends ChangeNotifier {
     return true;
   }
 
-  void _finishPurchaseIntent(_StorePurchaseIntent intent) {
+  void _finishPurchaseIntent(_StorePurchaseIntent intent, {String? message}) {
     if (!identical(_activePurchaseIntent, intent)) return;
     _purchaseWatchdog?.cancel();
     _purchaseWatchdog = null;
     _activePurchaseIntent = null;
+    final scope = BillingScope(
+      accountId: intent.accountId,
+      storeId: intent.storeId,
+      epoch: intent.sessionEpoch,
+    );
+    _subscriptionFlow.finishOperation(
+      scope: scope,
+      operationId: intent.operationId,
+      message: message,
+    );
   }
 
   void _cancelPurchaseWatchdog(_StorePurchaseIntent intent) {
@@ -2557,11 +2936,58 @@ class AppController extends ChangeNotifier {
     _purchaseWatchdog = null;
   }
 
-  void _finishActivePurchaseAfterStreamFailure() {
+  void _recordStoreBillingFailure(Object error) {
+    final message = _friendlyError(error);
+    // قد يرسل المتجر خطأً عاماً على stream بينما تحقق إيصال موثوق جارٍ
+    // بالفعل. لا تُلغِ العملية هنا، لأن نتيجة الخادم هي صاحبة القرار النهائي؛
+    // وإلا قد ينجح التحقق لاحقاً بعد أن فُك ارتباطه بعملية الواجهة.
+    if (_processingPurchases.isNotEmpty) {
+      final scope = _currentBillingScope;
+      final operation = _subscriptionFlow.state.operation;
+      if (scope != null && operation != null) {
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: operation.operationId,
+          message:
+              'وصل تنبيه من متجر التطبيقات، وما زال التحقق من الإيصال جارياً…',
+        );
+      }
+      return;
+    }
     final intent = _activePurchaseIntent;
-    if (intent == null) return;
-    _finishPurchaseIntent(intent);
-    _storeBillingMessage = null;
+    if (intent != null) {
+      _finishPurchaseIntent(intent, message: message);
+      return;
+    }
+    final restore = _activeRestoreSession;
+    if (restore != null && _restoreSessionMatches(restore)) {
+      final scope = BillingScope(
+        accountId: restore.accountId,
+        storeId: restore.storeId,
+        epoch: restore.sessionEpoch,
+      );
+      _subscriptionFlow.setMessage(
+        scope: scope,
+        operationId: restore.operationId,
+        message: message,
+      );
+      restore.verificationFailed = true;
+      restore.complete(_RestoreVerificationOutcome.failed);
+      return;
+    }
+    final scope = _currentBillingScope;
+    if (scope != null) {
+      final operation = _subscriptionFlow.state.operation;
+      if (operation != null) {
+        _subscriptionFlow.finishOperation(
+          scope: scope,
+          operationId: operation.operationId,
+          message: message,
+        );
+      } else {
+        _subscriptionFlow.setMessage(scope: scope, message: message);
+      }
+    }
   }
 
   Future<void> _drainQueuedStorePurchaseEvents() async {
@@ -2601,7 +3027,8 @@ class AppController extends ChangeNotifier {
         store == null ||
         subscription == null ||
         !subscription.isStoreSubscription ||
-        _membership?.role.canManageSubscription != true) {
+        _membership?.role.canManageSubscription != true ||
+        _subscriptionFlow.state.operationInProgress) {
       return;
     }
     final verifiedAt = subscription.lastVerifiedAt;
@@ -2611,16 +3038,21 @@ class AppController extends ChangeNotifier {
       return;
     }
     final sessionEpoch = _billingSessionEpoch;
+    final refreshSerial = ++_storeSubscriptionRefreshSerial;
+    final operationGeneration = _billingOperationGeneration;
     try {
       final refreshed = await _repository!.refreshStoreSubscription(store.id);
-      if (!_billingContextMatches(
-        sessionEpoch,
-        accountId: account.id,
-        storeId: store.id,
-      )) {
+      if (refreshSerial != _storeSubscriptionRefreshSerial ||
+          operationGeneration != _billingOperationGeneration ||
+          _subscriptionFlow.state.operationInProgress ||
+          !_billingContextMatches(
+            sessionEpoch,
+            accountId: account.id,
+            storeId: store.id,
+          )) {
         return;
       }
-      _subscription = refreshed;
+      _updateSubscription(refreshed);
       notifyListeners();
     } catch (_) {
       // Keep the last server-known entitlement. A failed background refresh
@@ -2635,24 +3067,40 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _loadWorkspace() async {
+    final scopeBeforeLoad = _currentBillingScope;
+    final billingGenerationBeforeLoad = _billingOperationGeneration;
+    final subscriptionSerialBeforeLoad = _storeSubscriptionRefreshSerial;
     final snapshot = await _repository!.loadWorkspace();
     if (snapshot == null) {
       _stage = AppStage.onboarding;
       return;
     }
-    _applySnapshot(snapshot);
+    if (scopeBeforeLoad != null && _currentBillingScope != scopeBeforeLoad) {
+      return;
+    }
+    final preserveNewerSubscription =
+        scopeBeforeLoad != null &&
+        snapshot.store.id == scopeBeforeLoad.storeId &&
+        (_billingOperationGeneration != billingGenerationBeforeLoad ||
+            _storeSubscriptionRefreshSerial != subscriptionSerialBeforeLoad);
+    _applySnapshot(snapshot, applySubscription: !preserveNewerSubscription);
     await _loadWorkspaceData();
     _stage = AppStage.ready;
     unawaited(_drainQueuedStorePurchaseEvents());
   }
 
-  void _applySnapshot(WorkspaceSnapshot snapshot) {
+  void _applySnapshot(
+    WorkspaceSnapshot snapshot, {
+    bool applySubscription = true,
+  }) {
     if (_store != null && _store!.id != snapshot.store.id) {
       _invalidateBillingSession(clearQueuedEvents: true);
     }
     _store = snapshot.store;
     _membership = snapshot.membership;
-    _subscription = snapshot.subscription;
+    if (applySubscription || _subscriptionFlow.state.scope == null) {
+      _attachSubscriptionScope(snapshot.subscription);
+    }
   }
 
   Future<bool> _loadWorkspaceData({
@@ -3046,6 +3494,11 @@ class AppController extends ChangeNotifier {
   }
 
   void _invalidateBillingSession({bool clearQueuedEvents = false}) {
+    _storeSubscriptionRefreshSerial += 1;
+    final attachedScope = _subscriptionFlow.state.scope;
+    if (attachedScope != null) {
+      _subscriptionFlow.detach(scope: attachedScope);
+    }
     _billingSessionEpoch += 1;
     _billingReconciliationSerial += 1;
     _storeProductRefreshSerial += 1;
@@ -3068,7 +3521,6 @@ class AppController extends ChangeNotifier {
     _account = null;
     _store = null;
     _membership = null;
-    _subscription = null;
     _products.clear();
     _branches.clear();
     _customers.clear();
@@ -3090,10 +3542,6 @@ class AppController extends ChangeNotifier {
     _webhooks.clear();
     _claimAiReviews.clear();
     _notificationPreferences = const NotificationPreferences();
-    _storeOffers.clear();
-    _storeBillingState = StoreBillingState.idle;
-    _storeBillingPlatform = StoreBillingPlatform.unavailable;
-    _storeBillingMessage = null;
     _processingPurchases.clear();
     _verifiedPurchaseEvents.clear();
     _activeBranchId = null;
@@ -3109,6 +3557,14 @@ class AppController extends ChangeNotifier {
   }
 }
 
+StoreBillingState _catalogBillingState(CatalogSnapshot catalog) =>
+    switch (catalog.status) {
+      CatalogStatus.idle => StoreBillingState.idle,
+      CatalogStatus.loading => StoreBillingState.loading,
+      CatalogStatus.ready => StoreBillingState.ready,
+      CatalogStatus.unavailable => StoreBillingState.unavailable,
+    };
+
 String? _normalizedAppleBindingId(String? value) {
   final normalized = value?.trim().toLowerCase();
   return normalized == null || normalized.isEmpty ? null : normalized;
@@ -3116,6 +3572,7 @@ String? _normalizedAppleBindingId(String? value) {
 
 class _StorePurchaseIntent {
   const _StorePurchaseIntent({
+    required this.operationId,
     required this.sessionEpoch,
     required this.accountId,
     required this.storeId,
@@ -3126,6 +3583,7 @@ class _StorePurchaseIntent {
     required this.startedAt,
   });
 
+  final String operationId;
   final int sessionEpoch;
   final String accountId;
   final String storeId;
@@ -3172,12 +3630,14 @@ enum _RestoreVerificationOutcome { active, inactive, failed, notFound }
 
 class _StoreRestoreSession {
   _StoreRestoreSession({
+    required this.operationId,
     required this.sessionEpoch,
     required this.accountId,
     required this.storeId,
     required this.silent,
   });
 
+  final String operationId;
   final int sessionEpoch;
   final String accountId;
   final String storeId;

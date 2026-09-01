@@ -104,7 +104,7 @@ void main() {
       expect(controller.storeOffer('scale', BillingCycle.monthly), isNull);
       expect(controller.storeOffer('scale', BillingCycle.yearly), isNotNull);
       expect(controller.storeBillingMessage, contains('توسع — شهري'));
-      expect(controller.storeBillingMessage, contains(missingMonthly));
+      expect(controller.storeBillingMessage, isNot(contains(missingMonthly)));
 
       await controller.purchaseSubscription(yearly);
       expect(billing.purchasedOffers.single.productId, yearly.productId);
@@ -166,6 +166,35 @@ void main() {
         controller.errorMessage,
         contains('لا يمكن الانتقال إلى باقة أقل'),
       );
+    });
+
+    test('يفحص الاشتراك الخادمي دائماً قبل فتح دفع جديد', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _trialSubscription(),
+        currentSubscription: _subscription(
+          provider: 'google_play',
+          plan: _scalePlan,
+          productId: 'com.damanak.subscription.scale',
+        ),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.purchaseSubscription(controller.storeOffers.first);
+
+      expect(repository.loadCurrentSubscriptionCalls, 1);
+      expect(repository.refreshCalls, 1);
+      expect(billing.purchaseCalls, 0);
+      expect(controller.subscription?.plan.id, 'scale');
+      expect(controller.errorMessage, contains('Google Play'));
     });
 
     test(
@@ -335,6 +364,49 @@ void main() {
       expect(controller.subscription?.isUsable, isTrue);
       expect(controller.errorMessage, isNull);
       expect(controller.noticeMessage, contains('تم التحقق من الاشتراك'));
+    });
+
+    test('لا يلغي الشراء عند خطأ stream أثناء تحقق الإيصال', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyDelay: const Duration(milliseconds: 80),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final offer = controller.storeOffers.first;
+      await controller.purchaseSubscription(offer);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'purchase-with-stream-error',
+          status: StorePurchaseStatus.purchased,
+          productId: offer.productId,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      billing.emitError(StateError('STORE_STREAM_FAILED'));
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+
+      expect(controller.storeBillingOperationInProgress, isTrue);
+      expect(controller.storeBillingMessage, contains('التحقق'));
+
+      await _waitUntil(
+        () => controller.storeBillingState == StoreBillingState.ready,
+      );
+      expect(controller.subscription?.plan.id, 'growth');
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.errorMessage, isNull);
+      expect(billing.purchaseCalls, 1);
     });
 
     test('يعيد حراسة الشراء بعد preflight خادمي بطيء', () async {
@@ -967,6 +1039,149 @@ void main() {
       },
     );
 
+    test('تحرر الاستعادة المعلقة عند إلغاء المتجر أو إرجاع خطأ', () async {
+      for (final status in const [
+        StorePurchaseStatus.canceled,
+        StorePurchaseStatus.error,
+      ]) {
+        final repository = _SubscriptionRepository(
+          subscription: _trialSubscription(),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.googlePlay,
+          restoreResult: const StoreRestoreResult(
+            platform: StoreBillingPlatform.googlePlay,
+            restoredPurchases: 0,
+            pendingPurchases: 1,
+          ),
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        await _waitUntil(() => !controller.storeBillingOperationInProgress);
+        await controller.restoreStorePurchases();
+        expect(controller.storeBillingState, StoreBillingState.pending);
+
+        billing.emit(
+          _googlePurchasedEvent(
+            key: 'pending-restore-${status.name}',
+            status: status,
+          ),
+        );
+        await _waitUntil(() => !controller.storeBillingOperationInProgress);
+
+        expect(controller.storeBillingState, StoreBillingState.ready);
+        expect(repository.verifyCalls, 0);
+        controller.dispose();
+      }
+    });
+
+    test('تنهي أحداث الإلغاء والخطأ جلسة استعادة نشطة فوراً', () async {
+      for (final status in const [
+        StorePurchaseStatus.canceled,
+        StorePurchaseStatus.error,
+      ]) {
+        final restoreResult = Completer<StoreRestoreResult>();
+        final repository = _SubscriptionRepository(
+          subscription: _trialSubscription(),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+          restoreCompleter: restoreResult,
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        final restore = controller.restoreStorePurchases();
+        await _waitUntil(() => billing.restoreCalls == 1);
+        billing.emit(
+          _appleRestoredEvent(
+            key: 'active-restore-${status.name}',
+            status: status,
+            appAccountToken: 'demo-store',
+            errorCode: status == StorePurchaseStatus.error
+                ? 'STORE_FAILED'
+                : null,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        restoreResult.complete(
+          const StoreRestoreResult(
+            platform: StoreBillingPlatform.appStore,
+            restoredPurchases: 1,
+          ),
+        );
+        await restore;
+
+        expect(controller.storeBillingOperationInProgress, isFalse);
+        expect(controller.storeBillingState, StoreBillingState.ready);
+        expect(controller.errorMessage, isNotNull);
+        expect(repository.verifyCalls, 0);
+        controller.dispose();
+      }
+    });
+
+    test('لا يكتب فحص استعادة صفرية فوق إيصال متزامن أحدث', () async {
+      final staleRefresh = Completer<SubscriptionInfo>();
+      final repository = _SubscriptionRepository(
+        subscription: _subscription(
+          provider: 'app_store',
+          plan: _starterPlan,
+          productId: 'com.damanak.subscription.starter.monthly',
+        ),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyDelay: const Duration(milliseconds: 30),
+        refreshCompleter: staleRefresh,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.appStore,
+          restoredPurchases: 0,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => repository.refreshCalls == 1);
+
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'restore-event-during-empty-refresh',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await _waitUntil(() => controller.subscription?.plan.id == 'growth');
+
+      staleRefresh.complete(
+        _subscription(
+          provider: 'app_store',
+          plan: _starterPlan,
+          productId: 'com.damanak.subscription.starter.monthly',
+        ),
+      );
+      await restore;
+
+      expect(controller.subscription?.plan.id, 'growth');
+      expect(controller.storeBillingOperationInProgress, isFalse);
+      expect(controller.storeBillingState, StoreBillingState.ready);
+    });
+
     test('تتحقق استعادة Google من الاستحقاق الحالي مع خفض مؤجل قديم', () async {
       final verified = _subscription(
         provider: 'google_play',
@@ -1101,6 +1316,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       expect(repository.verifyCalls, 1);
+      expect(repository.receipts.single.recoveryRequested, isTrue);
       expect(controller.storeBillingState, StoreBillingState.ready);
     });
 
@@ -1352,6 +1568,92 @@ void main() {
       expect(repository.refreshCalls, 1);
     });
 
+    test('لا يسمح لتحديث قديم بمحو استحقاق إيصال أحدث', () async {
+      final staleRefresh = Completer<SubscriptionInfo>();
+      final repository = _SubscriptionRepository(
+        subscription: _subscription(
+          provider: 'app_store',
+          plan: _starterPlan,
+          productId: 'com.damanak.subscription.starter.monthly',
+        ),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        refreshCompleter: staleRefresh,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.openStoreSubscriptionManagement();
+      controller.handleAppResumed();
+      await _waitUntil(() => repository.refreshCalls == 1);
+
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'newer-entitlement-during-refresh',
+          productId: 'com.damanak.subscription.growth.monthly',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await _waitUntil(() => controller.subscription?.plan.id == 'growth');
+
+      staleRefresh.complete(
+        _subscription(
+          provider: 'app_store',
+          plan: _starterPlan,
+          productId: 'com.damanak.subscription.starter.monthly',
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(controller.subscription?.plan.id, 'growth');
+      expect(controller.subscription?.isUsable, isTrue);
+    });
+
+    test('لا تسمح لنسخة مساحة عمل قديمة بمحو إيصال أحدث', () async {
+      final staleWorkspace = Completer<WorkspaceSnapshot?>();
+      final repository = _SubscriptionRepository(
+        subscription: _trialSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        workspaceRefreshCompleter: staleWorkspace,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final refresh = controller.refresh();
+      await _waitUntil(() => repository.loadWorkspaceCalls == 2);
+
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'newer-entitlement-during-workspace-refresh',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await _waitUntil(() => controller.subscription?.isUsable == true);
+
+      staleWorkspace.complete(_workspaceSnapshot(_trialSubscription()));
+      await refresh;
+
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.subscription?.source, 'store');
+    });
+
     test('يكتشف إعادة اشتراك Google خارج التطبيق بعد تحميل الكتالوج', () async {
       final repository = _SubscriptionRepository(
         subscription: _trialSubscription(),
@@ -1399,9 +1701,7 @@ void main() {
     });
   });
 
-  testWidgets('يعرض إعادة المحاولة مع كتالوج جزئي دون تعطيل توسع السنوي', (
-    tester,
-  ) async {
+  testWidgets('يشخص الكتالوج الجزئي دون تعطيل توسع السنوي', (tester) async {
     final yearly = _testOffer(
       StoreBillingPlatform.appStore,
       'scale',
@@ -1437,27 +1737,41 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('إعادة المحاولة'), findsOneWidget);
+    expect(find.text('حالة الاشتراك'), findsOneWidget);
+    expect(find.textContaining('توسع — شهري'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('subscription-error-retry')),
+      findsNothing,
+    );
     expect(controller.storeOffer('scale', BillingCycle.yearly), isNotNull);
-    final scrollable = find.byType(Scrollable).first;
+    await tester.tap(find.text('سنوي'));
+    await tester.pumpAndSettle();
+    final scrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+    );
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('subscription-plan-picker')),
       240,
       scrollable: scrollable,
     );
-    final scalePicker = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-picker')),
-      matching: find.text('توسع'),
+    final scaleTile = find.byKey(const ValueKey('subscription-plan-scale'));
+    await tester.scrollUntilVisible(scaleTile, 240, scrollable: scrollable);
+    final scaleAction = find.descendant(
+      of: scaleTile,
+      matching: find.byType(InkWell),
     );
-    await tester.tap(scalePicker);
+    await tester.scrollUntilVisible(scaleAction, 120, scrollable: scrollable);
+    await tester.pump();
+    await tester.tap(scaleAction.hitTestable());
     await tester.pumpAndSettle();
-    final scaleCard = find.byKey(const ValueKey('subscription-plan-scale'));
-    final buyButton = find.descendant(
-      of: scaleCard,
-      matching: find.widgetWithText(FilledButton, 'الاشتراك في توسع'),
-    );
+    final buyButton = find.byKey(const ValueKey('subscription-primary-action'));
     expect(buyButton, findsOneWidget);
     expect(tester.widget<FilledButton>(buyButton).onPressed, isNotNull);
+    expect(
+      find.descendant(of: buyButton, matching: find.text('الاشتراك في توسع')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('يعرض ترقية بداية إلى نمو وحصة الشهر الجديدة دون تكديس', (
@@ -1496,30 +1810,39 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final scrollable = find.byType(Scrollable).first;
+    final scrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+    );
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('subscription-plan-picker')),
       240,
       scrollable: scrollable,
     );
-    final growthPicker = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-picker')),
-      matching: find.text('نمو'),
+    final growthTile = find.byKey(const ValueKey('subscription-plan-growth'));
+    await tester.scrollUntilVisible(growthTile, 240, scrollable: scrollable);
+    final growthAction = find.descendant(
+      of: growthTile,
+      matching: find.byType(InkWell),
     );
-    await tester.tap(growthPicker);
+    await tester.scrollUntilVisible(growthAction, 120, scrollable: scrollable);
+    await tester.pump();
+    await tester.tap(growthAction.hitTestable());
     await tester.pumpAndSettle();
 
-    final upgradeButton = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-growth')),
-      matching: find.widgetWithText(FilledButton, 'ترقية إلى نمو'),
+    final upgradeButton = find.byKey(
+      const ValueKey('subscription-primary-action'),
     );
-    await tester.scrollUntilVisible(upgradeButton, 240, scrollable: scrollable);
     expect(upgradeButton, findsOneWidget);
-    expect(find.textContaining('المتاح بعد الترقية 570'), findsOneWidget);
-    expect(find.textContaining('لا تُجمع حصص الباقات'), findsOneWidget);
+    expect(tester.widget<FilledButton>(upgradeButton).onPressed, isNotNull);
+    expect(
+      find.descendant(
+        of: upgradeButton,
+        matching: find.text('الترقية إلى نمو'),
+      ),
+      findsOneWidget,
+    );
 
-    await tester.drag(scrollable, const Offset(0, -180));
-    await tester.pumpAndSettle();
     await tester.tap(upgradeButton.hitTestable());
     await tester.pumpAndSettle();
 
@@ -1540,6 +1863,18 @@ void main() {
     );
     final billing = _LifecycleBillingService(
       platform: StoreBillingPlatform.appStore,
+      offers: [
+        _testOffer(
+          StoreBillingPlatform.appStore,
+          'growth',
+          BillingCycle.monthly,
+        ),
+        _testOffer(
+          StoreBillingPlatform.appStore,
+          'scale',
+          BillingCycle.monthly,
+        ),
+      ],
     );
     final controller = AppController.withRepository(
       repository,
@@ -1569,26 +1904,29 @@ void main() {
       240,
       scrollable: scrollable,
     );
-    final growthPicker = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-picker')),
-      matching: find.text('نمو'),
+    final growthTile = find.byKey(const ValueKey('subscription-plan-growth'));
+    await tester.scrollUntilVisible(growthTile, 240, scrollable: scrollable);
+    expect(growthTile, findsOneWidget);
+    expect(
+      find.descendant(of: growthTile, matching: find.text('غير متاحة')),
+      findsOneWidget,
     );
-    await tester.tap(growthPicker);
-    await tester.pumpAndSettle();
-
-    final blockedButton = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-growth')),
-      matching: find.widgetWithText(
-        OutlinedButton,
-        'غير متاحة مع باقتك الحالية',
-      ),
+    expect(find.textContaining('لا يمكن اختيار باقة أقل'), findsOneWidget);
+    final growthInkWell = find.descendant(
+      of: growthTile,
+      matching: find.byType(InkWell),
     );
-    await tester.scrollUntilVisible(blockedButton, 240, scrollable: scrollable);
-    expect(blockedButton, findsOneWidget);
-    expect(tester.widget<OutlinedButton>(blockedButton).onPressed, isNull);
-    expect(find.textContaining('لا يمكن اختيارها'), findsOneWidget);
+    expect(tester.widget<InkWell>(growthInkWell).onTap, isNull);
+    final primaryAction = find.byKey(
+      const ValueKey('subscription-primary-action'),
+    );
+    expect(tester.widget<FilledButton>(primaryAction).onPressed, isNull);
+    expect(
+      find.descendant(of: primaryAction, matching: find.text('باقتك الحالية')),
+      findsOneWidget,
+    );
     expect(find.text('الاشتراك في نمو'), findsNothing);
-    expect(find.textContaining('خفض'), findsNothing);
+    expect(find.text('الترقية إلى نمو'), findsNothing);
   });
 
   testWidgets('تعرض الدورة والمزود وروابط المستندات القانونية', (tester) async {
@@ -1620,7 +1958,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('شهري • App Store'), findsOneWidget);
+    expect(find.textContaining('شهري • App Store'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('شروط الاستخدام'),
       300,
@@ -1753,18 +2091,15 @@ void main() {
           .selected,
       {BillingCycle.yearly},
     );
-    final planAction = find.descendant(
-      of: find.byKey(const ValueKey('subscription-plan-growth')),
-      matching: find.byType(OutlinedButton),
+    final planAction = find.byKey(
+      const ValueKey('subscription-primary-action'),
     );
-    await reveal(planAction, 'زر تغيير دورة الفوترة');
-    final planActionLabels = tester
-        .widgetList<Text>(
-          find.descendant(of: planAction, matching: find.byType(Text)),
-        )
-        .map((text) => text.data)
-        .toList(growable: false);
-    expect(planActionLabels, contains('تغيير الفوترة إلى سنوي'));
+    expect(planAction, findsOneWidget);
+    expect(tester.widget<FilledButton>(planAction).onPressed, isNotNull);
+    expect(
+      find.descendant(of: planAction, matching: find.text('التغيير إلى سنوي')),
+      findsOneWidget,
+    );
     await tester.tap(planAction.hitTestable());
     await tester.pumpAndSettle();
 
@@ -1932,6 +2267,24 @@ SubscriptionInfo _inactiveStoreReceiptSubscription() => const SubscriptionInfo(
   billingCycle: 'monthly',
 );
 
+WorkspaceSnapshot _workspaceSnapshot(SubscriptionInfo subscription) =>
+    WorkspaceSnapshot(
+      store: const StoreWorkspace(
+        id: 'demo-store',
+        name: 'متجر الاختبار',
+        phone: '',
+        city: 'الدوحة',
+        countryCode: 'QA',
+      ),
+      membership: const StoreMembership(
+        storeId: 'demo-store',
+        userId: 'demo-owner',
+        role: MemberRole.owner,
+        status: 'active',
+      ),
+      subscription: subscription,
+    );
+
 StoreBranch _mainBranch() => StoreBranch(
   id: 'main-branch',
   storeId: 'demo-store',
@@ -1955,23 +2308,31 @@ Future<void> _waitUntil(bool Function() predicate) async {
 class _SubscriptionRepository extends DemoDamanakRepository {
   _SubscriptionRepository({
     required this.subscription,
+    this.currentSubscription,
     this.verifyDelay = Duration.zero,
     this.verifyError,
     this.refreshDelay = Duration.zero,
     this.refreshError,
+    this.refreshCompleter,
     this.verifiedSubscription,
     this.activationBranches,
+    this.workspaceRefreshCompleter,
   });
 
   SubscriptionInfo subscription;
+  final SubscriptionInfo? currentSubscription;
   final Duration verifyDelay;
   Object? verifyError;
   final Duration refreshDelay;
   final Object? refreshError;
+  final Completer<SubscriptionInfo>? refreshCompleter;
   final SubscriptionInfo? verifiedSubscription;
   final Completer<List<StoreBranch>>? activationBranches;
+  final Completer<WorkspaceSnapshot?>? workspaceRefreshCompleter;
   int verifyCalls = 0;
   int refreshCalls = 0;
+  int loadCurrentSubscriptionCalls = 0;
+  int loadWorkspaceCalls = 0;
   int loadBranchesCalls = 0;
   final List<StorePurchaseReceipt> receipts = [];
 
@@ -1979,22 +2340,14 @@ class _SubscriptionRepository extends DemoDamanakRepository {
   bool get isDemo => false;
 
   @override
-  Future<WorkspaceSnapshot?> loadWorkspace() async => WorkspaceSnapshot(
-    store: const StoreWorkspace(
-      id: 'demo-store',
-      name: 'متجر الاختبار',
-      phone: '',
-      city: 'الدوحة',
-      countryCode: 'QA',
-    ),
-    membership: const StoreMembership(
-      storeId: 'demo-store',
-      userId: 'demo-owner',
-      role: MemberRole.owner,
-      status: 'active',
-    ),
-    subscription: subscription,
-  );
+  Future<WorkspaceSnapshot?> loadWorkspace() async {
+    loadWorkspaceCalls += 1;
+    final pendingWorkspace = workspaceRefreshCompleter;
+    if (loadWorkspaceCalls > 1 && pendingWorkspace != null) {
+      return pendingWorkspace.future;
+    }
+    return _workspaceSnapshot(subscription);
+  }
 
   @override
   Future<List<StoreBranch>> loadBranches(String storeId) async {
@@ -2021,8 +2374,18 @@ class _SubscriptionRepository extends DemoDamanakRepository {
   }
 
   @override
+  Future<SubscriptionInfo> loadCurrentSubscription(String storeId) async {
+    loadCurrentSubscriptionCalls += 1;
+    final result = currentSubscription ?? subscription;
+    subscription = result;
+    return result;
+  }
+
+  @override
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) async {
     refreshCalls += 1;
+    final pendingRefresh = refreshCompleter;
+    if (pendingRefresh != null) return pendingRefresh.future;
     if (refreshDelay > Duration.zero) {
       await Future<void>.delayed(refreshDelay);
     }
@@ -2156,6 +2519,8 @@ class _LifecycleBillingService implements StoreBillingService {
   }
 
   void emit(StorePurchaseEvent event) => _updates.add([event]);
+
+  void emitError(Object error) => _updates.addError(error);
 
   @override
   Future<void> dispose() => _updates.close();

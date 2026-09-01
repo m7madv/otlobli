@@ -130,7 +130,7 @@ void main() {
     expect(migration, isNot(contains("created_store_id,\n    'growth',")));
   });
 
-  testWidgets('تعرض مقارنة الباقات ومصدر السعر ومسارات الإدارة بوضوح', (
+  testWidgets('تعرض الباقات الثلاث ومصدر السعر ومسارات الإدارة بوضوح', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -150,37 +150,59 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('استعادة المشتريات'), findsOneWidget);
-    expect(find.textContaining('تبقى الضمانات السابقة'), findsOneWidget);
+    expect(
+      Directionality.of(
+        tester.element(
+          find.byKey(const ValueKey('subscription-current-summary')),
+        ),
+      ),
+      TextDirection.rtl,
+    );
+    expect(
+      find.byKey(const ValueKey('subscription-restore-action')),
+      findsOneWidget,
+    );
+    expect(find.text('باقتك الحالية'), findsOneWidget);
+    expect(find.textContaining('تبقى الضمانات السابقة'), findsNothing);
 
-    final scrollable = find.byType(Scrollable).first;
+    final scrollable = find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && widget.axisDirection == AxisDirection.down,
+    );
     await tester.scrollUntilVisible(
-      find.text('قارن الباقات'),
+      find.byKey(const ValueKey('subscription-plan-picker')),
       240,
       scrollable: scrollable,
     );
-    expect(find.text('قارن الباقات'), findsOneWidget);
-    expect(find.textContaining('السعر والعملة النهائيان'), findsOneWidget);
+    expect(find.text('الباقات والترقية'), findsOneWidget);
+    expect(find.textContaining('الأسعار والعملات من'), findsOneWidget);
 
     final picker = find.byKey(const ValueKey('subscription-plan-picker'));
-    await tester.scrollUntilVisible(picker, 240, scrollable: scrollable);
     expect(picker, findsOneWidget);
 
     for (final (id, name, quota) in [
-      ('starter', 'بداية', '100 ضمان/شهر'),
-      ('growth', 'نمو', '600 ضمان/شهر'),
-      ('scale', 'توسع', '3000 ضمان/شهر'),
+      ('starter', 'بداية', '100 ضمان شهرياً'),
+      ('growth', 'نمو', '600 ضمان شهرياً'),
+      ('scale', 'توسع', '3000 ضمان شهرياً'),
     ]) {
-      await tester.tap(find.descendant(of: picker, matching: find.text(name)));
-      await tester.pump();
-      expect(find.byKey(ValueKey('subscription-plan-$id')), findsOneWidget);
-      expect(find.text(quota), findsOneWidget);
-      if (id == 'growth') {
-        expect(find.text('موصى بها'), findsOneWidget);
-      }
+      final tile = find.byKey(ValueKey('subscription-plan-$id'));
+      expect(tile, findsOneWidget);
+      expect(
+        find.descendant(of: tile, matching: find.text(name)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tile, matching: find.text(quota)),
+        findsOneWidget,
+      );
     }
-    expect(find.text('بانتظار سعر المتجر'), findsOneWidget);
+    expect(find.text('موصى بها'), findsNothing);
+    expect(find.text('السعر غير متاح'), findsWidgets);
     expect(find.text('39'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('subscription-primary-action')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -206,15 +228,44 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('استعادة المشتريات'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('subscription-primary-action')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('subscription-restore-action')),
+      findsOneWidget,
+    );
+    expect(
+      Directionality.of(
+        tester.element(
+          find.byKey(const ValueKey('subscription-primary-action')),
+        ),
+      ),
+      TextDirection.rtl,
+    );
+    final scrollable = find.byType(Scrollable).first;
+    for (var attempt = 0; attempt < 12; attempt++) {
+      if (find
+          .byKey(const ValueKey('subscription-plan-scale'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.drag(scrollable, const Offset(0, -180));
+      await tester.pump();
+    }
+    for (final id in ['starter', 'growth', 'scale']) {
+      expect(find.byKey(ValueKey('subscription-plan-$id')), findsOneWidget);
+    }
     expect(tester.takeException(), isNull);
 
-    await tester.scrollUntilVisible(
-      find.text('قارن الباقات'),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('قارن الباقات'), findsOneWidget);
+    final scaleTile = find.byKey(const ValueKey('subscription-plan-scale'));
+    await tester.scrollUntilVisible(scaleTile, 160, scrollable: scrollable);
+    await tester.pump();
+    final scaleTileRect = tester.getRect(scaleTile);
+    expect(scaleTileRect.top, lessThan(tester.view.physicalSize.height));
+    expect(scaleTileRect.bottom, greaterThan(0));
     expect(tester.takeException(), isNull);
   });
 
@@ -244,7 +295,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('لا توجد باقة مفعّلة'), findsOneWidget);
-    expect(find.text('لا توجد ضمانات متاحة قبل الاشتراك'), findsOneWidget);
+    expect(find.textContaining('اختر باقة أدناه'), findsOneWidget);
+    expect(find.textContaining('0 ضمان'), findsNothing);
     expect(find.byTooltip('الحساب'), findsOneWidget);
     expect(find.text('الرئيسية'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -340,8 +392,9 @@ void main() {
       180,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('غير مشترك'), findsOneWidget);
-    expect(find.text('لا توجد ضمانات متاحة قبل الاشتراك'), findsOneWidget);
+    expect(find.text('ابدأ باشتراك مدفوع'), findsOneWidget);
+    expect(find.textContaining('ضماناتك السابقة محفوظة'), findsOneWidget);
+    expect(find.textContaining('0 ضمان'), findsNothing);
     expect(find.text('الخطة الحالية'), findsNothing);
   });
 }

@@ -1463,6 +1463,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
+  Future<SubscriptionInfo> loadCurrentSubscription(String storeId) =>
+      _loadSubscriptionForStore(storeId);
+
+  @override
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) async {
     await _invokeStoreVerification({'storeId': storeId, 'refresh': true});
     return _loadSubscriptionForStore(storeId);

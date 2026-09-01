@@ -307,5 +307,6 @@ abstract interface class DamanakRepository {
     required String storeId,
     required StorePurchaseReceipt receipt,
   });
+  Future<SubscriptionInfo> loadCurrentSubscription(String storeId);
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId);
 }

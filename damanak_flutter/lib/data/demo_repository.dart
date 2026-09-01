@@ -1823,6 +1823,10 @@ class DemoDamanakRepository implements DamanakRepository {
   }) => throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
 
   @override
+  Future<SubscriptionInfo> loadCurrentSubscription(String storeId) async =>
+      _subscription;
+
+  @override
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) =>
       throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
 }
