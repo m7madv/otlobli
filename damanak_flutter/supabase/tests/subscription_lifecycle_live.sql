@@ -444,7 +444,7 @@ begin
   end if;
   if not pg_catalog.has_function_privilege(
     'service_role',
-    'public.apply_verified_store_entitlement_with_receipt(uuid,uuid,text,text,text,text,text,text,text,timestamptz,timestamptz,boolean,text,text,text,text)',
+    'public.apply_verified_store_entitlement_with_receipt(uuid,uuid,text,text,text,text,text,text,text,timestamptz,timestamptz,boolean,text,text,text,text,boolean,uuid,uuid)',
     'EXECUTE'
   ) then
     raise exception 'The receipt-aware entitlement RPC is unavailable';

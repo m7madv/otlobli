@@ -1,7 +1,18 @@
+import {
+  Environment,
+  SignedDataVerifier,
+  VerificationException,
+  VerificationStatus,
+} from "@apple/app-store-server-library";
 import { createClient } from "@supabase/supabase-js";
 import { decodeJwt, importPKCS8, SignJWT } from "jose";
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 
 const bundleId = "com.damanak.damanak";
+const appAppleId = 6804792494;
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const googleScope = "https://www.googleapis.com/auth/androidpublisher";
 const maxPurchaseRequestBytes = 64 * 1024;
 const appStoreProducts = new Set([
@@ -19,6 +30,75 @@ const googlePlayProducts = new Set([
 ]);
 const googlePlayBasePlans = new Set(["monthly", "yearly"]);
 
+// Apple PKI trust anchors downloaded from Apple's official Root Certificates
+// section. The embedded DER bytes and fingerprints are intentionally pinned;
+// changing either requires a deliberate Apple PKI rotation review.
+// https://www.apple.com/certificateauthority/
+const appleRootCertificatePins = [
+  {
+    name: "AppleIncRootCertificate.cer",
+    source: "https://www.apple.com/appleca/AppleIncRootCertificate.cer",
+    sha256: "B0B1730ECBC7FF4505142C49F1295E6EDA6BCAED7E2C68C5BE91B5A11001F024",
+    derBase64:
+      "MIIEuzCCA6OgAwIBAgIBAjANBgkqhkiG9w0BAQUFADBiMQswCQYDVQQGEwJVUzETMBEGA1UEChMKQXBwbGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxFjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwHhcNMDYwNDI1MjE0MDM2WhcNMzUwMjA5MjE0MDM2WjBiMQswCQYDVQQGEwJVUzETMBEGA1UEChMKQXBwbGUgSW5jLjEmMCQGA1UECxMdQXBwbGUgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxFjAUBgNVBAMTDUFwcGxlIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDkkakJH5HbHkdQ6wXtXnmELes2oldMVeyLGYne+Uts9QerIjAC6Bg++FAJ039BqJj50cpmnCRrEdCju+QbKsMflZ56DKRHi1vUFjczy8QPTc4UadHJGXL1XQ7Vf1+b8iUDulWPTV0N8WQ1IxVLFVkds5T39pyez1C6wVhQZ48ItCD3y6wsIG9wtj8BMIy3Q88PnT3zK0koGsj+zrW5DtleHNbLPbU6rfQPDgCSC7EhFi501TwN22IWq6NxkkdTVcGvL0Gz+PvjcM3mo0xFfh9Ma1CWQYnEdGILEINBhzOKgbEwWOxaBDKMaLOPHd5lc/9nXmW8Sdh2nzMUZaF3lMktAgMBAAGjggF6MIIBdjAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUK9BpR5R2Cf70a40uQKb3R01/CF4wHwYDVR0jBBgwFoAUK9BpR5R2Cf70a40uQKb3R01/CF4wggERBgNVHSAEggEIMIIBBDCCAQAGCSqGSIb3Y2QFATCB8jAqBggrBgEFBQcCARYeaHR0cHM6Ly93d3cuYXBwbGUuY29tL2FwcGxlY2EvMIHDBggrBgEFBQcCAjCBthqBs1JlbGlhbmNlIG9uIHRoaXMgY2VydGlmaWNhdGUgYnkgYW55IHBhcnR5IGFzc3VtZXMgYWNjZXB0YW5jZSBvZiB0aGUgdGhlbiBhcHBsaWNhYmxlIHN0YW5kYXJkIHRlcm1zIGFuZCBjb25kaXRpb25zIG9mIHVzZSwgY2VydGlmaWNhdGUgcG9saWN5IGFuZCBjZXJ0aWZpY2F0aW9uIHByYWN0aWNlIHN0YXRlbWVudHMuMA0GCSqGSIb3DQEBBQUAA4IBAQBcNplMLXi37Yyb3PN3m/J20ncwT8EfhYOFG5k9RzfyqZtAjizUsZAS2L70c5vu0mQPy3lPNNiiPvl4/2vIB+x9OYOLUyDTOMSxv5pPCmv/K/xZpwUJfBdAVhEedNO3iyM7R6PVbyTi69G3cN8PReEnyvFteO3ntRcXqNx+IjXKJdXZD9Zr1KIkIxH3oayPc4FgxhtbCS+SsvhESPBgOJ4V9T0mZyCKM2r3DYLP3uujL/lTaltkwGMzd/c6ByxW69oPIQ7aunMZT7XZNn/Bh1XZp5m5MkL72NVxnn6hUrcbvZNCJBIqxw8dtk2cXmPIS4AXUKqK1drk/NAJBzewdXUh",
+  },
+  {
+    name: "AppleRootCA-G2.cer",
+    source: "https://www.apple.com/certificateauthority/AppleRootCA-G2.cer",
+    sha256: "C2B9B042DD57830E7D117DAC55AC8AE19407D38E41D88F3215BC3A890444A050",
+    derBase64:
+      "MIIFkjCCA3qgAwIBAgIIAeDltYNno+AwDQYJKoZIhvcNAQEMBQAwZzEbMBkGA1UEAwwSQXBwbGUgUm9vdCBDQSAtIEcyMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcNMTQwNDMwMTgxMDA5WhcNMzkwNDMwMTgxMDA5WjBnMRswGQYDVQQDDBJBcHBsZSBSb290IENBIC0gRzIxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANgREkhI2imKScUcx+xuM23+TfvgHN6sXuI2pyT5f1BrTM65MFQn5bPW7SXmMLYFN14UIhHF6Kob0vuy0gmVOKTvKkmMXT5xZgM4+xb1hYjkWpIMBDLyyED7Ul+f9sDx47pFoFDVEovy3d6RhiPw9bZyLgHaC/YuOQhfGaFjQQscp5TBhsRTL3b2CtcM0YM/GlMZ81fVJ3/8E7j4ko380yhDPLVoACVdJ2LT3VXdRCCQgzWTxb+4Gftr49wIQuavbfqeQMpOhYV4SbHXw8EwOTKrfl+q04tvny0aIWhwZ7Oj8ZhBbZF8+NfbqOdfIRqMM78xdLe40fTgIvS/cjTf94FNcX1RoeKz8NMoFnNvzcytN31O661A4T+B/fc9Cj6i8b0xlilZ3MIZgIxbdMYs0xBTJh0UT8TUgWY8h2czJxQI6bR3hDRSj4n4aJgXv8O7qhOTH11UL6jHfPsNFL4VPSQ08prcdUFmIrQB1guvkJ4M6mL4m1k8COKWNORj3rw31OsMiANDC1CvoDTdUE0V+1ok2Az6DGOeHwOx4e7hqkP0ZmUoNwIx7wHHHtHMn23KVDpA287PT0aLSmWaasZobNfMmRtHsHLDd4/E92GcdB/O/WuhwpyUgquUoue9G7q5cDmVF8Up8zlYNPXEpMZ7YLlmQ1A/bmH8DvmGqmAMQ0uVAgMBAAGjQjBAMB0GA1UdDgQWBBTEmRNsGAPCe8CjoA1/coB6HHcmjTAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBBjANBgkqhkiG9w0BAQwFAAOCAgEAUabz4vS4PZO/Lc4Pu1vhVRROTtHlznldgX/+tvCHM/jvlOV+3Gp5pxy+8JS3ptEwnMgNCnWefZKVfhidfsJxaXwU6s+DDuQUQp50DhDNqxq6EWGBeNjxtUVAeKuowM77fWM3aPbn+6/Gw0vsHzYmE1SGlHKy6gLti23kDKaQwFd1z4xCfVzmMX3zybKSaUYOiPjjLUKyOKimGY3xn83uamW8GrAlvacp/fQ+onVJv57byfenHmOZ4VxG/5IFjPoeIPmGlFYl5bRXOJ3riGQUIUkhOb9iZqmxospvPyFgxYnURTbImHy99v6ZSYA7LNKmp4gDBDEZt7Y6YUX6yfIjyGNzv1aJMbDZfGKnexWoiIqrOEDCzBL/FePwN983csvMmOa/orz6JopxVtfnJBtIRD6e/J/JzBrsQzwBvDR4yGn1xuZW7AYJNpDrFEobXsmII9oDMJELuDY++ee1KG++P+w8j2Ud5cAeh6Squpj9kuNsJnfdBrRkBof0Tta6SqoWqPQFZ2aWuuJVecMsXUmPgEkrihLHdoBR37q9ZV0+N0djMenl9MU/S60EinpxLK8JQzcPqOMyT/RFtm2XNuyE9QoB6he7hY1Ck3DDUOUUi78/w0EP3SIEIwiKum1xRKtzCTrJ+VKACd+66eYWyi4uTLLT3OUEVLLUNIAytbwPF+E=",
+  },
+  {
+    name: "AppleRootCA-G3.cer",
+    source: "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
+    sha256: "63343ABFB89A6A03EBB57E9B3F5FA7BE7C4F5C756F3017B3A8C488C3653E9179",
+    derBase64:
+      "MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwSQXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcNMTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBSb290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtfTjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySrMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gAMGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM6BgD56KyKA==",
+  },
+] as const;
+
+let pinnedAppleRootCertificates: Buffer[] | null = null;
+let appleSandboxVerifier: SignedDataVerifier | null = null;
+let appleProductionVerifier: SignedDataVerifier | null = null;
+
+function appleRootCertificates() {
+  if (pinnedAppleRootCertificates != null) return pinnedAppleRootCertificates;
+  pinnedAppleRootCertificates = appleRootCertificatePins.map((pin) => {
+    const certificate = Buffer.from(pin.derBase64, "base64");
+    const actualFingerprint = createHash("sha256")
+      .update(certificate)
+      .digest("hex")
+      .toUpperCase();
+    if (actualFingerprint !== pin.sha256) {
+      throw new Error(`APPLE_ROOT_CERTIFICATE_PIN_MISMATCH_${pin.name}`);
+    }
+    return certificate;
+  });
+  return pinnedAppleRootCertificates;
+}
+
+function appleSignedDataVerifier(environment: "sandbox" | "production") {
+  if (environment === "sandbox") {
+    appleSandboxVerifier ??= new SignedDataVerifier(
+      appleRootCertificates(),
+      true,
+      Environment.SANDBOX,
+      bundleId,
+      undefined,
+    );
+    return appleSandboxVerifier;
+  }
+  appleProductionVerifier ??= new SignedDataVerifier(
+    appleRootCertificates(),
+    true,
+    Environment.PRODUCTION,
+    bundleId,
+    appAppleId,
+  );
+  return appleProductionVerifier;
+}
+
 type PurchaseBody = {
   storeId?: string;
   refresh?: boolean;
@@ -31,6 +111,7 @@ type PurchaseBody = {
   verificationSource?: string;
   knownOriginalTransactionId?: string;
   acknowledgeOnServer?: boolean;
+  recoveryRequested?: boolean;
 };
 
 export type VerifiedEntitlement = {
@@ -49,6 +130,9 @@ export type VerifiedEntitlement = {
   appleAccountToken?: string | null;
   googleAcknowledgementPending?: boolean;
   googleOutOfApp?: boolean;
+  googleRecoveryAccountId?: string | null;
+  googleRecoveryStoreId?: string | null;
+  googleOrphanLineageRecovery?: boolean;
 };
 
 export type VerificationFailure = {
@@ -60,7 +144,9 @@ export type VerificationFailure = {
     | "STORE_PURCHASE_PENDING_CANCELED"
     | "SANDBOX_NOT_AVAILABLE"
     | "PURCHASE_PROVIDER_UNAVAILABLE"
-    | "PURCHASE_VERIFICATION_UNAVAILABLE";
+    | "PURCHASE_VERIFICATION_UNAVAILABLE"
+    | "PURCHASE_RECOVERY_NOT_ALLOWED"
+    | "PURCHASE_RECOVERY_PROOF_INVALID";
   retryable: boolean;
 };
 
@@ -271,6 +357,7 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 type GoogleIdentityOptions = {
   allowMissingDirectProfile?: boolean;
   trustedOutOfAppLineage?: boolean;
+  trustedServerBinding?: boolean;
 };
 
 function assertGoogleIdentifierPair(
@@ -302,6 +389,7 @@ export function assertGooglePurchaseIdentity(
   userId: string,
   options: GoogleIdentityOptions = {},
 ) {
+  if (options.trustedServerBinding === true) return;
   const knownOriginalTransactionId = body.knownOriginalTransactionId?.trim();
   const currentValue = purchase.externalAccountIdentifiers;
   const currentIdentifiers = recordValue(currentValue);
@@ -312,20 +400,28 @@ export function assertGooglePurchaseIdentity(
     if (!outOfAppContext) {
       throw new Error("GOOGLE_OUT_OF_APP_CONTEXT_INVALID");
     }
+    const expiredIdentifiersValue =
+      outOfAppContext.expiredExternalAccountIdentifiers;
     const expiredIdentifiers = recordValue(
-      outOfAppContext.expiredExternalAccountIdentifiers,
+      expiredIdentifiersValue,
     );
     const trustedLineage = options.trustedOutOfAppLineage === true;
+    if (expiredIdentifiersValue != null && !expiredIdentifiers) {
+      throw new Error("GOOGLE_OUT_OF_APP_CONTEXT_INVALID");
+    }
     if (!expiredIdentifiers && !trustedLineage) {
       throw new Error("GOOGLE_OUT_OF_APP_CONTEXT_INVALID");
     }
-    if (expiredIdentifiers) {
+    // The predecessor token is authoritative once the server proves it is
+    // already bound to this exact store/user. Its historical identifiers can
+    // legitimately name a deleted account after an orphan recovery.
+    if (expiredIdentifiers && !trustedLineage) {
       assertGoogleIdentifierPair(
         expiredIdentifiers,
         body,
         userId,
-        trustedLineage,
-        trustedLineage,
+        false,
+        false,
       );
     }
 
@@ -361,6 +457,97 @@ export function assertGooglePurchaseIdentity(
   );
 }
 
+type GoogleOrphanRecoveryBinding = {
+  oldAccountId: string;
+  oldStoreId: string | null;
+  linkedPurchaseToken: string | null;
+};
+
+export function googleOrphanRecoveryBinding(
+  purchase: Record<string, unknown>,
+  body: PurchaseBody,
+  currentUserId: string,
+): GoogleOrphanRecoveryBinding {
+  if (body.knownOriginalTransactionId != null) {
+    throw new Error("GOOGLE_RECOVERY_DIRECT_BINDING_REQUIRED");
+  }
+  const rawOutOfAppContext = purchase.outOfAppPurchaseContext;
+  const outOfAppContext = recordValue(rawOutOfAppContext);
+  if (rawOutOfAppContext != null && outOfAppContext == null) {
+    throw new Error("GOOGLE_RECOVERY_DIRECT_BINDING_REQUIRED");
+  }
+  const identifiers = outOfAppContext == null
+    ? recordValue(purchase.externalAccountIdentifiers)
+    : recordValue(outOfAppContext.expiredExternalAccountIdentifiers);
+  const linkedPurchaseToken = googleLinkedPurchaseToken(purchase);
+  const oldAccountId = typeof identifiers?.obfuscatedExternalAccountId ===
+      "string"
+    ? identifiers.obfuscatedExternalAccountId.trim().toLowerCase()
+    : "";
+  const rawOldStoreId = identifiers?.obfuscatedExternalProfileId;
+  const oldStoreId = rawOldStoreId == null
+    ? null
+    : typeof rawOldStoreId === "string"
+    ? rawOldStoreId.trim().toLowerCase()
+    : "";
+  const normalizedCurrentUserId = currentUserId.trim().toLowerCase();
+  const normalizedCurrentStoreId = body.storeId?.trim().toLowerCase() ?? "";
+  if (
+    !uuidPattern.test(oldAccountId) ||
+    (oldStoreId != null && !uuidPattern.test(oldStoreId)) ||
+    oldAccountId === normalizedCurrentUserId ||
+    (oldStoreId != null && oldStoreId === normalizedCurrentStoreId)
+  ) {
+    throw new Error("GOOGLE_RECOVERY_OLD_BINDING_REQUIRED");
+  }
+  return { oldAccountId, oldStoreId, linkedPurchaseToken };
+}
+
+type GoogleOrphanRecoveryFacts =
+  & Omit<GoogleOrphanRecoveryBinding, "linkedPurchaseToken">
+  & {
+    recoveryRequested: boolean;
+    currentStoreId: string;
+    currentUserId: string;
+    ownedStoreIds: string[];
+    existingBindingStoreIds: string[];
+    targetHasStoreEntitlement: boolean;
+    oldStoreExists: boolean;
+    oldUserExists: boolean;
+    oldAccountOwnsStore: boolean;
+  };
+
+export function assertGoogleOrphanRecoveryEligible(
+  facts: GoogleOrphanRecoveryFacts,
+) {
+  const oldAccountId = facts.oldAccountId.trim().toLowerCase();
+  const oldStoreId = facts.oldStoreId?.trim().toLowerCase() ?? null;
+  const currentUserId = facts.currentUserId.trim().toLowerCase();
+  const currentStoreId = facts.currentStoreId.trim().toLowerCase();
+  if (!facts.recoveryRequested) {
+    throw new Error("STORE_PURCHASE_RECOVERY_EXPLICIT_REQUIRED");
+  }
+  if (
+    !uuidPattern.test(oldAccountId) ||
+    (oldStoreId != null && !uuidPattern.test(oldStoreId)) ||
+    oldAccountId === currentUserId ||
+    (oldStoreId != null && oldStoreId === currentStoreId)
+  ) {
+    throw new Error("GOOGLE_RECOVERY_OLD_BINDING_REQUIRED");
+  }
+  if (
+    facts.existingBindingStoreIds.length > 0 ||
+    facts.targetHasStoreEntitlement ||
+    facts.oldStoreExists ||
+    facts.oldUserExists ||
+    facts.oldAccountOwnsStore ||
+    facts.ownedStoreIds.length !== 1 ||
+    facts.ownedStoreIds[0]?.trim().toLowerCase() !== currentStoreId
+  ) {
+    throw new Error("STORE_PURCHASE_RECOVERY_NOT_ALLOWED");
+  }
+}
+
 export function googleAcknowledgementRequired(value: unknown) {
   if (value === "ACKNOWLEDGEMENT_STATE_PENDING") return true;
   if (value === "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED") return false;
@@ -389,6 +576,19 @@ export function googleLinkedPurchaseToken(
   return directToken ?? expiredValue;
 }
 
+export async function resolveTrustedGoogleOutOfAppLineage(
+  purchase: Record<string, unknown>,
+  resolver?: (expiredPurchaseToken: string) => Promise<boolean>,
+) {
+  const outOfAppContext = recordValue(purchase.outOfAppPurchaseContext);
+  if (!outOfAppContext || !resolver) return false;
+  const expiredPurchaseToken = googleLinkedPurchaseToken(purchase);
+  if (!expiredPurchaseToken) {
+    throw new Error("GOOGLE_EXPIRED_PURCHASE_TOKEN_REQUIRED");
+  }
+  return await resolver(expiredPurchaseToken);
+}
+
 export function googleAutoRenews(line: Record<string, unknown>) {
   const autoRenewing = (line.autoRenewingPlan ?? {}) as Record<string, unknown>;
   return autoRenewing.autoRenewEnabled === true ||
@@ -399,6 +599,44 @@ export function classifyVerificationFailure(
   rawMessage: string,
 ): VerificationFailure {
   const message = rawMessage.toUpperCase();
+  if (
+    message.includes("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE") ||
+    message.includes("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
+  ) {
+    return {
+      status: 503,
+      code: "PURCHASE_PROVIDER_UNAVAILABLE",
+      retryable: true,
+    };
+  }
+  if (
+    message.includes("RECOVERY_PROOF_") ||
+    message.includes("RECOVERY_OLD_BINDING_REQUIRED") ||
+    message.includes("RECOVERY_DIRECT_BINDING_REQUIRED")
+  ) {
+    return {
+      status: 422,
+      code: "PURCHASE_RECOVERY_PROOF_INVALID",
+      retryable: false,
+    };
+  }
+  if (
+    message.includes("STORE_PURCHASE_RECOVERY_NOT_ALLOWED") ||
+    message.includes("STORE_PURCHASE_RECOVERY_EXPLICIT_REQUIRED")
+  ) {
+    return {
+      status: 409,
+      code: "PURCHASE_RECOVERY_NOT_ALLOWED",
+      retryable: false,
+    };
+  }
+  if (message.includes("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED")) {
+    return {
+      status: 503,
+      code: "PURCHASE_VERIFICATION_UNAVAILABLE",
+      retryable: true,
+    };
+  }
   if (message.includes("GOOGLE_SUBSCRIPTION_PENDING_PURCHASE_CANCELED")) {
     return {
       status: 409,
@@ -409,7 +647,10 @@ export function classifyVerificationFailure(
   if (message.includes("GOOGLE_SUBSCRIPTION_PENDING")) {
     return { status: 409, code: "STORE_PURCHASE_PENDING", retryable: true };
   }
-  if (message.includes("STORE_RECEIPT_STALE")) {
+  if (
+    message.includes("STORE_RECEIPT_STALE") ||
+    message.includes("GOOGLE_REFRESH_SERVER_BINDING_REQUIRED")
+  ) {
     return {
       status: 409,
       code: "PURCHASE_VERIFICATION_UNAVAILABLE",
@@ -587,6 +828,265 @@ export function assertAppleStoreBinding(
   }
   if (bindingKind === "legacy_user" && legacySingleStoreAllowed) return;
   throw new Error("APPLE_STORE_BINDING_UNRESOLVED");
+}
+
+function normalizedAppleEnvironment(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "sandbox"
+    ? "sandbox"
+    : normalized === "production"
+    ? "production"
+    : null;
+}
+
+export type AppleRecoveryTransactionVerifier = (
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) => Promise<Record<string, unknown>>;
+
+async function verifyAppleRecoveryTransaction(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const verifier = appleSignedDataVerifier(environment);
+    const verifierTimeout = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE")),
+        10_000,
+      );
+    });
+    return await Promise.race([
+      verifier.verifyAndDecodeTransaction(signedTransaction) as Promise<
+        Record<string, unknown>
+      >,
+      verifierTimeout,
+    ]);
+  } catch (error) {
+    if (
+      error instanceof VerificationException &&
+      error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE
+    ) {
+      throw new Error("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE");
+    }
+    if (error instanceof VerificationException) {
+      throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+    }
+    if (
+      error instanceof Error &&
+      (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
+        error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
+    ) {
+      throw error;
+    }
+    throw new Error("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE");
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId);
+  }
+}
+
+export async function assertAppleRecoveryTransactionProof(
+  clientSignedTransaction: unknown,
+  entitlement: Pick<
+    VerifiedEntitlement,
+    | "transactionId"
+    | "originalTransactionId"
+    | "productId"
+    | "environment"
+    | "appleAccountToken"
+  >,
+  verifyTransaction: AppleRecoveryTransactionVerifier =
+    verifyAppleRecoveryTransaction,
+) {
+  const clientJws = typeof clientSignedTransaction === "string"
+    ? clientSignedTransaction
+    : "";
+  if (!clientJws) {
+    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+  }
+
+  let clientTransaction: Record<string, unknown>;
+  try {
+    clientTransaction = await verifyTransaction(
+      clientJws,
+      entitlement.environment,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
+        error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
+    ) {
+      throw error;
+    }
+    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+  }
+  const clientToken = typeof clientTransaction.appAccountToken === "string"
+    ? clientTransaction.appAccountToken.trim().toLowerCase()
+    : null;
+  const expectedToken = entitlement.appleAccountToken?.trim().toLowerCase() ??
+    null;
+  if (
+    String(clientTransaction.bundleId ?? "") !== bundleId ||
+    String(clientTransaction.transactionId ?? "") !==
+      entitlement.transactionId ||
+    String(clientTransaction.originalTransactionId ?? "") !==
+      entitlement.originalTransactionId ||
+    String(clientTransaction.productId ?? "") !== entitlement.productId ||
+    normalizedAppleEnvironment(clientTransaction.environment) !==
+      entitlement.environment ||
+    clientToken !== expectedToken
+  ) {
+    throw new Error("APPLE_RECOVERY_PROOF_MISMATCH");
+  }
+}
+
+export async function assertAppleRecoveryProofForBinding(
+  orphanRecoveryRequired: boolean,
+  clientSignedTransaction: unknown,
+  entitlement: Pick<
+    VerifiedEntitlement,
+    | "transactionId"
+    | "originalTransactionId"
+    | "productId"
+    | "environment"
+    | "appleAccountToken"
+  >,
+  verifyTransaction?: AppleRecoveryTransactionVerifier,
+) {
+  if (!orphanRecoveryRequired) return;
+  await assertAppleRecoveryTransactionProof(
+    clientSignedTransaction,
+    entitlement,
+    verifyTransaction,
+  );
+}
+
+type AppleOrphanRecoveryFacts = {
+  recoveryRequested: boolean;
+  appAccountToken: string | null;
+  currentStoreId: string;
+  currentUserId: string;
+  ownedStoreIds: string[];
+  existingBindingStoreIds: string[];
+  targetHasStoreEntitlement: boolean;
+  oldTokenStoreExists: boolean;
+  oldTokenUserExists: boolean;
+};
+
+export function assertAppleOrphanRecoveryEligible(
+  facts: AppleOrphanRecoveryFacts,
+) {
+  const oldToken = facts.appAccountToken?.trim().toLowerCase() ?? "";
+  if (!facts.recoveryRequested) {
+    throw new Error("STORE_PURCHASE_RECOVERY_EXPLICIT_REQUIRED");
+  }
+  if (
+    !uuidPattern.test(oldToken) ||
+    oldToken === facts.currentStoreId.trim().toLowerCase() ||
+    oldToken === facts.currentUserId.trim().toLowerCase()
+  ) {
+    throw new Error("APPLE_RECOVERY_OLD_BINDING_REQUIRED");
+  }
+  if (
+    facts.existingBindingStoreIds.length > 0 ||
+    facts.targetHasStoreEntitlement ||
+    facts.oldTokenStoreExists ||
+    facts.oldTokenUserExists ||
+    facts.ownedStoreIds.length !== 1 ||
+    facts.ownedStoreIds[0]?.trim().toLowerCase() !==
+      facts.currentStoreId.trim().toLowerCase()
+  ) {
+    throw new Error("STORE_PURCHASE_RECOVERY_NOT_ALLOWED");
+  }
+}
+
+export function appleAccountTokenUpdateRequest(
+  originalTransactionId: string,
+  environment: VerifiedEntitlement["environment"],
+  appAccountToken: string,
+) {
+  if (
+    !/^\d{6,30}$/.test(originalTransactionId) ||
+    !uuidPattern.test(appAccountToken)
+  ) {
+    throw new Error("APPLE_ACCOUNT_TOKEN_UPDATE_INVALID");
+  }
+  const host = environment === "sandbox"
+    ? "https://api.storekit-sandbox.apple.com"
+    : "https://api.storekit.apple.com";
+  return {
+    url:
+      `${host}/inApps/v1/transactions/${originalTransactionId}/appAccountToken`,
+    body: { appAccountToken },
+  };
+}
+
+async function updateAppleAppAccountToken(
+  entitlement: VerifiedEntitlement,
+  appAccountToken: string,
+) {
+  const request = appleAccountTokenUpdateRequest(
+    entitlement.originalTransactionId,
+    entitlement.environment,
+    appAccountToken,
+  );
+  const result = await fetch(request.url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${await appleApiToken()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request.body),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!result.ok) {
+    throw new Error(`APPLE_ACCOUNT_TOKEN_UPDATE_${result.status}`);
+  }
+}
+
+type BackgroundTaskScheduler = (task: () => Promise<void>) => boolean;
+
+function scheduleEdgeBackgroundTask(task: () => Promise<void>) {
+  const edgeRuntime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void };
+  }).EdgeRuntime;
+  if (edgeRuntime == null) return false;
+  edgeRuntime.waitUntil(task());
+  return true;
+}
+
+export async function runBestEffortPostCommitTask(
+  task: () => Promise<void>,
+  onError: (error: unknown) => void = () => {},
+) {
+  try {
+    await task();
+    return true;
+  } catch (error) {
+    onError(error);
+    return false;
+  }
+}
+
+export function scheduleBestEffortPostCommitTask(
+  task: () => Promise<void>,
+  onError: (error: unknown) => void = () => {},
+  scheduleTask: BackgroundTaskScheduler = scheduleEdgeBackgroundTask,
+) {
+  return scheduleTask(async () => {
+    await runBestEffortPostCommitTask(task, onError);
+  });
+}
+
+export async function applyThenMaybeScheduleAppleAccountTokenUpdate(
+  applyEntitlement: () => Promise<void>,
+  updateAccountToken: (() => Promise<void>) | null,
+  scheduleTask: BackgroundTaskScheduler = scheduleEdgeBackgroundTask,
+) {
+  await applyEntitlement();
+  return updateAccountToken != null && scheduleTask(updateAccountToken);
 }
 
 async function fetchAppleStatus(
@@ -904,6 +1404,8 @@ async function fetchGoogleSubscription(
 type GooglePurchaseVerificationOptions = {
   allowMissingDirectProfile?: boolean;
   resolveOutOfAppLineage?: (expiredPurchaseToken: string) => Promise<boolean>;
+  allowOrphanRecovery?: boolean;
+  trustedServerBinding?: boolean;
 };
 
 export async function verifyGooglePurchase(
@@ -924,27 +1426,23 @@ export async function verifyGooglePurchase(
   assertGoogleSubscriptionStateIsVerifiable(purchase.subscriptionState);
 
   const outOfAppContext = recordValue(purchase.outOfAppPurchaseContext);
-  let trustedOutOfAppLineage = false;
-  if (outOfAppContext && options.resolveOutOfAppLineage) {
-    const identifiers = recordValue(
-      outOfAppContext.expiredExternalAccountIdentifiers,
+  const trustedOutOfAppLineage = options.trustedServerBinding === true
+    ? false
+    : await resolveTrustedGoogleOutOfAppLineage(
+      purchase,
+      options.resolveOutOfAppLineage,
     );
-    const accountMissing = identifiers?.obfuscatedExternalAccountId == null;
-    const profileMissing = identifiers?.obfuscatedExternalProfileId == null;
-    if (accountMissing || profileMissing) {
-      const expiredPurchaseToken = googleLinkedPurchaseToken(purchase);
-      if (!expiredPurchaseToken) {
-        throw new Error("GOOGLE_EXPIRED_PURCHASE_TOKEN_REQUIRED");
-      }
-      trustedOutOfAppLineage = await options.resolveOutOfAppLineage(
-        expiredPurchaseToken,
-      );
-    }
+  let recoveryBinding: GoogleOrphanRecoveryBinding | null = null;
+  try {
+    assertGooglePurchaseIdentity(purchase, body, userId, {
+      allowMissingDirectProfile: options.allowMissingDirectProfile,
+      trustedOutOfAppLineage,
+      trustedServerBinding: options.trustedServerBinding,
+    });
+  } catch (error) {
+    if (options.allowOrphanRecovery !== true) throw error;
+    recoveryBinding = googleOrphanRecoveryBinding(purchase, body, userId);
   }
-  assertGooglePurchaseIdentity(purchase, body, userId, {
-    allowMissingDirectProfile: options.allowMissingDirectProfile,
-    trustedOutOfAppLineage,
-  });
 
   const selected = selectGoogleLineItem(purchase);
   if (!selected) throw new Error("GOOGLE_LINE_ITEM_MISSING");
@@ -983,6 +1481,9 @@ export async function verifyGooglePurchase(
       purchase.acknowledgementState,
     ),
     googleOutOfApp: outOfAppContext != null,
+    googleRecoveryAccountId: recoveryBinding?.oldAccountId ?? null,
+    googleRecoveryStoreId: recoveryBinding?.oldStoreId ?? null,
+    googleOrphanLineageRecovery: recoveryBinding?.linkedPurchaseToken != null,
   };
 }
 
@@ -1076,15 +1577,18 @@ export async function handle(request: Request) {
       });
     }
     const refreshRequest = body.refresh === true;
+    const recoveryRequested = body.recoveryRequested === true;
     if (
       typeof body.storeId !== "string" ||
       (!refreshRequest && body.knownOriginalTransactionId !== undefined) ||
+      (body.recoveryRequested !== undefined &&
+        typeof body.recoveryRequested !== "boolean") ||
+      (refreshRequest && recoveryRequested) ||
       (body.acknowledgeOnServer !== undefined &&
         typeof body.acknowledgeOnServer !== "boolean") ||
       (body.acknowledgeOnServer === true &&
         body.platform !== "google_play") ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        .test(body.storeId)
+      !uuidPattern.test(body.storeId)
     ) {
       return response(400, {
         error: "INVALID_PURCHASE_PAYLOAD",
@@ -1113,6 +1617,7 @@ export async function handle(request: Request) {
     });
     let purchaserId = authData.user.id;
     let googlePurchaseToken: string | null = null;
+    let trustedGoogleRefreshBinding = false;
 
     if (refreshRequest) {
       const { data: subscription, error: subscriptionError } = await admin
@@ -1163,6 +1668,21 @@ export async function handle(request: Request) {
         if (tokenError || typeof savedToken !== "string") {
           throw new Error("GOOGLE_REFRESH_TOKEN_MISSING");
         }
+        const { data: rawBinding, error: bindingError } = await admin.rpc(
+          "resolve_google_purchase_token_binding",
+          { raw_purchase_token: savedToken },
+        );
+        const binding = recordValue(rawBinding);
+        if (
+          bindingError ||
+          binding?.store_id !== storeId ||
+          binding?.user_id !== purchaserId ||
+          binding?.original_transaction_id !==
+            subscription.original_transaction_id
+        ) {
+          throw new Error("GOOGLE_REFRESH_SERVER_BINDING_REQUIRED");
+        }
+        trustedGoogleRefreshBinding = true;
         googlePurchaseToken = savedToken;
         body = {
           storeId,
@@ -1219,13 +1739,53 @@ export async function handle(request: Request) {
       .eq("owner_id", purchaserId)
       .limit(2);
     if (ownedStoresError) throw new Error("STORE_OWNERSHIP_LOOKUP_FAILED");
+    const ownedStoreIds = (ownedStores ?? []).map((store) => String(store.id));
     const legacySingleStoreAllowed = ownedStores?.length === 1 &&
       ownedStores[0]?.id === storeId;
+
+    const targetHasStoreEntitlement = async () => {
+      const { count, error } = await admin.from("store_entitlements")
+        .select("id", { count: "exact", head: true })
+        .eq("store_id", storeId);
+      if (error || count == null) {
+        throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+      }
+      return count > 0;
+    };
+    const uuidExistsAsStore = async (candidateId: string) => {
+      const { data, error } = await admin.from("stores")
+        .select("id")
+        .eq("id", candidateId)
+        .maybeSingle();
+      if (error) throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+      return data != null;
+    };
+    const uuidExistsAsAuthUser = async (candidateId: string) => {
+      const { data, error } = await admin.auth.admin.getUserById(candidateId);
+      if (
+        error &&
+        error.status !== 404 &&
+        !error.message.toLowerCase().includes("not found")
+      ) {
+        throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+      }
+      return data?.user != null;
+    };
+    const uuidOwnsAnyStore = async (candidateId: string) => {
+      const { data, error } = await admin.from("stores")
+        .select("id")
+        .eq("owner_id", candidateId)
+        .limit(1);
+      if (error) throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+      return (data?.length ?? 0) > 0;
+    };
 
     const entitlement = body.platform === "app_store"
       ? await verifyApplePurchase(body, purchaserId)
       : await verifyGooglePurchase(body, purchaserId, {
         allowMissingDirectProfile: !refreshRequest && legacySingleStoreAllowed,
+        allowOrphanRecovery: recoveryRequested && !refreshRequest,
+        trustedServerBinding: refreshRequest && trustedGoogleRefreshBinding,
         resolveOutOfAppLineage: async (expiredPurchaseToken) => {
           const { data: rawBinding, error: bindingError } = await admin.rpc(
             "resolve_google_purchase_token_binding",
@@ -1240,6 +1800,9 @@ export async function handle(request: Request) {
         },
       });
 
+    let recoveredOrphan = false;
+    let googleRecoveryOldAccountId: string | null = null;
+    let googleRecoveryOldStoreId: string | null = null;
     if (entitlement.platform === "app_store") {
       const bindingKind = appleAccountBindingKind(
         entitlement.appleAccountToken,
@@ -1265,61 +1828,207 @@ export async function handle(request: Request) {
           String(binding.store_id)
         );
       }
-      assertAppleStoreBinding(
-        entitlement.appleAccountToken,
-        storeId,
-        purchaserId,
-        existingStoreIds,
-        legacySingleStoreAllowed,
+      const orphanRecoveryRequired = recoveryRequested &&
+        bindingKind === "unresolved" &&
+        existingStoreIds.length === 0;
+      await assertAppleRecoveryProofForBinding(
+        orphanRecoveryRequired,
+        body.verificationData,
+        entitlement,
       );
+      if (orphanRecoveryRequired) {
+        const oldToken = entitlement.appleAccountToken?.trim() ?? "";
+        const [hasTargetEntitlement, oldStoreExists, oldUserExists] =
+          await Promise.all([
+            targetHasStoreEntitlement(),
+            uuidPattern.test(oldToken)
+              ? uuidExistsAsStore(oldToken)
+              : Promise.resolve(true),
+            uuidPattern.test(oldToken)
+              ? uuidExistsAsAuthUser(oldToken)
+              : Promise.resolve(true),
+          ]);
+        assertAppleOrphanRecoveryEligible({
+          recoveryRequested,
+          appAccountToken: entitlement.appleAccountToken ?? null,
+          currentStoreId: storeId,
+          currentUserId: purchaserId,
+          ownedStoreIds,
+          existingBindingStoreIds: existingStoreIds,
+          targetHasStoreEntitlement: hasTargetEntitlement,
+          oldTokenStoreExists: oldStoreExists,
+          oldTokenUserExists: oldUserExists,
+        });
+        recoveredOrphan = true;
+      } else {
+        assertAppleStoreBinding(
+          entitlement.appleAccountToken,
+          storeId,
+          purchaserId,
+          existingStoreIds,
+          legacySingleStoreAllowed,
+        );
+      }
     }
     if (entitlement.platform === "google_play") {
       googlePurchaseToken ??= body.verificationData?.trim() ?? null;
+      const oldAccountId = entitlement.googleRecoveryAccountId;
+      const oldStoreId = entitlement.googleRecoveryStoreId ?? null;
+      if (oldAccountId != null || oldStoreId != null) {
+        if (oldAccountId == null) {
+          throw new Error("GOOGLE_RECOVERY_OLD_BINDING_REQUIRED");
+        }
+        const { data: existingBindings, error: existingBindingError } =
+          await admin.from("store_entitlements")
+            .select("store_id,user_id")
+            .eq("platform", "google_play")
+            .eq(
+              "original_transaction_id",
+              entitlement.originalTransactionId,
+            )
+            .limit(2);
+        if (existingBindingError) {
+          throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+        }
+        const { data: rawTokenBinding, error: tokenBindingError } = await admin
+          .rpc(
+            "resolve_google_purchase_token_binding",
+            { raw_purchase_token: googlePurchaseToken },
+          );
+        if (tokenBindingError) {
+          throw new Error("STORE_PURCHASE_RECOVERY_LOOKUP_FAILED");
+        }
+        const tokenBinding = recordValue(rawTokenBinding);
+        const exactEntitlementBinding = existingBindings?.length === 1 &&
+          existingBindings[0]?.store_id === storeId &&
+          existingBindings[0]?.user_id === purchaserId;
+        const exactTokenBinding = tokenBinding?.store_id === storeId &&
+          tokenBinding?.user_id === purchaserId;
+        const exactServerBinding = exactEntitlementBinding ||
+          exactTokenBinding;
+        if (!exactServerBinding) {
+          const existingStoreIds = (existingBindings ?? []).map((binding) =>
+            String(binding.store_id)
+          );
+          if (typeof tokenBinding?.store_id === "string") {
+            existingStoreIds.push(tokenBinding.store_id);
+          }
+          const [
+            hasTargetEntitlement,
+            oldStoreExists,
+            oldUserExists,
+            oldAccountOwnsStore,
+          ] = await Promise.all([
+            targetHasStoreEntitlement(),
+            oldStoreId == null
+              ? Promise.resolve(false)
+              : uuidExistsAsStore(oldStoreId),
+            uuidExistsAsAuthUser(oldAccountId),
+            uuidOwnsAnyStore(oldAccountId),
+          ]);
+          assertGoogleOrphanRecoveryEligible({
+            recoveryRequested,
+            oldAccountId,
+            oldStoreId,
+            currentStoreId: storeId,
+            currentUserId: purchaserId,
+            ownedStoreIds,
+            existingBindingStoreIds: existingStoreIds,
+            targetHasStoreEntitlement: hasTargetEntitlement,
+            oldStoreExists,
+            oldUserExists,
+            oldAccountOwnsStore,
+          });
+          recoveredOrphan = true;
+          googleRecoveryOldAccountId = oldAccountId;
+          googleRecoveryOldStoreId = oldStoreId;
+        }
+      }
     }
 
-    const { error: applyError } = await admin.rpc(
-      "apply_verified_store_entitlement_with_receipt",
-      {
-        target_store_id: storeId,
-        target_user_id: purchaserId,
-        billing_platform: entitlement.platform,
-        billed_product_id: entitlement.productId,
-        billed_base_plan_id: entitlement.basePlanId,
-        external_transaction_id: entitlement.transactionId,
-        external_original_transaction_id: entitlement.originalTransactionId,
-        entitlement_status: entitlement.status,
-        store_environment: entitlement.environment,
-        entitlement_period_start: entitlement.periodStart,
-        entitlement_period_end: entitlement.periodEnd,
-        entitlement_auto_renews: entitlement.autoRenews,
-        raw_purchase_token: entitlement.platform === "google_play"
-          ? googlePurchaseToken
+    const appleAccountTokenUpdateScheduled =
+      await applyThenMaybeScheduleAppleAccountTokenUpdate(
+        async () => {
+          const { error: applyError } = await admin.rpc(
+            "apply_verified_store_entitlement_with_receipt",
+            {
+              target_store_id: storeId,
+              target_user_id: purchaserId,
+              billing_platform: entitlement.platform,
+              billed_product_id: entitlement.productId,
+              billed_base_plan_id: entitlement.basePlanId,
+              external_transaction_id: entitlement.transactionId,
+              external_original_transaction_id:
+                entitlement.originalTransactionId,
+              entitlement_status: entitlement.status,
+              store_environment: entitlement.environment,
+              entitlement_period_start: entitlement.periodStart,
+              entitlement_period_end: entitlement.periodEnd,
+              entitlement_auto_renews: entitlement.autoRenews,
+              raw_purchase_token: entitlement.platform === "google_play"
+                ? googlePurchaseToken
+                : null,
+              purchase_token_hash: entitlement.purchaseTokenHash ?? null,
+              linked_purchase_token_hash: entitlement.linkedPurchaseTokenHash ??
+                null,
+              expected_current_purchase_token_hash:
+                expectedCurrentPurchaseTokenHash(
+                  refreshRequest,
+                  entitlement,
+                ),
+              allow_orphan_lineage_recovery: recoveredOrphan &&
+                entitlement.platform === "google_play",
+              orphan_old_account_id: googleRecoveryOldAccountId,
+              orphan_old_store_id: googleRecoveryOldStoreId,
+            },
+          );
+          if (applyError) {
+            throw new Error(`ENTITLEMENT_APPLY_${applyError.message}`);
+          }
+        },
+        recoveredOrphan && entitlement.platform === "app_store"
+          ? () =>
+            runBestEffortPostCommitTask(
+              () => updateAppleAppAccountToken(entitlement, storeId),
+              (error) => {
+                const updateTraceId = crypto.randomUUID();
+                console.warn(
+                  "verify-store-purchase-apple-token-update",
+                  updateTraceId,
+                  error instanceof Error ? error.message : String(error),
+                );
+              },
+            ).then(() => {})
           : null,
-        purchase_token_hash: entitlement.purchaseTokenHash ?? null,
-        linked_purchase_token_hash: entitlement.linkedPurchaseTokenHash ?? null,
-        expected_current_purchase_token_hash: expectedCurrentPurchaseTokenHash(
-          refreshRequest,
-          entitlement,
-        ),
-      },
-    );
-    if (applyError) throw new Error(`ENTITLEMENT_APPLY_${applyError.message}`);
+      );
 
-    let acknowledgedByServer = false;
+    const acknowledgedByServer = false;
+    let googleAcknowledgementScheduled = false;
     if (
       entitlement.platform === "google_play" &&
       body.acknowledgeOnServer === true &&
       entitlement.googleAcknowledgementPending === true &&
       googlePurchaseToken != null
     ) {
-      await acknowledgeGoogleSubscription(
-        googlePurchaseToken,
-        entitlement.productId,
-        purchaserId,
-        storeId,
-        entitlement.googleOutOfApp === true,
+      const acknowledgementPurchaseToken = googlePurchaseToken;
+      googleAcknowledgementScheduled = scheduleBestEffortPostCommitTask(
+        () =>
+          acknowledgeGoogleSubscription(
+            acknowledgementPurchaseToken,
+            entitlement.productId,
+            purchaserId,
+            storeId,
+            entitlement.googleOutOfApp === true,
+          ),
+        (error) => {
+          const acknowledgementTraceId = crypto.randomUUID();
+          console.warn(
+            "verify-store-purchase-google-acknowledgement",
+            acknowledgementTraceId,
+            error instanceof Error ? error.message : String(error),
+          );
+        },
       );
-      acknowledgedByServer = true;
     }
 
     return response(200, {
@@ -1332,6 +2041,9 @@ export async function handle(request: Request) {
       entitled: entitlement.status === "active" ||
         entitlement.status === "grace",
       acknowledgedByServer,
+      googleAcknowledgementScheduled,
+      recoveredOrphan,
+      appleAccountTokenUpdateScheduled,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

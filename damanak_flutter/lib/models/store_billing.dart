@@ -190,6 +190,7 @@ class StorePurchaseReceipt {
     this.basePlanId,
     this.purchaseId,
     this.transactionDate,
+    this.recoveryRequested = false,
   });
 
   final StoreBillingPlatform platform;
@@ -199,6 +200,12 @@ class StorePurchaseReceipt {
   final String? transactionDate;
   final String verificationData;
   final String verificationSource;
+
+  /// لا يُفعّل إلا من إجراء «استعادة المشتريات» الصريح.
+  ///
+  /// يسمح للخادم بتقييم ربط قديم بعد حذف الحساب من دون إضعاف التحقق الصارم
+  /// للمعاملات الخلفية أو المتأخرة.
+  final bool recoveryRequested;
 }
 
 class StoreProductLoadResult {

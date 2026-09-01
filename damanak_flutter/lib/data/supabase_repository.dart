@@ -40,6 +40,8 @@ const _publicStoreVerificationErrors = <String>{
   _fallbackStoreVerificationError,
   'PURCHASE_NOT_VALID',
   'PURCHASE_CONFLICT',
+  'PURCHASE_RECOVERY_NOT_ALLOWED',
+  'PURCHASE_RECOVERY_PROOF_INVALID',
   'SANDBOX_NOT_AVAILABLE',
   'PURCHASE_PROVIDER_UNAVAILABLE',
   'PURCHASE_VERIFICATION_UNAVAILABLE',
@@ -1451,6 +1453,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
       'transactionDate': receipt.transactionDate,
       'verificationData': receipt.verificationData,
       'verificationSource': receipt.verificationSource,
+      'recoveryRequested': receipt.recoveryRequested,
       if (receipt.platform == StoreBillingPlatform.googlePlay)
         'acknowledgeOnServer': true,
     });

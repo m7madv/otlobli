@@ -7,6 +7,7 @@ import 'package:damanak/state/app_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 void main() {
   group('كتالوج اشتراكات المتجر', () {
@@ -164,13 +165,49 @@ void main() {
       final restoring = selectGoogleSubscriptionPurchases(
         response: response,
         accountId: 'account-a',
-        includeUnboundForRestore: true,
+        recoveryRequested: true,
       );
 
       expect(strict.purchased, isEmpty);
       expect(strict.accountMismatchDetected, isTrue);
       expect(restoring.purchased, hasLength(1));
-      expect(restoring.accountMismatchDetected, isFalse);
+      expect(restoring.accountMismatchDetected, isTrue);
+    });
+
+    test('يمرر ربط Google القديم فقط عند طلب الاسترداد الصريح', () {
+      final response = _googlePurchasesResponse([
+        _googlePurchase(
+          productId: 'com.damanak.subscription.scale',
+          purchaseTime: 300,
+          accountId: 'deleted-account',
+          storeId: 'deleted-store',
+        ),
+      ]);
+
+      final strict = selectGoogleSubscriptionPurchases(
+        response: response,
+        accountId: 'account-a',
+        includeUnboundForRestore: true,
+      );
+      final recovery = selectGoogleSubscriptionPurchases(
+        response: response,
+        accountId: 'account-a',
+        includeUnboundForRestore: true,
+        recoveryRequested: true,
+      );
+      final restored = validatedGoogleSubscriptionsForRestore(
+        recovery,
+        storeId: 'store-a',
+        recoveryRequested: true,
+      );
+
+      expect(strict.purchased, isEmpty);
+      expect(strict.accountMismatchDetected, isTrue);
+      expect(restored, hasLength(1));
+      expect(
+        restored.single.billingClientPurchase.obfuscatedProfileId,
+        'deleted-store',
+      );
     });
 
     test('تختار الاستعادة اشتراك المتجر المفتوح من حساب متعدد المتاجر', () {
@@ -190,7 +227,7 @@ void main() {
           ),
         ]),
         accountId: 'account-a',
-        includeUnboundForRestore: true,
+        recoveryRequested: true,
       );
 
       final restored = validatedGoogleSubscriptionsForRestore(
@@ -221,7 +258,7 @@ void main() {
           ),
         ]),
         accountId: 'account-a',
-        includeUnboundForRestore: true,
+        recoveryRequested: true,
       );
 
       final restored = validatedGoogleSubscriptionsForRestore(
@@ -249,7 +286,7 @@ void main() {
           ),
         ]),
         accountId: 'account-a',
-        includeUnboundForRestore: true,
+        recoveryRequested: true,
       );
 
       expect(
@@ -706,6 +743,87 @@ void main() {
     });
   });
 
+  group('إكمال معاملة Google بعد التحقق', () {
+    test('يستدعي الإكمال المحلي ثم يحذف المعاملة', () async {
+      final native = GooglePlayPurchaseDetails.fromPurchase(
+        _googlePurchase(
+          productId: 'com.damanak.subscription.growth',
+          purchaseTime: 400,
+          accountId: 'account-a',
+          storeId: 'store-a',
+        ),
+      ).single;
+      final purchases = <String, PurchaseDetails>{'verified-google': native};
+      var completionCalls = 0;
+
+      await completeTrackedNativePurchase(
+        purchases: purchases,
+        eventKey: 'verified-google',
+        completePurchase: (purchase) async {
+          completionCalls += 1;
+          expect(purchase, same(native));
+          await completeGooglePlayPurchaseWithResultCheck(
+            purchase: purchase as GooglePlayPurchaseDetails,
+            completePurchase: (_) async =>
+                const BillingResultWrapper(responseCode: BillingResponse.ok),
+          );
+        },
+      );
+
+      expect(completionCalls, 1);
+      expect(purchases, isEmpty);
+    });
+
+    test('يبقي معاملة Google بعد فشل الإكمال ويعيد محاولتها', () async {
+      final native = GooglePlayPurchaseDetails.fromPurchase(
+        _googlePurchase(
+          productId: 'com.damanak.subscription.scale',
+          purchaseTime: 500,
+          accountId: 'account-a',
+          storeId: 'store-a',
+        ),
+      ).single;
+      final purchases = <String, PurchaseDetails>{'retry-google': native};
+      var completionCalls = 0;
+      var completionResponse = BillingResponse.serviceUnavailable;
+
+      Future<void> complete(PurchaseDetails purchase) async {
+        completionCalls += 1;
+        await completeGooglePlayPurchaseWithResultCheck(
+          purchase: purchase as GooglePlayPurchaseDetails,
+          completePurchase: (_) async =>
+              BillingResultWrapper(responseCode: completionResponse),
+        );
+      }
+
+      await expectLater(
+        completeTrackedNativePurchase(
+          purchases: purchases,
+          eventKey: 'retry-google',
+          completePurchase: complete,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('serviceUnavailable'),
+          ),
+        ),
+      );
+      expect(purchases['retry-google'], same(native));
+
+      completionResponse = BillingResponse.ok;
+      await completeTrackedNativePurchase(
+        purchases: purchases,
+        eventKey: 'retry-google',
+        completePurchase: complete,
+      );
+
+      expect(completionCalls, 2);
+      expect(purchases, isEmpty);
+    });
+  });
+
   group('تغيير اشتراك Google', () {
     test('يستخدم مصفوفة صريحة للترقية والتخفيض وتغيير الدورة', () {
       expect(
@@ -1145,6 +1263,7 @@ class _ControlledStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) async => const StoreRestoreResult(
     platform: StoreBillingPlatform.appStore,
     restoredPurchases: 0,
@@ -1184,6 +1303,7 @@ class _HangingStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) async => const StoreRestoreResult(
     platform: StoreBillingPlatform.appStore,
     restoredPurchases: 0,

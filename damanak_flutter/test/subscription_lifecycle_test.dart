@@ -13,6 +13,7 @@ import 'package:damanak/services/store_billing_service.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:damanak/state/app_scope.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -20,6 +21,593 @@ void main() {
   setUpAll(() => initializeDateFormatting('ar'));
 
   group('دورة الاشتراك داخل AppController', () {
+    test('يتيح توسع شهرياً وسنوياً بمعرفي App Store الدقيقين', () async {
+      final monthly = _testOffer(
+        StoreBillingPlatform.appStore,
+        'scale',
+        BillingCycle.monthly,
+      );
+      final yearly = _testOffer(
+        StoreBillingPlatform.appStore,
+        'scale',
+        BillingCycle.yearly,
+      );
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        offers: [monthly, yearly],
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+
+      expect(
+        controller.storeOffer('scale', BillingCycle.monthly)?.productId,
+        'com.damanak.subscription.scale.monthly',
+      );
+      expect(
+        controller.storeOffer('scale', BillingCycle.yearly)?.productId,
+        'com.damanak.subscription.scale.yearly',
+      );
+
+      await controller.purchaseSubscription(monthly);
+      expect(billing.purchasedOffers.single.productId, monthly.productId);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'cancel-scale-monthly',
+          status: StorePurchaseStatus.canceled,
+          productId: monthly.productId,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(
+        () => controller.storeBillingState == StoreBillingState.ready,
+      );
+
+      await controller.purchaseSubscription(yearly);
+      expect(billing.purchasedOffers.last.productId, yearly.productId);
+      expect(billing.purchaseCalls, 2);
+    });
+
+    test('يبقي توسع السنوي قابلاً للشراء عند غياب الشهري ويشخصه', () async {
+      final yearly = _testOffer(
+        StoreBillingPlatform.appStore,
+        'scale',
+        BillingCycle.yearly,
+      );
+      const missingMonthly = 'com.damanak.subscription.scale.monthly';
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        offers: [yearly],
+        missingProductIds: const [missingMonthly],
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.storeOffer('scale', BillingCycle.monthly), isNull);
+      expect(controller.storeOffer('scale', BillingCycle.yearly), isNotNull);
+      expect(controller.storeBillingMessage, contains('توسع — شهري'));
+      expect(controller.storeBillingMessage, contains(missingMonthly));
+
+      await controller.purchaseSubscription(yearly);
+      expect(billing.purchasedOffers.single.productId, yearly.productId);
+    });
+
+    test('يمسح الخطأ القديم عند بدء شراء جديد لمتجر مقفول', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        purchaseError: StateError('STORE_PURCHASE_NOT_LAUNCHED'),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final offer = controller.storeOffers.first;
+      await controller.purchaseSubscription(offer);
+      expect(controller.errorMessage, isNotNull);
+
+      billing.purchaseError = null;
+      await controller.purchaseSubscription(offer);
+
+      expect(controller.errorMessage, isNull);
+      expect(controller.storeBillingState, StoreBillingState.purchasing);
+    });
+
+    test('ينهي معاملة StoreKit غير المكتملة ويوجه إلى الاستعادة', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        purchaseError: PlatformException(
+          code: 'storekit_duplicate_product_object',
+          message: 'unfinished transaction',
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.purchaseSubscription(controller.storeOffers.first);
+
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.storeBillingMessage, isNull);
+      expect(controller.errorMessage, contains('عملية متجر سابقة'));
+      expect(controller.errorMessage, contains('استعادة المشتريات'));
+
+      await controller.restoreStorePurchases();
+      expect(billing.restoreCalls, 1);
+      expect(billing.restoreRecoveryRequests.single, isTrue);
+    });
+
+    test('ينهي انتظار Apple بعد العودة ويمكّن الاستعادة', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+        purchaseEventTimeout: const Duration(seconds: 1),
+        purchaseResumeGracePeriod: const Duration(milliseconds: 15),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await controller.purchaseSubscription(controller.storeOffers.first);
+      expect(controller.storeBillingState, StoreBillingState.purchasing);
+
+      controller.handleAppResumed();
+      await _waitUntil(
+        () => controller.storeBillingState == StoreBillingState.ready,
+      );
+
+      expect(controller.storeBillingMessage, contains('استعادة المشتريات'));
+      await controller.restoreStorePurchases();
+      expect(billing.restoreCalls, 1);
+    });
+
+    test('لا ينهي intent أثناء تحقق أبطأ من مهلة العودة', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyDelay: const Duration(milliseconds: 80),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+        purchaseEventTimeout: const Duration(seconds: 1),
+        purchaseResumeGracePeriod: const Duration(milliseconds: 15),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final offer = controller.storeOffers.first;
+      await controller.purchaseSubscription(offer);
+      controller.handleAppResumed();
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'slow-purchase-verification',
+          status: StorePurchaseStatus.purchased,
+          productId: offer.productId,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 35));
+
+      expect(controller.storeBillingState, StoreBillingState.purchasing);
+      expect(controller.errorMessage, isNull);
+      expect(controller.storeBillingMessage, contains('التحقق من إيصال'));
+      expect(billing.purchaseCalls, 1);
+
+      await _waitUntil(
+        () => controller.storeBillingState == StoreBillingState.ready,
+      );
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.errorMessage, isNull);
+      expect(controller.noticeMessage, contains('تم التحقق من الاشتراك'));
+    });
+
+    test('يعيد حراسة الشراء بعد preflight خادمي بطيء', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _subscription(provider: 'app_store'),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        refreshDelay: const Duration(milliseconds: 120),
+        verifyDelay: const Duration(milliseconds: 20),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final purchase = controller.purchaseSubscription(
+        controller.storeOffers.first,
+      );
+      await _waitUntil(() => repository.refreshCalls == 1);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'late-during-purchase-preflight',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.subscription?.isUsable, isTrue);
+      await purchase;
+
+      expect(billing.purchaseCalls, 0);
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.errorMessage, contains('تغيّرت حالة الاشتراك'));
+    });
+
+    for (final mismatch in ['product', 'token']) {
+      test('ينهي intent Apple عند اختلاف $mismatch بدلاً من التعليق', () async {
+        final scale = _testOffer(
+          StoreBillingPlatform.appStore,
+          'scale',
+          BillingCycle.monthly,
+        );
+        final repository = _SubscriptionRepository(
+          subscription: _initialPaymentSubscription(),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+          offers: [scale],
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+          purchaseEventTimeout: const Duration(seconds: 1),
+        );
+        addTearDown(controller.dispose);
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        await controller.purchaseSubscription(scale);
+        billing.emit(
+          _appleRestoredEvent(
+            key: 'old-apple-$mismatch',
+            status: StorePurchaseStatus.purchased,
+            productId: mismatch == 'product'
+                ? 'com.damanak.subscription.growth.monthly'
+                : scale.productId,
+            appAccountToken: mismatch == 'token'
+                ? '11111111-1111-4111-8111-111111111111'
+                : 'demo-store',
+          ),
+        );
+        await _waitUntil(
+          () => controller.storeBillingState == StoreBillingState.ready,
+        );
+
+        expect(repository.verifyCalls, 0);
+        expect(controller.errorMessage, contains('استعادة المشتريات'));
+        await controller.restoreStorePurchases();
+        expect(billing.restoreCalls, 1);
+      });
+    }
+
+    test('يمرر ربط Apple القديم للاسترداد الصريح بعلامة recovery', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.appStore,
+          restoredPurchases: 1,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'deleted-apple-store',
+          appAccountToken: '11111111-1111-4111-8111-111111111111',
+        ),
+      );
+      await restore;
+
+      expect(repository.receipts.single.recoveryRequested, isTrue);
+      expect(billing.restoreRecoveryRequests.single, isTrue);
+      expect(controller.subscription?.isUsable, isTrue);
+    });
+
+    test('ينتظر تحقق الاستعادة بعد انتهاء مهلة طلب StoreKit', () async {
+      final restoreCompleter = Completer<StoreRestoreResult>();
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyDelay: const Duration(milliseconds: 20),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreCompleter: restoreCompleter,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+        storeRestoreTimeout: const Duration(milliseconds: 10),
+        storeRestoreVerificationTimeout: const Duration(milliseconds: 100),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+
+      expect(controller.storeBillingState, StoreBillingState.restoring);
+      expect(controller.storeBillingMessage, contains('استغرق طلب App Store'));
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'slow-restore-verification',
+          appAccountToken: '11111111-1111-4111-8111-111111111111',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+
+      await restore;
+      restoreCompleter.complete(
+        const StoreRestoreResult(platform: StoreBillingPlatform.appStore),
+      );
+      expect(repository.receipts.single.recoveryRequested, isTrue);
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.noticeMessage, contains('تمت استعادة الاشتراك'));
+      expect(controller.storeBillingMessage, isNull);
+    });
+
+    test('يمنع شراء أو استعادة أثناء تحقق Apple المتأخر', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _trialSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyDelay: const Duration(milliseconds: 80),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'late-apple-slow-verification',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+
+      expect(controller.storeBillingOperationInProgress, isTrue);
+      await controller.restoreStorePurchases();
+      expect(billing.restoreCalls, 0);
+      expect(controller.errorMessage, contains('جارٍ التحقق من إيصال'));
+
+      await controller.purchaseSubscription(controller.storeOffers.first);
+      expect(billing.purchaseCalls, 0);
+      expect(controller.errorMessage, contains('جارٍ التحقق من إيصال'));
+
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.errorMessage, isNull);
+    });
+
+    test('يمسح خطأ الفوترة بعد نجاح إيصال متأخر فقط', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _inactiveStoreReceiptSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        verifyError: StateError('PURCHASE_PROVIDER_UNAVAILABLE'),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      const transactionId = 'transaction-retried-receipt';
+      const signedReceipt = 'signed-retried-receipt';
+
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'failed-receipt-delivery',
+          purchaseId: transactionId,
+          verificationData: signedReceipt,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.errorMessage, contains('غير متاحة مؤقتاً'));
+
+      repository.verifyError = null;
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'successful-receipt-redelivery',
+          purchaseId: transactionId,
+          verificationData: signedReceipt,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 2);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.errorMessage, isNull);
+
+      repository.verifyError = StateError('STORE_VERIFICATION_TIMEOUT');
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'second-failed-receipt-delivery',
+          purchaseId: transactionId,
+          verificationData: signedReceipt,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 3);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.errorMessage, contains('التحقق لم يكتمل'));
+
+      controller.handleIncomingUri(
+        Uri.parse('com.damanak.damanak://join?code=invalid'),
+      );
+      expect(controller.errorMessage, contains('رابط الدعوة غير مكتمل'));
+      repository.verifyError = null;
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'success-after-unrelated-error',
+          purchaseId: transactionId,
+          verificationData: signedReceipt,
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 4);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.errorMessage, contains('رابط الدعوة غير مكتمل'));
+    });
+
+    test('يمنع شراء جديد أثناء تحقق Google الصامت', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _trialSubscription(),
+        verifiedSubscription: _subscription(provider: 'google_play'),
+        verifyDelay: const Duration(milliseconds: 80),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.googlePlay,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.googlePlay,
+          restoredPurchases: 1,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      expect(controller.storeBillingOperationInProgress, isTrue);
+      billing.emit(
+        _googlePurchasedEvent(
+          key: 'silent-google-slow-verification',
+          status: StorePurchaseStatus.restored,
+          accountId: null,
+          storeId: null,
+        ),
+      );
+      await _waitUntil(() => repository.verifyCalls == 1);
+
+      await controller.purchaseSubscription(controller.storeOffers.first);
+      expect(billing.purchaseCalls, 0);
+      expect(controller.errorMessage, contains('جارٍ التحقق من إيصال'));
+
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.subscription?.isUsable, isTrue);
+      expect(controller.errorMessage, isNull);
+      expect(repository.receipts.single.recoveryRequested, isFalse);
+    });
+
+    test('يمرر ربط Google القديم فقط في الاسترداد الصريح', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _initialPaymentSubscription(),
+        verifiedSubscription: _subscription(provider: 'google_play'),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.googlePlay,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      expect(billing.restoreRecoveryRequests.single, isFalse);
+      billing.restoreResult = const StoreRestoreResult(
+        platform: StoreBillingPlatform.googlePlay,
+        restoredPurchases: 1,
+      );
+
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 2);
+      billing.emit(
+        _googlePurchasedEvent(
+          key: 'deleted-google-store',
+          status: StorePurchaseStatus.restored,
+          accountId: '11111111-1111-4111-8111-111111111111',
+          storeId: '22222222-2222-4222-8222-222222222222',
+        ),
+      );
+      await restore;
+
+      expect(repository.receipts.single.recoveryRequested, isTrue);
+      expect(billing.restoreRecoveryRequests, [isFalse, isTrue]);
+      expect(controller.subscription?.isUsable, isTrue);
+    });
+
     test('يمنع شراء مزود ثانٍ أثناء سريان الفترة الحالية', () async {
       final repository = _SubscriptionRepository(
         subscription: _subscription(provider: 'app_store'),
@@ -91,6 +679,7 @@ void main() {
       await _waitUntil(() => repository.loadBranchesCalls == 2);
 
       expect(billing.completeCalls, 1);
+      expect(repository.receipts.single.recoveryRequested, isFalse);
       expect(controller.subscription!.isAwaitingSubscription, isTrue);
       expect(controller.branches, isEmpty);
 
@@ -156,6 +745,51 @@ void main() {
       expect(controller.subscription!.isUsable, isTrue);
       expect(controller.branches.single.code, 'MAIN');
       expect(controller.noticeMessage, contains('تمت استعادة الاشتراك'));
+    });
+
+    test('يحد انتظار تحقق الاستعادة وتهيئة المتجر المعلقة', () async {
+      final activationBranches = Completer<List<StoreBranch>>();
+      final repository = _SubscriptionRepository(
+        subscription: _inactiveStoreReceiptSubscription(),
+        verifiedSubscription: _subscription(provider: 'app_store'),
+        activationBranches: activationBranches,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+        restoreResult: const StoreRestoreResult(
+          platform: StoreBillingPlatform.appStore,
+          restoredPurchases: 1,
+        ),
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+        storeRestoreVerificationTimeout: const Duration(milliseconds: 10),
+        storeRestoreVerificationSettleTimeout: const Duration(milliseconds: 20),
+        initialActivationWorkspaceTimeout: const Duration(milliseconds: 60),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      billing.emit(
+        _appleRestoredEvent(
+          key: 'hanging-activation-restore',
+          appAccountToken: 'demo-store',
+        ),
+      );
+      await _waitUntil(() => repository.loadBranchesCalls == 2);
+
+      await restore.timeout(const Duration(milliseconds: 150));
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.errorMessage, contains('الدفع محفوظ'));
+
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      expect(controller.errorMessage, contains('تعذّر تهيئة بيانات المتجر'));
+      activationBranches.complete([_mainBranch()]);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
     });
 
     test('يمسح عروض الأسعار القديمة إذا فشل تحديث الكتالوج', () async {
@@ -231,6 +865,7 @@ void main() {
 
         await controller.initialize();
         await controller.refreshStoreProducts();
+        await _waitUntil(() => !controller.storeBillingOperationInProgress);
         await controller.restoreStorePurchases();
 
         expect(controller.errorMessage, isNull);
@@ -282,6 +917,7 @@ void main() {
 
       await controller.initialize();
       await controller.refreshStoreProducts();
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
       final downgrade = controller.storeOffers.firstWhere(
         (offer) => offer.planId == 'growth',
       );
@@ -353,6 +989,7 @@ void main() {
 
       await controller.initialize();
       await controller.refreshStoreProducts();
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
       await controller.restoreStorePurchases();
       expect(controller.storeBillingState, StoreBillingState.pending);
 
@@ -526,10 +1163,6 @@ void main() {
       );
       final billing = _LifecycleBillingService(
         platform: StoreBillingPlatform.googlePlay,
-        restoreResult: const StoreRestoreResult(
-          platform: StoreBillingPlatform.googlePlay,
-          restoredPurchases: 1,
-        ),
       );
       final controller = AppController.withRepository(
         repository,
@@ -539,8 +1172,14 @@ void main() {
 
       await controller.initialize();
       await controller.refreshStoreProducts();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      billing.restoreResult = const StoreRestoreResult(
+        platform: StoreBillingPlatform.googlePlay,
+        restoredPurchases: 1,
+      );
       final restore = controller.restoreStorePurchases();
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await _waitUntil(() => billing.restoreCalls == 2);
       billing.emit(
         StorePurchaseEvent(
           key: 'out-of-app-token',
@@ -581,6 +1220,7 @@ void main() {
 
       await controller.initialize();
       await controller.refreshStoreProducts();
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
       await controller.restoreStorePurchases();
 
       expect(controller.errorMessage, contains('حساب ضمانك آخر'));
@@ -647,10 +1287,73 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(billing.restoreCalls, 1);
+      expect(billing.restoreRecoveryRequests.single, isFalse);
       expect(repository.verifyCalls, 1);
+      expect(repository.receipts.single.recoveryRequested, isFalse);
       expect(controller.errorMessage, isNull);
       expect(controller.noticeMessage, isNull);
     });
+  });
+
+  testWidgets('يعرض إعادة المحاولة مع كتالوج جزئي دون تعطيل توسع السنوي', (
+    tester,
+  ) async {
+    final yearly = _testOffer(
+      StoreBillingPlatform.appStore,
+      'scale',
+      BillingCycle.yearly,
+    );
+    final repository = _SubscriptionRepository(
+      subscription: _initialPaymentSubscription(),
+    );
+    final billing = _LifecycleBillingService(
+      platform: StoreBillingPlatform.appStore,
+      offers: [yearly],
+      missingProductIds: const ['com.damanak.subscription.scale.monthly'],
+    );
+    final controller = AppController.withRepository(
+      repository,
+      billingService: billing,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await controller.refreshStoreProducts();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppScope(
+            controller: controller,
+            child: const SubscriptionScreen(requiredActivation: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('إعادة المحاولة'), findsOneWidget);
+    expect(controller.storeOffer('scale', BillingCycle.yearly), isNotNull);
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('subscription-plan-picker')),
+      240,
+      scrollable: scrollable,
+    );
+    final scalePicker = find.descendant(
+      of: find.byKey(const ValueKey('subscription-plan-picker')),
+      matching: find.text('توسع'),
+    );
+    await tester.tap(scalePicker);
+    await tester.pumpAndSettle();
+    final scaleCard = find.byKey(const ValueKey('subscription-plan-scale'));
+    final buyButton = find.descendant(
+      of: scaleCard,
+      matching: find.widgetWithText(FilledButton, 'اختيار توسع'),
+    );
+    expect(buyButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(buyButton).onPressed, isNotNull);
   });
 
   testWidgets('تعرض الدورة والمزود وروابط المستندات القانونية', (tester) async {
@@ -836,39 +1539,74 @@ void main() {
   });
 }
 
+StoreProductOffer _testOffer(
+  StoreBillingPlatform platform,
+  String planId,
+  BillingCycle cycle,
+) {
+  final isGoogle = platform == StoreBillingPlatform.googlePlay;
+  return StoreProductOffer(
+    key: '$planId:${cycle.value}',
+    planId: planId,
+    cycle: cycle,
+    productId: isGoogle
+        ? DamanakStoreCatalog.googleProductId(planId)
+        : DamanakStoreCatalog.appleProductId(planId, cycle),
+    basePlanId: isGoogle ? cycle.value : null,
+    title: planId,
+    description: cycle.value,
+    localizedPrice: cycle == BillingCycle.monthly
+        ? '199.99 ر.ق'
+        : '1999.99 ر.ق',
+    rawPrice: cycle == BillingCycle.monthly ? 199.99 : 1999.99,
+    currencyCode: 'QAR',
+  );
+}
+
 StorePurchaseEvent _googlePurchasedEvent({
   required String key,
   StorePurchaseStatus status = StorePurchaseStatus.purchased,
   bool needsCompletion = false,
+  String productId = 'com.damanak.subscription.growth',
+  String? accountId = 'demo-owner',
+  String? storeId = 'demo-store',
 }) => StorePurchaseEvent(
   key: key,
   status: status,
   platform: StoreBillingPlatform.googlePlay,
-  productId: 'com.damanak.subscription.growth',
+  productId: productId,
   basePlanId: 'monthly',
   purchaseId: 'order-$key',
   transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
   verificationData: 'token-$key',
   verificationSource: 'google_play',
   needsCompletion: needsCompletion,
-  accountId: 'demo-owner',
-  storeId: 'demo-store',
+  accountId: accountId,
+  storeId: storeId,
 );
 
 StorePurchaseEvent _appleRestoredEvent({
   required String key,
   String? appAccountToken,
   bool needsCompletion = false,
+  StorePurchaseStatus status = StorePurchaseStatus.restored,
+  String productId = 'com.damanak.subscription.growth.monthly',
+  String? purchaseId,
+  String? verificationData,
+  String? errorCode,
+  String? errorMessage,
 }) => StorePurchaseEvent(
   key: key,
-  status: StorePurchaseStatus.restored,
+  status: status,
   platform: StoreBillingPlatform.appStore,
-  productId: 'com.damanak.subscription.growth.monthly',
-  purchaseId: 'transaction-$key',
+  productId: productId,
+  purchaseId: purchaseId ?? 'transaction-$key',
   transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
-  verificationData: 'signed-$key',
+  verificationData: verificationData ?? 'signed-$key',
   verificationSource: 'app_store',
   needsCompletion: needsCompletion,
+  errorCode: errorCode,
+  errorMessage: errorMessage,
   appAccountToken: appAccountToken,
 );
 
@@ -967,6 +1705,8 @@ class _SubscriptionRepository extends DemoDamanakRepository {
   _SubscriptionRepository({
     required this.subscription,
     this.verifyDelay = Duration.zero,
+    this.verifyError,
+    this.refreshDelay = Duration.zero,
     this.refreshError,
     this.verifiedSubscription,
     this.activationBranches,
@@ -974,12 +1714,15 @@ class _SubscriptionRepository extends DemoDamanakRepository {
 
   SubscriptionInfo subscription;
   final Duration verifyDelay;
+  Object? verifyError;
+  final Duration refreshDelay;
   final Object? refreshError;
   final SubscriptionInfo? verifiedSubscription;
   final Completer<List<StoreBranch>>? activationBranches;
   int verifyCalls = 0;
   int refreshCalls = 0;
   int loadBranchesCalls = 0;
+  final List<StorePurchaseReceipt> receipts = [];
 
   @override
   bool get isDemo => false;
@@ -1017,7 +1760,10 @@ class _SubscriptionRepository extends DemoDamanakRepository {
     required StorePurchaseReceipt receipt,
   }) async {
     verifyCalls += 1;
+    receipts.add(receipt);
     if (verifyDelay > Duration.zero) await Future<void>.delayed(verifyDelay);
+    final error = verifyError;
+    if (error != null) throw error;
     final result = verifiedSubscription ?? subscription;
     subscription = result;
     return result;
@@ -1026,6 +1772,9 @@ class _SubscriptionRepository extends DemoDamanakRepository {
   @override
   Future<SubscriptionInfo> refreshStoreSubscription(String storeId) async {
     refreshCalls += 1;
+    if (refreshDelay > Duration.zero) {
+      await Future<void>.delayed(refreshDelay);
+    }
     final error = refreshError;
     if (error != null) throw error;
     return subscription;
@@ -1033,16 +1782,29 @@ class _SubscriptionRepository extends DemoDamanakRepository {
 }
 
 class _LifecycleBillingService implements StoreBillingService {
-  _LifecycleBillingService({required this.platform, this.restoreResult});
+  _LifecycleBillingService({
+    required this.platform,
+    this.restoreResult,
+    this.restoreCompleter,
+    this.offers,
+    this.missingProductIds = const [],
+    this.purchaseError,
+  });
 
   final StoreBillingPlatform platform;
-  final StoreRestoreResult? restoreResult;
+  StoreRestoreResult? restoreResult;
+  final Completer<StoreRestoreResult>? restoreCompleter;
+  final List<StoreProductOffer>? offers;
+  final List<String> missingProductIds;
+  Object? purchaseError;
   final StreamController<List<StorePurchaseEvent>> _updates =
       StreamController<List<StorePurchaseEvent>>.broadcast();
   Object? catalogError;
   int purchaseCalls = 0;
   int restoreCalls = 0;
   int completeCalls = 0;
+  final List<StoreProductOffer> purchasedOffers = [];
+  final List<bool> restoreRecoveryRequests = [];
   bool? requiredExistingSubscription;
   StoreBillingPlatform? managedProvider;
   String? managedProductId;
@@ -1059,10 +1821,13 @@ class _LifecycleBillingService implements StoreBillingService {
     return StoreProductLoadResult(
       available: true,
       platform: platform,
-      offers: [
-        _offer('growth', BillingCycle.monthly),
-        _offer('growth', BillingCycle.yearly),
-      ],
+      offers:
+          offers ??
+          [
+            _offer('growth', BillingCycle.monthly),
+            _offer('growth', BillingCycle.yearly),
+          ],
+      missingProductIds: missingProductIds,
     );
   }
 
@@ -1093,15 +1858,22 @@ class _LifecycleBillingService implements StoreBillingService {
     required bool requireExistingSubscription,
   }) async {
     purchaseCalls += 1;
+    purchasedOffers.add(offer);
     requiredExistingSubscription = requireExistingSubscription;
+    final error = purchaseError;
+    if (error != null) throw error;
   }
 
   @override
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) async {
     restoreCalls += 1;
+    restoreRecoveryRequests.add(recoveryRequested);
+    final pendingRestore = restoreCompleter;
+    if (pendingRestore != null) return pendingRestore.future;
     return restoreResult ??
         StoreRestoreResult(platform: platform, restoredPurchases: 0);
   }

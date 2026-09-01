@@ -73,17 +73,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         currentProvider != null &&
         controller.storeBillingPlatform != StoreBillingPlatform.unavailable &&
         currentProvider != controller.storeBillingPlatform;
-    final storeBusy = const {
-      StoreBillingState.loading,
-      StoreBillingState.purchasing,
-      StoreBillingState.restoring,
-      StoreBillingState.pending,
-    }.contains(controller.storeBillingState);
-    final restoreBusy = const {
-      StoreBillingState.loading,
-      StoreBillingState.purchasing,
-      StoreBillingState.restoring,
-    }.contains(controller.storeBillingState);
+    final billingOperationInProgress =
+        controller.storeBillingOperationInProgress;
+    final storeBusy =
+        const {
+          StoreBillingState.loading,
+          StoreBillingState.purchasing,
+          StoreBillingState.restoring,
+          StoreBillingState.pending,
+        }.contains(controller.storeBillingState) ||
+        billingOperationInProgress;
+    final restoreBusy =
+        const {
+          StoreBillingState.loading,
+          StoreBillingState.purchasing,
+          StoreBillingState.restoring,
+        }.contains(controller.storeBillingState) ||
+        billingOperationInProgress;
 
     return Scaffold(
       appBar: AppBar(
@@ -517,8 +523,23 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
       builder: (dialogContext) => AlertDialog(
         scrollable: true,
         title: const Text('حذف الحساب نهائياً؟'),
-        content: const Text(
-          'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'تنبيه: حذف حساب ضمانك لا يلغي أي اشتراك قائم أو يوقف الفوترة لدى App Store أو Google Play. ألغِ التجديد من المتجر لتجنب رسوم لاحقة.',
+              style: TextStyle(
+                color: Theme.of(dialogContext).colorScheme.error,
+                fontWeight: FontWeight.w700,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -944,7 +965,8 @@ class _StoreStatus extends StatelessWidget {
                 ),
               ],
             ),
-            if (onRetry != null && state == StoreBillingState.unavailable)
+            if (onRetry != null &&
+                (state == StoreBillingState.unavailable || message != null))
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Align(

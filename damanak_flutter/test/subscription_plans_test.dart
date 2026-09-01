@@ -288,6 +288,10 @@ void main() {
     await tester.ensureVisible(find.text('حذف الحساب نهائياً'));
     await tester.tap(find.text('حذف الحساب نهائياً'));
     await tester.pumpAndSettle();
+    expect(
+      find.textContaining('حذف حساب ضمانك لا يلغي أي اشتراك قائم'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('حذف نهائي'));
     await tester.pumpAndSettle();
 

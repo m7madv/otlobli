@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.refresh-store-entitlements]
 verify_jwt = false
+
+[functions.verify-store-purchase]
+verify_jwt = false

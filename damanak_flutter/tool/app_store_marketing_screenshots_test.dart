@@ -543,6 +543,7 @@ class _MarketingBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) async => const StoreRestoreResult(
     platform: StoreBillingPlatform.appStore,
     restoredPurchases: 0,

@@ -17,6 +17,40 @@ typedef StoreProductQuery =
 
 typedef GoogleSubscriptionQuery = Future<PurchasesResultWrapper> Function();
 
+typedef NativePurchaseCompletion =
+    Future<void> Function(PurchaseDetails purchase);
+typedef GooglePurchaseCompletion =
+    Future<BillingResultWrapper> Function(GooglePlayPurchaseDetails purchase);
+
+@visibleForTesting
+Future<void> completeGooglePlayPurchaseWithResultCheck({
+  required GooglePlayPurchaseDetails purchase,
+  required GooglePurchaseCompletion completePurchase,
+}) async {
+  final result = await completePurchase(purchase);
+  if (result.responseCode != BillingResponse.ok) {
+    throw StateError(
+      'GOOGLE_ACKNOWLEDGEMENT_FAILED:${result.responseCode.name}',
+    );
+  }
+}
+
+@visibleForTesting
+Future<void> completeTrackedNativePurchase({
+  required Map<String, PurchaseDetails> purchases,
+  required String eventKey,
+  required NativePurchaseCompletion completePurchase,
+}) async {
+  final native = purchases[eventKey];
+  if (native == null) return;
+  if (native.pendingCompletePurchase) {
+    await completePurchase(native);
+  }
+  if (identical(purchases[eventKey], native)) {
+    purchases.remove(eventKey);
+  }
+}
+
 @visibleForTesting
 class GoogleSubscriptionSnapshot {
   const GoogleSubscriptionSnapshot({
@@ -44,6 +78,7 @@ GoogleSubscriptionSnapshot selectGoogleSubscriptionPurchases({
   required PurchasesResultWrapper response,
   required String accountId,
   bool includeUnboundForRestore = false,
+  bool recoveryRequested = false,
 }) {
   // queryPurchases in in_app_purchase_android 0.5.0 force-fills the legacy
   // responseCode with OK. billingResult carries the actual BillingClient
@@ -71,13 +106,16 @@ GoogleSubscriptionSnapshot selectGoogleSubscriptionPurchases({
     final purchaseAccountId = wrapper.obfuscatedAccountId?.trim();
     final accountIsMissing =
         purchaseAccountId == null || purchaseAccountId.isEmpty;
-    // A normal purchase/replacement remains strict. Only an explicit restore
-    // may forward one unbound out-of-app candidate to the backend, where Play's
-    // expired identifiers and token lineage are authoritative.
-    if (purchaseAccountId != accountId &&
-        !(includeUnboundForRestore && accountIsMissing)) {
+    // Normal purchases remain strict. Restore may forward one legacy candidate
+    // whose local account binding is absent; only the user's explicit recovery
+    // action may forward a non-empty binding for a different local account.
+    // The backend still verifies the signed Play token lineage authoritatively.
+    if (purchaseAccountId != accountId) {
       accountMismatchDetected = true;
-      continue;
+      if (!recoveryRequested &&
+          !(includeUnboundForRestore && accountIsMissing)) {
+        continue;
+      }
     }
     for (final purchase in catalogPurchases) {
       switch (purchase.status) {
@@ -115,6 +153,7 @@ GoogleSubscriptionSnapshot selectGoogleSubscriptionPurchases({
 List<GooglePlayPurchaseDetails> validatedGoogleSubscriptionsForRestore(
   GoogleSubscriptionSnapshot snapshot, {
   required String storeId,
+  bool recoveryRequested = false,
 }) {
   final candidates = [...snapshot.purchased, ...snapshot.pending];
   final matchingStore = candidates
@@ -131,19 +170,20 @@ List<GooglePlayPurchaseDetails> validatedGoogleSubscriptionsForRestore(
   }
   if (matchingStore.isNotEmpty) return List.unmodifiable(matchingStore);
 
-  final unbound = candidates
+  final recoveryCandidates = candidates
       .where((purchase) {
         final purchaseStoreId = purchase
             .billingClientPurchase
             .obfuscatedProfileId
             ?.trim();
+        if (recoveryRequested) return purchaseStoreId != storeId;
         return purchaseStoreId == null || purchaseStoreId.isEmpty;
       })
       .toList(growable: false);
-  if (unbound.length > 1) {
+  if (recoveryCandidates.length > 1) {
     throw StateError('GOOGLE_MULTIPLE_SUBSCRIPTIONS');
   }
-  return List.unmodifiable(unbound);
+  return List.unmodifiable(recoveryCandidates);
 }
 
 @visibleForTesting
@@ -520,6 +560,7 @@ abstract interface class StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   });
   Future<void> completePurchase(StorePurchaseEvent event);
   Future<bool> openSubscriptionManagement(
@@ -567,6 +608,7 @@ class UnavailableStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) => throw StateError('STORE_UNAVAILABLE');
 
   @override
@@ -586,11 +628,13 @@ class PlatformStoreBillingService implements StoreBillingService {
   PlatformStoreBillingService({
     InAppPurchase? client,
     GoogleSubscriptionQuery? googleSubscriptionQuery,
+    GooglePurchaseCompletion? googlePurchaseCompletion,
     this.availabilityTimeout = const Duration(seconds: 6),
     this.productQueryTimeout = const Duration(seconds: 16),
     this.purchaseLookupTimeout = const Duration(seconds: 8),
   }) : _client = client ?? InAppPurchase.instance,
-       _googleSubscriptionQueryOverride = googleSubscriptionQuery {
+       _googleSubscriptionQueryOverride = googleSubscriptionQuery,
+       _googlePurchaseCompletionOverride = googlePurchaseCompletion {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
       onError: (Object error) {
@@ -620,6 +664,7 @@ class PlatformStoreBillingService implements StoreBillingService {
   final Duration productQueryTimeout;
   final Duration purchaseLookupTimeout;
   final GoogleSubscriptionQuery? _googleSubscriptionQueryOverride;
+  final GooglePurchaseCompletion? _googlePurchaseCompletionOverride;
   final StreamController<List<StorePurchaseEvent>> _updates =
       createBufferedStorePurchaseController();
   final Map<String, ProductDetails> _nativeProducts = {};
@@ -839,12 +884,14 @@ class PlatformStoreBillingService implements StoreBillingService {
   Future<GoogleSubscriptionSnapshot> _queryGoogleSubscriptionSnapshot(
     String accountId, {
     bool includeUnboundForRestore = false,
+    bool recoveryRequested = false,
   }) async {
     final response = await _queryGoogleSubscriptions();
     return selectGoogleSubscriptionPurchases(
       response: response,
       accountId: accountId,
       includeUnboundForRestore: includeUnboundForRestore,
+      recoveryRequested: recoveryRequested,
     );
   }
 
@@ -1089,6 +1136,7 @@ class PlatformStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    bool recoveryRequested = false,
   }) async {
     if (platform == StoreBillingPlatform.googlePlay) {
       GoogleSubscriptionSnapshot snapshot;
@@ -1096,6 +1144,7 @@ class PlatformStoreBillingService implements StoreBillingService {
         snapshot = await _queryGoogleSubscriptionSnapshot(
           accountId,
           includeUnboundForRestore: true,
+          recoveryRequested: recoveryRequested,
         ).timeout(purchaseLookupTimeout);
       } on TimeoutException {
         throw StateError('GOOGLE_SUBSCRIPTION_LOOKUP_TIMEOUT');
@@ -1108,6 +1157,7 @@ class PlatformStoreBillingService implements StoreBillingService {
       final candidates = validatedGoogleSubscriptionsForRestore(
         snapshot,
         storeId: storeId,
+        recoveryRequested: recoveryRequested,
       );
       _forwardPurchases(candidates, restoring: true);
       final statuses = candidates
@@ -1135,15 +1185,37 @@ class PlatformStoreBillingService implements StoreBillingService {
 
   @override
   Future<void> completePurchase(StorePurchaseEvent event) async {
-    final native = _nativePurchases.remove(event.key);
-    // Build 24 asks the verified Edge Function to acknowledge every Google
-    // token after the entitlement transaction commits. Avoid acknowledging the
-    // same stale local PurchaseWrapper a second time; Build 23 omits that
-    // request flag and retains its original on-device completion path.
-    if (native is GooglePlayPurchaseDetails) return;
-    if (native != null && native.pendingCompletePurchase) {
+    // Server-side Google acknowledgement is best-effort after the entitlement
+    // commits. Completing the same token locally is the device fallback and is
+    // safe to retry. Keep the native purchase until completion succeeds so a
+    // later delivery or explicit restore can retry it after a transient error.
+    await completeTrackedNativePurchase(
+      purchases: _nativePurchases,
+      eventKey: event.key,
+      completePurchase: _completeNativePurchase,
+    );
+  }
+
+  Future<void> _completeNativePurchase(PurchaseDetails native) async {
+    if (native is! GooglePlayPurchaseDetails) {
       await _client.completePurchase(native);
+      return;
     }
+    await completeGooglePlayPurchaseWithResultCheck(
+      purchase: native,
+      completePurchase:
+          _googlePurchaseCompletionOverride ?? _completeGooglePurchaseOnDevice,
+    );
+  }
+
+  Future<BillingResultWrapper> _completeGooglePurchaseOnDevice(
+    GooglePlayPurchaseDetails purchase,
+  ) {
+    final nativePlatform = InAppPurchasePlatform.instance;
+    if (nativePlatform is! InAppPurchaseAndroidPlatform) {
+      throw StateError('GOOGLE_BILLING_PLATFORM_UNAVAILABLE');
+    }
+    return nativePlatform.completePurchase(purchase);
   }
 
   @override

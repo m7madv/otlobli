@@ -96,6 +96,20 @@ void main() {
       expect(exception.retryAfterSeconds, isNull);
     });
 
+    test('يحافظ على أخطاء استرداد الاشتراك كأخطاء عامة آمنة', () {
+      for (final code in const [
+        'PURCHASE_RECOVERY_NOT_ALLOWED',
+        'PURCHASE_RECOVERY_PROOF_INVALID',
+      ]) {
+        final exception = storeVerificationExceptionFromPayload(
+          statusCode: 409,
+          details: {'error': code, 'retryable': true},
+        );
+        expect(exception.code, code);
+        expect(exception.isRetryable, isFalse);
+      }
+    });
+
     test('لا يحول خطأ دائماً إلى قابل للإعادة بسبب payload غير سليم', () {
       final exception = storeVerificationExceptionFromPayload(
         statusCode: 422,
@@ -140,6 +154,7 @@ void main() {
         expect(request.url.path, '/functions/v1/verify-store-purchase');
         final body = Map<String, dynamic>.from(jsonDecode(request.body) as Map);
         expect(body['acknowledgeOnServer'], isTrue);
+        expect(body['recoveryRequested'], isTrue);
         return http.Response(
           jsonEncode({
             'error': 'STORE_VERIFICATION_RATE_LIMITED',
@@ -164,6 +179,7 @@ void main() {
           basePlanId: 'monthly',
           verificationData: 'test-purchase-token-with-safe-length',
           verificationSource: 'google_play',
+          recoveryRequested: true,
         ),
       ),
       throwsA(
@@ -193,6 +209,7 @@ void main() {
             jsonDecode(request.body) as Map,
           );
           expect(body['storeId'], storeB);
+          expect(body['recoveryRequested'], isFalse);
           return http.Response(
             jsonEncode({'verified': true}),
             200,

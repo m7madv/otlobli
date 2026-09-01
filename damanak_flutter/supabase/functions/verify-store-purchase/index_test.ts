@@ -1,8 +1,14 @@
 import {
   appleAccountBindingKind,
+  appleAccountTokenUpdateRequest,
   appleEntitlementPeriodEnd,
   appleEnvironmentOrder,
+  applyThenMaybeScheduleAppleAccountTokenUpdate,
+  assertAppleOrphanRecoveryEligible,
+  assertAppleRecoveryProofForBinding,
+  assertAppleRecoveryTransactionProof,
   assertAppleStoreBinding,
+  assertGoogleOrphanRecoveryEligible,
   assertGooglePurchaseIdentity,
   assertGoogleSubscriptionStateIsVerifiable,
   classifyVerificationFailure,
@@ -13,9 +19,12 @@ import {
   googleAutoRenews,
   googleEntitlementStatus,
   googleLinkedPurchaseToken,
+  googleOrphanRecoveryBinding,
   isAllowedStoreProduct,
   parseBoundedJsonBody,
   RequestBodyTooLargeError,
+  resolveTrustedGoogleOutOfAppLineage,
+  scheduleBestEffortPostCommitTask,
   selectGoogleLineItem,
   setGoogleAccessTokenTestHook,
 } from "./index.ts";
@@ -103,6 +112,325 @@ Deno.test("Apple store binding rejects ambiguous legacy receipts", () => {
       rejected = true;
     }
     if (!rejected) throw new Error("ambiguous Apple receipt was accepted");
+  }
+});
+
+Deno.test("Apple orphan recovery accepts a verified device JWS with extra fields", async () => {
+  const oldStoreId = "33333333-3333-4333-8333-333333333333";
+  const serverPayload = {
+    bundleId: "com.damanak.damanak",
+    transactionId: "2000000123456790",
+    originalTransactionId: "2000000123456789",
+    productId: "com.damanak.subscription.scale.yearly",
+    environment: "Sandbox",
+    appAccountToken: oldStoreId,
+  };
+  const serverSignedTransaction = unsignedJwt(serverPayload);
+  const deviceSignedTransaction = unsignedJwt({
+    ...serverPayload,
+    deviceVerification: "device-specific-digest",
+    deviceVerificationNonce: "55555555-5555-4555-8555-555555555555",
+  });
+  if (deviceSignedTransaction === serverSignedTransaction) {
+    throw new Error("device and server fixtures must be different JWS values");
+  }
+  const entitlement = {
+    transactionId: serverPayload.transactionId,
+    originalTransactionId: serverPayload.originalTransactionId,
+    productId: serverPayload.productId,
+    environment: "sandbox" as const,
+    appleAccountToken: oldStoreId,
+  };
+  let verifierCalls = 0;
+  await assertAppleRecoveryTransactionProof(
+    deviceSignedTransaction,
+    entitlement,
+    (candidate, environment) => {
+      verifierCalls += 1;
+      if (
+        candidate !== deviceSignedTransaction || environment !== "sandbox"
+      ) {
+        throw new Error("unexpected Apple verifier input");
+      }
+      const decoded = decodeAppleClientTransaction({
+        verificationData: candidate,
+      });
+      if (decoded == null) throw new Error("fixture decode failed");
+      return Promise.resolve(decoded);
+    },
+  );
+  if (verifierCalls !== 1) {
+    throw new Error("Apple recovery did not require the signature verifier");
+  }
+});
+
+Deno.test("Apple proof verifier is lazy for an existing binding", async () => {
+  const entitlement = {
+    transactionId: "2000000123456790",
+    originalTransactionId: "2000000123456789",
+    productId: "com.damanak.subscription.scale.yearly",
+    environment: "sandbox" as const,
+    appleAccountToken: "33333333-3333-4333-8333-333333333333",
+  };
+  const calls: string[] = [];
+  const unavailableVerifier = () => {
+    calls.push("verify");
+    return Promise.reject(
+      new Error("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE"),
+    );
+  };
+  await assertAppleRecoveryProofForBinding(
+    false,
+    "bound-receipt-does-not-need-orphan-proof",
+    entitlement,
+    unavailableVerifier,
+  );
+  if (calls.length !== 0) {
+    throw new Error("an existing Apple binding invoked orphan verification");
+  }
+
+  let orphanRejected = false;
+  try {
+    await assertAppleRecoveryProofForBinding(
+      true,
+      "orphan-receipt-must-be-verified",
+      entitlement,
+      unavailableVerifier,
+    );
+  } catch {
+    orphanRejected = true;
+  }
+  if (!orphanRejected || Number(calls.length) !== 1) {
+    throw new Error("an Apple orphan bypassed fail-closed verification");
+  }
+});
+
+Deno.test("Apple orphan recovery rejects forged or mismatched device JWS", async () => {
+  const oldStoreId = "33333333-3333-4333-8333-333333333333";
+  const payload = {
+    bundleId: "com.damanak.damanak",
+    transactionId: "2000000123456790",
+    originalTransactionId: "2000000123456789",
+    productId: "com.damanak.subscription.scale.yearly",
+    environment: "Sandbox",
+    appAccountToken: oldStoreId,
+  };
+  const entitlement = {
+    transactionId: payload.transactionId,
+    originalTransactionId: payload.originalTransactionId,
+    productId: payload.productId,
+    environment: "sandbox" as const,
+    appleAccountToken: oldStoreId,
+  };
+  const mismatchedJws = unsignedJwt({
+    ...payload,
+    transactionId: "2000000123456791",
+  });
+  const mismatched = decodeAppleClientTransaction({
+    verificationData: mismatchedJws,
+  });
+  if (mismatched == null) throw new Error("fixture decode failed");
+
+  let defaultVerifierFailure = "";
+  try {
+    await assertAppleRecoveryTransactionProof(
+      unsignedJwt(payload),
+      entitlement,
+    );
+  } catch (error) {
+    defaultVerifierFailure = error instanceof Error ? error.message : "";
+  }
+  if (defaultVerifierFailure !== "APPLE_RECOVERY_PROOF_INVALID") {
+    throw new Error(
+      "Apple official verifier or pinned roots did not initialize",
+    );
+  }
+
+  for (
+    const attempt of [
+      () =>
+        assertAppleRecoveryTransactionProof(
+          mismatchedJws,
+          entitlement,
+          () => Promise.resolve(mismatched),
+        ),
+      () =>
+        assertAppleRecoveryTransactionProof(
+          unsignedJwt(payload),
+          entitlement,
+          () => Promise.reject(new Error("signature rejected")),
+        ),
+      () => assertAppleRecoveryTransactionProof("", entitlement),
+    ]
+  ) {
+    let rejected = false;
+    try {
+      await attempt();
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error("an untrusted Apple device JWS was accepted");
+    }
+  }
+
+  for (
+    const providerFailure of [
+      "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE",
+      "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE",
+    ]
+  ) {
+    let preserved = false;
+    try {
+      await assertAppleRecoveryTransactionProof(
+        unsignedJwt(payload),
+        entitlement,
+        () => Promise.reject(new Error(providerFailure)),
+      );
+    } catch (error) {
+      preserved = error instanceof Error && error.message === providerFailure;
+    }
+    if (!preserved) {
+      throw new Error("Apple provider failure lost its retryable category");
+    }
+  }
+});
+
+Deno.test("Apple orphan recovery is explicit, single-store, and deletion-only", () => {
+  const currentStoreId = "11111111-1111-4111-8111-111111111111";
+  const currentUserId = "22222222-2222-4222-8222-222222222222";
+  const oldToken = "33333333-3333-4333-8333-333333333333";
+  const allowed = {
+    recoveryRequested: true,
+    appAccountToken: oldToken,
+    currentStoreId,
+    currentUserId,
+    ownedStoreIds: [currentStoreId],
+    existingBindingStoreIds: [],
+    targetHasStoreEntitlement: false,
+    oldTokenStoreExists: false,
+    oldTokenUserExists: false,
+  };
+  assertAppleOrphanRecoveryEligible(allowed);
+  assertAppleOrphanRecoveryEligible({
+    ...allowed,
+    currentStoreId: currentStoreId.toUpperCase(),
+  });
+
+  for (
+    const denied of [
+      { ...allowed, recoveryRequested: false },
+      { ...allowed, existingBindingStoreIds: [oldToken] },
+      { ...allowed, targetHasStoreEntitlement: true },
+      { ...allowed, oldTokenStoreExists: true },
+      { ...allowed, oldTokenUserExists: true },
+      { ...allowed, ownedStoreIds: [currentStoreId, oldToken] },
+    ]
+  ) {
+    let rejected = false;
+    try {
+      assertAppleOrphanRecoveryEligible(denied);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error("an unsafe Apple orphan claim was accepted");
+  }
+});
+
+Deno.test("Apple account-token update targets the verified environment", () => {
+  const storeId = "11111111-1111-4111-8111-111111111111";
+  const sandbox = appleAccountTokenUpdateRequest(
+    "2000000123456789",
+    "sandbox",
+    storeId,
+  );
+  const production = appleAccountTokenUpdateRequest(
+    "1000000123456789",
+    "production",
+    storeId,
+  );
+  if (
+    !sandbox.url.startsWith("https://api.storekit-sandbox.apple.com/") ||
+    !production.url.startsWith("https://api.storekit.apple.com/") ||
+    sandbox.body.appAccountToken !== storeId
+  ) {
+    throw new Error("Apple account-token update was routed incorrectly");
+  }
+});
+
+Deno.test("Apple token update is scheduled only after apply without blocking", async () => {
+  const failedOrder: string[] = [];
+  let failed = false;
+  try {
+    await applyThenMaybeScheduleAppleAccountTokenUpdate(
+      () => {
+        failedOrder.push("apply");
+        throw new Error("apply failed");
+      },
+      () => {
+        failedOrder.push("update");
+        return Promise.resolve();
+      },
+      () => {
+        failedOrder.push("schedule");
+        return true;
+      },
+    );
+  } catch {
+    failed = true;
+  }
+  if (!failed || failedOrder.join(",") !== "apply") {
+    throw new Error("Apple token update ran despite a failed atomic apply");
+  }
+
+  const successOrder: string[] = [];
+  const updateGate = Promise.withResolvers<void>();
+  let scheduledTask: Promise<void> | null = null;
+  const scheduled = await applyThenMaybeScheduleAppleAccountTokenUpdate(
+    () => {
+      successOrder.push("apply");
+      return Promise.resolve();
+    },
+    () => {
+      successOrder.push("update");
+      return updateGate.promise;
+    },
+    (task) => {
+      successOrder.push("schedule");
+      scheduledTask = task();
+      return true;
+    },
+  );
+  if (
+    !scheduled ||
+    scheduledTask == null ||
+    successOrder.join(",") !== "apply,schedule,update"
+  ) {
+    throw new Error("Apple token update was not scheduled after apply");
+  }
+  updateGate.resolve();
+  await scheduledTask;
+});
+
+Deno.test("a failed post-commit acknowledgement remains background-only", async () => {
+  const errors: string[] = [];
+  const acknowledgement = Promise.withResolvers<void>();
+  let scheduledTask: Promise<void> | null = null;
+  const scheduled = scheduleBestEffortPostCommitTask(
+    () => acknowledgement.promise,
+    (error) => errors.push(error instanceof Error ? error.message : "unknown"),
+    (task) => {
+      scheduledTask = task();
+      return true;
+    },
+  );
+  if (!scheduled || scheduledTask == null || errors.length !== 0) {
+    throw new Error("post-commit acknowledgement blocked the success path");
+  }
+  acknowledgement.reject(new Error("GOOGLE_ACKNOWLEDGE_503"));
+  await scheduledTask;
+  if (errors.join(",") !== "GOOGLE_ACKNOWLEDGE_503") {
+    throw new Error("post-commit acknowledgement failure escaped its guard");
   }
 });
 
@@ -239,6 +567,26 @@ Deno.test("Google linked token accepts only a plausible provider token", () => {
 Deno.test("verification failures expose only stable public categories", () => {
   const cases = [
     ["APPLE_ACCOUNT_MISMATCH", 422, "PURCHASE_NOT_VALID"],
+    [
+      "APPLE_RECOVERY_PROOF_MISMATCH",
+      422,
+      "PURCHASE_RECOVERY_PROOF_INVALID",
+    ],
+    [
+      "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE",
+      503,
+      "PURCHASE_PROVIDER_UNAVAILABLE",
+    ],
+    [
+      "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE",
+      503,
+      "PURCHASE_PROVIDER_UNAVAILABLE",
+    ],
+    [
+      "STORE_PURCHASE_RECOVERY_NOT_ALLOWED",
+      409,
+      "PURCHASE_RECOVERY_NOT_ALLOWED",
+    ],
     ["GOOGLE_LINKED_PURCHASE_UNRESOLVED", 409, "PURCHASE_CONFLICT"],
     ["SANDBOX_REVIEW_WINDOW_CLOSED", 403, "SANDBOX_NOT_AVAILABLE"],
     ["GOOGLE_AUTH_503", 503, "PURCHASE_PROVIDER_UNAVAILABLE"],
@@ -418,6 +766,179 @@ Deno.test("Google Build 23 profile compatibility is explicit and account-bound",
   }
 });
 
+Deno.test("Google orphan recovery accepts direct Build 23 account binding", () => {
+  const currentStoreId = "11111111-1111-4111-8111-111111111111";
+  const currentUserId = "22222222-2222-4222-8222-222222222222";
+  const oldAccountId = "33333333-3333-4333-8333-333333333333";
+  const oldStoreId = "44444444-4444-4444-8444-444444444444";
+  const purchase = {
+    externalAccountIdentifiers: {
+      obfuscatedExternalAccountId: oldAccountId,
+      obfuscatedExternalProfileId: oldStoreId,
+    },
+  };
+  const binding = googleOrphanRecoveryBinding(
+    purchase,
+    { storeId: currentStoreId },
+    currentUserId,
+  );
+  if (
+    binding.oldAccountId !== oldAccountId ||
+    binding.oldStoreId !== oldStoreId
+  ) {
+    throw new Error("Google deleted binding was not preserved exactly");
+  }
+  const legacyBinding = googleOrphanRecoveryBinding(
+    {
+      externalAccountIdentifiers: {
+        obfuscatedExternalAccountId: oldAccountId,
+      },
+    },
+    { storeId: currentStoreId },
+    currentUserId,
+  );
+  if (
+    legacyBinding.oldAccountId !== oldAccountId ||
+    legacyBinding.oldStoreId !== null
+  ) {
+    throw new Error("Google Build 23 account-only binding was not accepted");
+  }
+
+  const linkedPurchaseToken = "linked-provider-token-1234567890";
+  const linkedBinding = googleOrphanRecoveryBinding(
+    { ...purchase, linkedPurchaseToken },
+    { storeId: currentStoreId },
+    currentUserId,
+  );
+  if (linkedBinding.linkedPurchaseToken !== linkedPurchaseToken) {
+    throw new Error("Google replacement lineage was not preserved");
+  }
+
+  const expiredPurchaseToken = "expired-provider-token-1234567890";
+  const outOfAppBinding = googleOrphanRecoveryBinding(
+    {
+      outOfAppPurchaseContext: {
+        expiredPurchaseToken,
+        expiredExternalAccountIdentifiers: {
+          obfuscatedExternalAccountId: oldAccountId,
+        },
+      },
+    },
+    { storeId: currentStoreId },
+    currentUserId,
+  );
+  if (
+    outOfAppBinding.oldAccountId !== oldAccountId ||
+    outOfAppBinding.oldStoreId !== null ||
+    outOfAppBinding.linkedPurchaseToken !== expiredPurchaseToken
+  ) {
+    throw new Error("Google out-of-app Build 23 lineage was not accepted");
+  }
+
+  for (
+    const denied of [
+      {
+        externalAccountIdentifiers: {
+          obfuscatedExternalAccountId: currentUserId,
+          obfuscatedExternalProfileId: oldStoreId,
+        },
+      },
+      {
+        externalAccountIdentifiers: {},
+      },
+      {
+        ...purchase,
+        linkedPurchaseToken,
+        outOfAppPurchaseContext: {
+          expiredPurchaseToken: "different-expired-token-1234567890",
+          expiredExternalAccountIdentifiers:
+            purchase.externalAccountIdentifiers,
+        },
+      },
+    ]
+  ) {
+    let rejected = false;
+    try {
+      googleOrphanRecoveryBinding(
+        denied,
+        { storeId: currentStoreId },
+        currentUserId,
+      );
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error("unsafe Google orphan proof was accepted");
+  }
+});
+
+Deno.test("Google orphan claim fails if either old identity is still live", () => {
+  const currentStoreId = "11111111-1111-4111-8111-111111111111";
+  const currentUserId = "22222222-2222-4222-8222-222222222222";
+  const allowed = {
+    recoveryRequested: true,
+    oldAccountId: "33333333-3333-4333-8333-333333333333",
+    oldStoreId: "44444444-4444-4444-8444-444444444444",
+    currentStoreId,
+    currentUserId,
+    ownedStoreIds: [currentStoreId],
+    existingBindingStoreIds: [],
+    targetHasStoreEntitlement: false,
+    oldStoreExists: false,
+    oldUserExists: false,
+    oldAccountOwnsStore: false,
+  };
+  assertGoogleOrphanRecoveryEligible(allowed);
+  assertGoogleOrphanRecoveryEligible({ ...allowed, oldStoreId: null });
+
+  for (
+    const denied of [
+      { ...allowed, recoveryRequested: false },
+      { ...allowed, existingBindingStoreIds: [allowed.oldStoreId] },
+      { ...allowed, targetHasStoreEntitlement: true },
+      { ...allowed, oldStoreExists: true },
+      { ...allowed, oldUserExists: true },
+      { ...allowed, oldStoreId: null, oldAccountOwnsStore: true },
+      { ...allowed, ownedStoreIds: [currentStoreId, allowed.oldStoreId] },
+    ]
+  ) {
+    let rejected = false;
+    try {
+      assertGoogleOrphanRecoveryEligible(denied);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error("unsafe Google orphan claim was accepted");
+  }
+});
+
+Deno.test("Google identity bypass is reserved for a server-bound refresh", () => {
+  const storeId = "11111111-1111-4111-8111-111111111111";
+  const currentUserId = "22222222-2222-4222-8222-222222222222";
+  const staleProviderBinding = {
+    externalAccountIdentifiers: {
+      obfuscatedExternalAccountId: "33333333-3333-4333-8333-333333333333",
+      obfuscatedExternalProfileId: "44444444-4444-4444-8444-444444444444",
+    },
+  };
+  let rejected = false;
+  try {
+    assertGooglePurchaseIdentity(
+      staleProviderBinding,
+      { storeId },
+      currentUserId,
+    );
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) throw new Error("untrusted Google mismatch was accepted");
+  assertGooglePurchaseIdentity(
+    staleProviderBinding,
+    { storeId },
+    currentUserId,
+    { trustedServerBinding: true },
+  );
+});
+
 Deno.test("Google out-of-app purchase reuses only matched expired lineage", () => {
   const storeId = "11111111-1111-4111-8111-111111111111";
   const userId = "22222222-2222-4222-8222-222222222222";
@@ -507,6 +1028,65 @@ Deno.test("Google out-of-app missing identifiers require trusted token lineage",
   assertGooglePurchaseIdentity(purchase, { storeId }, userId, {
     trustedOutOfAppLineage: true,
   });
+});
+
+Deno.test("Google bound predecessor overrides only stale expired identifiers", async () => {
+  const storeId = "11111111-1111-4111-8111-111111111111";
+  const userId = "22222222-2222-4222-8222-222222222222";
+  const oldStoreId = "33333333-3333-4333-8333-333333333333";
+  const oldUserId = "44444444-4444-4444-8444-444444444444";
+  const expiredPurchaseToken = "expired-provider-token-1234567890";
+  const purchase = {
+    externalAccountIdentifiers: {
+      obfuscatedExternalAccountId: userId,
+      obfuscatedExternalProfileId: storeId,
+    },
+    outOfAppPurchaseContext: {
+      expiredPurchaseToken,
+      expiredExternalAccountIdentifiers: {
+        obfuscatedExternalAccountId: oldUserId,
+        obfuscatedExternalProfileId: oldStoreId,
+      },
+    },
+  };
+  const resolvedTokens: string[] = [];
+  const trusted = await resolveTrustedGoogleOutOfAppLineage(
+    purchase,
+    (token) => {
+      resolvedTokens.push(token);
+      return Promise.resolve(true);
+    },
+  );
+  if (
+    !trusted || resolvedTokens.length !== 1 ||
+    resolvedTokens[0] !== expiredPurchaseToken
+  ) {
+    throw new Error("server-bound predecessor lineage was not resolved");
+  }
+  assertGooglePurchaseIdentity(purchase, { storeId }, userId, {
+    trustedOutOfAppLineage: trusted,
+  });
+
+  let rejected = false;
+  try {
+    assertGooglePurchaseIdentity(
+      {
+        ...purchase,
+        externalAccountIdentifiers: {
+          obfuscatedExternalAccountId: oldUserId,
+          obfuscatedExternalProfileId: oldStoreId,
+        },
+      },
+      { storeId },
+      userId,
+      { trustedOutOfAppLineage: true },
+    );
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error("trusted predecessor bypassed mismatched current identity");
+  }
 });
 
 Deno.test("Google acknowledgement state is fail-closed", () => {
