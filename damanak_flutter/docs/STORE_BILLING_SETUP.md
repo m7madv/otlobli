@@ -2,7 +2,7 @@
 
 إصدار المصدر الحالي: `4.5.1+30` — معرّف التطبيق: `com.damanak.damanak`
 
-Buildات `24` حتى `29` موجودة في iPhone TestFlight، وأحدثها حالياً Build `4.5.1 (29)` بحالة `VALID` وداخل `Damanak Internal`. مرشح `4.5.1+30` لم يُرفع بعد، ويجب رفعه إلى TestFlight فقط قبل نشر migration الجديدة. Build `23` بقي على Google Alpha. إصدار Apple `4.5.0` الذي كان يضم Build `23` والاشتراكات أصبح `READY_FOR_SALE`، ولا توجد الآن مسودة مراجعة نشطة. لا تنسب تغييرات Build `30` إلى بناء أقدم، ولا تنشئ إصدار App Store أو تغيّر Google ضمن اختبار TestFlight.
+Buildات `24` حتى `30` موجودة في iPhone TestFlight، وأحدثها Build `4.5.1 (30)` بحالة `VALID` وداخل `Damanak Internal`. Build `23` بقي على Google Alpha. إصدار Apple `4.5.0` الذي كان يضم Build `23` والاشتراكات أصبح `READY_FOR_SALE`، ولا توجد مسودة مراجعة نشطة. لا تنسب تغييرات Build `30` إلى بناء أقدم، ولا تنشئ إصدار App Store أو تغيّر Google ضمن اختبار TestFlight.
 
 ## الحالة الخارجية
 
@@ -13,7 +13,7 @@ Buildات `24` حتى `29` موجودة في iPhone TestFlight، وأحدثها 
 - رفع run [33481729437](https://github.com/m7madv/otlobli/actions/runs/33481729437) الالتزام `e073cd5f7fad489f094337a142c46786eda2d57f` بوصفه iPhone Build `4.5.0 (27)`. نجح التوقيع والتحقق والرفع، ثم أكد فحص القراءة [33482932576](https://github.com/m7madv/otlobli/actions/runs/33482932576) أن البناء `VALID` بالمعرّف/Delivery UUID `5b04b5da-22e5-4cc9-affc-691e3b7e840f` وداخل `Damanak Internal` ذات المختبر الواحد، مع بقاء إصدار App Store في `Waiting for Review` ومن دون mutation. الـIPA حجمها `23,943,985` بايت وبصمتها `808712BDD6E46942C9CE837B01FC329ED1CE25A3FC47E95F577BEC03790E2547`. لم يُضف إلى App Review.
 - نجح فحص Build `4.5.0 (28)` الموقّع بلا رفع في run [33520286056](https://github.com/m7madv/otlobli/actions/runs/33520286056)، ثم رفعه run [33520953615](https://github.com/m7madv/otlobli/actions/runs/33520953615) من الالتزام `baaa3e151036d280d8c2ca17f5b069f3aa9e44e8`. أكد inspect [33522527864](https://github.com/m7madv/otlobli/actions/runs/33522527864) أنه `VALID` بالمعرّف/Delivery UUID `a9038423-e4fc-4499-8c04-bba4c0f1d317` وداخل `Damanak Internal` ذات المختبر الواحد، مع بقاء App Store `Waiting for Review` و`mutationRequested=false`. الـIPA حجمها `23,963,467` بايت وبصمتها `230304290CE79C5E8F47A1D511DC8C845846C88BF529F7D167CA87B07BA65561`. لم يُثبت على جهاز حقيقي ولم يُضف إلى App Review.
 - مصدر `4.5.1+29` اجتاز `flutter analyze --no-pub` و`211/211` اختبار Flutter، مع بقاء تحقق الاشتراك المركز السابق `69/69` وDeno `77/77`، ونجح بناء web release وAndroid debug. أكد `aapt` أن APK يحمل `4.5.1 (29)`؛ حجمه `180,868,636` وبصمته `C00835D114330136AC2A7A2411C2283C8A564EFC3AAF0DD08388081011E115C1`. بعد رفض محاولة `4.5.0 (29)` في [33532659092](https://github.com/m7madv/otlobli/actions/runs/33532659092) لأن القطار مغلق، نجح فحص `4.5.1 (29)` بلا رفع في [33534828721](https://github.com/m7madv/otlobli/actions/runs/33534828721)، ثم نجح التحقق والرفع في [33535634162](https://github.com/m7madv/otlobli/actions/runs/33535634162). أكد inspect [33537059054](https://github.com/m7madv/otlobli/actions/runs/33537059054) أنه `VALID` وداخل `Damanak Internal` بالمعرّف/Delivery UUID `e029d611-6d1a-44b7-a93b-be8478d6e7d0`، مع `mutationRequested=false`. الـIPA `output/github-run-33535634162/damanak-ios-4.5.1-build-29-signed/ضمانك.ipa` حجمها `23,972,034` وبصمتها `297C151419D1CC4AA09BE776C1673303CF1A00782F9B840555CEA34F2BD88EA6`.
-- مرشح `4.5.1+30` اجتاز `flutter analyze --no-pub` و`225/225` اختبار Flutter وDeno `83/83` وفحص تنسيق 27 ملفاً، ونجح web release وAndroid debug. أكد `aapt` أن APK يحمل `4.5.1 (30)`؛ حجمه `180,876,532` وبصمته `C4CA7B5F6EABF80C74FE5121067E4D0AC11B85809F0FDC36BCA9FD4526D99479`. رفع iOS ومعالجة Apple لم يبدآ بعد.
+- `4.5.1+30` اجتاز `flutter analyze --no-pub` و`225/225` اختبار Flutter وDeno `83/83` وفحص تنسيق 27 ملفاً، ونجح web release وAndroid debug. أكد `aapt` أن APK يحمل `4.5.1 (30)`؛ حجمه `180,876,532` وبصمته `C4CA7B5F6EABF80C74FE5121067E4D0AC11B85809F0FDC36BCA9FD4526D99479`. نجح التحقق والرفع في [33559362847](https://github.com/m7madv/otlobli/actions/runs/33559362847) من الالتزام `9ed1b59a460d856bb3fdb880998bb0d4003934ba`، وأكد inspect [33560754821](https://github.com/m7madv/otlobli/actions/runs/33560754821) أنه `VALID` وداخل `Damanak Internal` ذات المختبر الواحد بالمعرّف/Delivery UUID `47da8d54-cadc-4f96-82cb-9e81a01c3664`، مع `mutationRequested=false`. الـIPA حجمها `23,983,180` وبصمتها `4A8E69C835C7FF9B1E419DB51E3F550BA2F94B0671BD9297B024F4E23E3CF4E8`.
 - أضيف رابط EULA القياسي إلى وصف App Store، وأُكد للمراجعة أن أسعار «توسع» المقصودة تأتي من App Store. لا توجد أسعار بديلة داخل التطبيق.
 - Google Build `23` موجود على مسار Alpha رقم `4699097266255892286` وقيد المراجعة. قائمة `All Apps - Closed Testers` دائمة وتضم بالضبط 12 مختبراً؛ لا تُنشئ قائمة أخرى ولا تعدّلها.
 - رابط الانضمام هو `https://play.google.com/apps/testing/com.damanak.damanak`. لا يبدأ عداد 14 يوماً إلا بعد قبول Google وانضمام المختبرين فعلياً.
@@ -70,15 +70,15 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 
 مشروع Supabase الصحيح هو `exxayzlklvgeyqhvtzgi`:
 
-- migrations الإنتاجية مطبقة حتى `20260901012000`. migration `20260901200000` محققة محلياً وداخل `BEGIN/ROLLBACK` لكنها غير منشورة بعد؛ تضيف الخطة المجانية الخاصة وتنظف Apple Sandbox/legacy فقط. نجحت مقارنة snapshot قبل التطبيق وبعده لإنتاج Apple وكل Google وسلسلته وإيصالاته وعدادات الحماية، وRPC الطرفي محصور في Apple، وصفوف manual/activation_code غير المتسقة تفشل النشر بدلاً من تعديلها.
-- `verify-store-purchase` v28 `ACTIVE` مع `verify_jwt=false` والتحقق اليدوي من الجلسة وSHA-256 للحزمة `ecee6ad20c0efd25c452d581552aafe903be8316cc43c767a0b551bd83dd7262`، و`refresh-store-entitlements` v7 نشطة. استجاب runtime الحي لطلب بلا جلسة بـ`401`.
+- migrations الإنتاجية مطبقة حتى `20260901200000`. أضافت migration الخطة المجانية الخاصة ونظفت Apple Sandbox/legacy فقط. لم توجد بيانات Apple Production أو Google، ولم توجد صفوف manual/activation_code غير متسقة. تطابقت صفوف وبصمة عدادات الشراء الأربعة قبل/بعد، وجدول refresh limiter الجديد فارغ، وRPC الطرفي محصور في Apple.
+- `verify-store-purchase` v29 `ACTIVE` مع `verify_jwt=false` وSHA-256 للحزمة `b53fcf3aa2fc04bc03621b40f8bf7acc4f6fe39a96618e368622c9f8dab0568e`. `refresh-store-entitlements` v8 `ACTIVE` مع `verify_jwt=false` وبصمة `9720254cbbb3a7d9ca344551b38515347797c1cb2e0de64a23b2deead598aabc`. أعاد المساران بلا جلسة/سر `401`، وبقيت الجدولة نشطة كل 5 دقائق.
 - `dispatch-webhooks` v11، `damanak-api` v10، `analyze-claim-ai` v10، `import-products-ai` v12، `legal` v16، و`warranty-card` v14 نشطة.
 - جدولة `damanak-entitlement-refresh` تعمل كل 5 دقائق.
 - يربط الخادم الإيصال بمتجر واحد ذرياً، ويرفض فرع Google الشقيق أو replay لتوكن لم يعد current receipt.
 - يقر Google purchase بعد تطبيق الاستحقاق في مهمة خادمية غير حاجبة، وتعيد مهمة التحديث المحاولة عند الحاجة. Build `26` ينفذ إقرار الجهاز أيضاً ويفحص `BillingResultWrapper.responseCode`؛ non-OK يبقي المعاملة قابلة لإعادة المحاولة. حالة الإقرار غير المعروفة تفشل مغلقة.
 - Apple orphan يستخدم `@apple/app-store-server-library@3.1.0` والجذور الرسمية الثلاث المثبتة؛ طابقت بصمات DER الملفات المنشورة من Apple. يبدأ التحقق بالفاحص المتصل، ثم يعيد المهلة والحالات `VERIFICATION_FAILURE` و`RETRYABLE_VERIFICATION_FAILURE` و`INVALID_CERTIFICATE` عبر الفاحص الرسمي عند `signedDate`. فقط إذا أعاد الفاحصان `VERIFICATION_FAILURE=1` يعمل فاحص توافق محلي صارم. v28 لا تعتمد على Node `X509Certificate` غير المنفذة في Deno `2.1.4`؛ تستخدم محلل DER الصارم وتحقق `jsrsasign@11.1.5` للسلسلة وJWS، وتفرض ES256/P-256 وBasicConstraints وأسماء DER والتواقيع وOIDي Apple وصلاحية الشهادات والجذر المثبت، وترفض SHA-1 للـleaf والـintermediate، ولا تثق بـ`x5c[2]`. تبقى `FAILURE=7` ومعرّف التطبيق والبيئة وطول السلسلة مرفوضة. حتى بعد نجاح التوقيع يجب أن تتطابق الحقول الستة مع App Store Server API وأن تنجح حواجز الحساب المحذوف والربط الذري.
-- دليل قبول تاريخي قبل reset: أعادت `verify-store-purchase` HTTP `200` عند `2026-09-01 09:22:26` بتوقيت الرياض، وصار الاشتراك حينها `scale/active/source=store/provider=app_store/monthly/sandbox` مع `auto_renews=true` وentitlement غير superseded ونهاية فترة `2026-09-02 09:22:26.976016+03:00`. أعاد `refresh-store-entitlements` HTTP `200` وحدّث التحقق عند `09:25:03`. بعد reset المطلوب من المستخدم، الحالة الحية الحالية هي صفر `source=store` وصفر entitlement حالي وصفر refresh candidate؛ بقي tombstone تاريخي `revoked` فقط، وأكد فحص بعد دورة الجدولة عدم إعادة تفعيله.
-- `supabase/schema.sql` حجمه `395,324` بايت وSHA-256 هو `5A1E083994801006E3C620E6D91C611E2097D3B216FA1D3E8123F97DAD2F8F3C`. اختبار PGlite يطبق migration ويثبت تطابق تعريف RPC بين المخطط والترحيل.
+- دليل قبول تاريخي قبل reset: أعادت `verify-store-purchase` HTTP `200` عند `2026-09-01 09:22:26` بتوقيت الرياض، وصار الاشتراك حينها `scale/active/source=store/provider=app_store/monthly/sandbox`. أعاد `refresh-store-entitlements` HTTP `200` وحدّث التحقق عند `09:25:03`. بعد migration الجديدة لا يوجد entitlement فعّال أو refresh candidate؛ tombstone Apple Sandbox الوحيد `revoked`، وصفوف الاشتراك التسعة نظيفة، ومنحها المجانية التسع `pending_device` حتى أول ربط تثبيت من Build `30`. لم تُحذف lineage أو سجلات التدقيق.
+- `supabase/schema.sql` حجمه `475,132` بايت وSHA-256 هو `97A391B3FC3F5119940233960DBDF54E62DE977D1D58DBBACFE742E80FD7EB12`. اختبار PGlite `1/1` ناجح بعد إلحاق migration المنشورة إلى لقطة المخطط المحمولة.
 
 نجحت اختبارات SQL الحية التالية داخل `BEGIN/ROLLBACK`:
 
@@ -87,6 +87,7 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 - `supabase/tests/account_deletion_successor_live.sql`
 - `supabase/tests/warranty_tenant_integrity_live.sql`
 - `supabase/tests/store_creation_without_repeat_trial_live.sql`
+- `supabase/tests/free_access_billing_repair_live.sql`
 
 لا تضع مفاتيح Apple أو حساب خدمة Google في التطبيق أو Git. الأسرار تبقى في Supabase/GitHub فقط، ولا تُنقل migrations ضمانك إلى مشروع آخر.
 
@@ -99,7 +100,7 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 
 ## اختبار القبول الإلزامي لـBuild 30 من TestFlight
 
-Build `4.5.1 (30)` هو مرشح قبول iPhone للخطة المجانية والبنية الجديدة. وقت كتابة هذا القسم لم يُرفع بعد. يجب رفعه إلى TestFlight وصيرورته `VALID` من دون إنشاء أو تغيير إصدار App Store، ثم نشر الخادم. Android Build `30` غير مرفوع؛ عند قرار إصداره استخدم مسار Play الاختباري ولا تعتمد على APK الجانبي وحده لقبول فوترة المتجر:
+Build `4.5.1 (30)` هو بناء قبول iPhone للخطة المجانية والبنية الجديدة. أصبح `VALID` في TestFlight ونُشر الخادم، من دون إنشاء أو تغيير إصدار App Store. Android Build `30` غير مرفوع؛ عند قرار إصداره استخدم مسار Play الاختباري ولا تعتمد على APK الجانبي وحده لقبول فوترة المتجر:
 
 1. شراء شهري وسنوي على iPhone وAndroid والتأكد أن السعر والعملة من المتجر وأن الاستحقاق لا يفتح قبل تحقق الخادم.
 2. استعادة على الجهاز نفسه وجهاز آخر، مع متجر واحد ثم حساب ضمانك يملك متجرين.

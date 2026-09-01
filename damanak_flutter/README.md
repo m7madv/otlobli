@@ -108,9 +108,9 @@ powershell -ExecutionPolicy Bypass -File scripts/build_signed_android.ps1
 
 ## الحالة الخارجية الحالية
 
-- مشروع `Supabase` الإنتاجي المستقل هو `exxayzlklvgeyqhvtzgi`، وmigrations حتى `20260901012000` منشورة، مع `verify-store-purchase` v28 و`refresh-store-entitlements` v7 بحالة `ACTIVE`. migration `20260901200000` تنتظر إتاحة Build `30` في TestFlight قبل نشرها.
+- مشروع `Supabase` الإنتاجي المستقل هو `exxayzlklvgeyqhvtzgi`، وmigrations حتى `20260901200000` منشورة، مع `verify-store-purchase` v29 و`refresh-store-entitlements` v8 بحالة `ACTIVE`. نجح اختبار الخطة المجانية والفوترة الحي بعد النشر داخل `BEGIN/ROLLBACK`.
 - شاشة الدخول تعرض `Google/Apple` فقط، ومسار دعوة الموظف يدعم الرابط و`QR` والرمز الاحتياطي؛ مزودا الدخول مفعّلان.
-- Build `23` بقي على Google Alpha. إصدار Apple `4.5.0` الذي احتوى Build `23` والاشتراكات الستة أصبح `READY_FOR_SALE`، ولا توجد مسودة مراجعة نشطة. Build `4.5.1 (29)` مرفوع إلى TestFlight وحالته `VALID` وداخل `Damanak Internal`؛ لم يُضف إلى إصدار App Store.
-- المصدر الحالي `4.5.1+30` يتضمن الخطة المجانية الشهرية وإصلاحات الشراء والاستعادة اللاحقة. لم يُرفع Build `30` وقت هذا التحديث؛ هذه التغييرات ليست داخل Build `23` المنشور ولا Builds TestFlight الأقدم، ولم تُقبل بعد على جهاز حقيقي.
+- Build `23` بقي على Google Alpha. إصدار Apple `4.5.0` الذي احتوى Build `23` والاشتراكات الستة أصبح `READY_FOR_SALE`، ولا توجد مسودة مراجعة نشطة. Build `4.5.1 (30)` مرفوع إلى TestFlight وحالته `VALID` وداخل `Damanak Internal`؛ لم يُضف إلى إصدار App Store.
+- المصدر الحالي `4.5.1+30` يتضمن الخطة المجانية الشهرية وإصلاحات الشراء والاستعادة اللاحقة، وهو متاح في TestFlight. وجوده هناك لا يثبت بعد نجاح الخطة المجانية أو الشراء أو الاستعادة على جهاز حقيقي.
 - منتجات اشتراك `App Store` و`Google Play` موجودة؛ قبول شراء واستعادة حقيقيين على حسابات الاختبار يبقى اختبار جهاز منفصلاً.
 - قبول الكاميرا والخلفية والاستئناف وقارئ الشاشة على أجهزة حقيقية ما زال مطلوباً قبل النشر العام.
