@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
-import { verify as verifyCryptoSignature, X509Certificate } from "node:crypto";
+// @ts-types="npm:@types/jsrsasign@10.5.15"
+import { KJUR, X509 } from "jsrsasign";
 
 const maxJwsBytes = 32 * 1024;
 const maxCertificateBytes = 12 * 1024;
@@ -28,6 +29,36 @@ const appleIntermediateOid = Uint8Array.from([
   0x02,
   0x01,
 ]);
+const basicConstraintsOidKey = "551d13";
+const ecPublicKeyOidKey = "2a8648ce3d0201";
+const rsaPublicKeyOidKey = "2a864886f70d010101";
+const p256CurveOidKey = "2a8648ce3d030107";
+const sha1WithRsaOidKey = "2a864886f70d010105";
+const supportedEcCurveOidKeys = new Set([
+  p256CurveOidKey,
+  // secp384r1 and secp521r1 are used by pinned/trusted PKI roots.
+  "2b81040022",
+  "2b81040023",
+]);
+const supportedCertificateSignatureOidKeys = new Set([
+  // sha1WithRSAEncryption is needed only to parse Apple's independently
+  // pinned legacy root. Root self-signatures never establish trust here.
+  sha1WithRsaOidKey,
+  // ecdsa-with-SHA256/SHA384/SHA512
+  "2a8648ce3d040302",
+  "2a8648ce3d040303",
+  "2a8648ce3d040304",
+  // sha256WithRSAEncryption/sha384WithRSAEncryption/sha512WithRSAEncryption
+  "2a864886f70d01010b",
+  "2a864886f70d01010c",
+  "2a864886f70d01010d",
+]);
+const rsaCertificateSignatureOidKeys = new Set([
+  "2a864886f70d010105",
+  "2a864886f70d01010b",
+  "2a864886f70d01010c",
+  "2a864886f70d01010d",
+]);
 
 type AppleEnvironment = "sandbox" | "production";
 
@@ -44,6 +75,10 @@ type ParsedCertificate = Readonly<{
   validFromMs: number;
   validToMs: number;
   extensionOids: ReadonlySet<string>;
+  isCa: boolean;
+  publicKeyKind: "ec" | "rsa";
+  publicKeyCurveOid: string | null;
+  signatureAlgorithmOid: string;
 }>;
 
 export type AppleJwsCompatibilityOptions = Readonly<{
@@ -184,6 +219,7 @@ function parseExtensions(bytes: Uint8Array, wrapper: DerElement) {
   if (wrapped.length !== 1 || wrapped[0].tag !== 0x30) reject();
 
   const extensionOids = new Set<string>();
+  const extensionValues = new Map<string, Uint8Array>();
   for (const extension of derChildren(bytes, wrapped[0])) {
     if (extension.tag !== 0x30) reject();
     const fields = derChildren(bytes, extension);
@@ -204,9 +240,132 @@ function parseExtensions(bytes: Uint8Array, wrapper: DerElement) {
       }
       valueIndex = 2;
     }
-    if (fields[valueIndex].tag !== 0x04) reject();
+    const value = fields[valueIndex];
+    if (value.tag !== 0x04) reject();
+    extensionValues.set(key, bytes.subarray(value.valueStart, value.end));
   }
-  return extensionOids;
+  return { extensionOids, extensionValues };
+}
+
+function parseBasicConstraints(
+  extensionValues: ReadonlyMap<string, Uint8Array>,
+) {
+  const encoded = extensionValues.get(basicConstraintsOidKey);
+  if (encoded == null) return false;
+  const sequence = readDerElement(encoded, 0, encoded.byteLength);
+  if (sequence.tag !== 0x30 || sequence.end !== encoded.byteLength) reject();
+  const fields = derChildren(encoded, sequence);
+  if (fields.length === 0) return false;
+  if (fields.length > 2) reject();
+
+  const ca = fields[0];
+  if (
+    ca.tag !== 0x01 || ca.end - ca.valueStart !== 1 ||
+    encoded[ca.valueStart] !== 0xff
+  ) {
+    // BasicConstraints.ca has a DEFAULT of FALSE, so DER must omit it rather
+    // than encoding FALSE explicitly. pathLenConstraint also requires CA.
+    reject();
+  }
+  if (fields.length === 2) {
+    const pathLength = fields[1];
+    if (
+      pathLength.tag !== 0x02 || pathLength.valueStart === pathLength.end ||
+      (encoded[pathLength.valueStart] & 0x80) !== 0 ||
+      (pathLength.end - pathLength.valueStart > 1 &&
+        encoded[pathLength.valueStart] === 0x00 &&
+        (encoded[pathLength.valueStart + 1] & 0x80) === 0)
+    ) {
+      reject();
+    }
+  }
+  return true;
+}
+
+function parseCertificateSignatureAlgorithm(
+  bytes: Uint8Array,
+  algorithm: DerElement,
+) {
+  if (algorithm.tag !== 0x30) reject();
+  const fields = derChildren(bytes, algorithm);
+  if (fields.length < 1 || fields.length > 2) reject();
+  const key = oidKey(bytes, fields[0]);
+  if (!supportedCertificateSignatureOidKeys.has(key)) reject();
+  if (rsaCertificateSignatureOidKeys.has(key)) {
+    if (
+      fields.length === 2 &&
+      (fields[1].tag !== 0x05 || fields[1].valueStart !== fields[1].end)
+    ) {
+      reject();
+    }
+  } else if (fields.length !== 1) {
+    reject();
+  }
+  return key;
+}
+
+function parseSubjectPublicKeyInfo(bytes: Uint8Array, spki: DerElement) {
+  if (spki.tag !== 0x30) reject();
+  const fields = derChildren(bytes, spki);
+  if (fields.length !== 2 || fields[0].tag !== 0x30 || fields[1].tag !== 0x03) {
+    reject();
+  }
+  const keyBits = fields[1];
+  if (
+    keyBits.end - keyBits.valueStart < 2 || bytes[keyBits.valueStart] !== 0x00
+  ) {
+    reject();
+  }
+
+  const algorithm = derChildren(bytes, fields[0]);
+  if (algorithm.length < 1 || algorithm.length > 2) reject();
+  const keyOid = oidKey(bytes, algorithm[0]);
+  if (keyOid === ecPublicKeyOidKey) {
+    if (algorithm.length !== 2 || algorithm[1].tag !== 0x06) reject();
+    const curveOid = oidKey(bytes, algorithm[1]);
+    if (!supportedEcCurveOidKeys.has(curveOid)) reject();
+    const expectedPointBytes = curveOid === p256CurveOidKey
+      ? 65
+      : curveOid === "2b81040022"
+      ? 97
+      : 133;
+    if (
+      keyBits.end - keyBits.valueStart - 1 !== expectedPointBytes ||
+      bytes[keyBits.valueStart + 1] !== 0x04
+    ) {
+      reject();
+    }
+    return { publicKeyKind: "ec" as const, publicKeyCurveOid: curveOid };
+  }
+  if (keyOid !== rsaPublicKeyOidKey) reject();
+  if (
+    algorithm.length === 2 &&
+    (algorithm[1].tag !== 0x05 || algorithm[1].valueStart !== algorithm[1].end)
+  ) {
+    reject();
+  }
+  const rsaStart = keyBits.valueStart + 1;
+  const rsaKey = readDerElement(bytes, rsaStart, keyBits.end);
+  if (rsaKey.tag !== 0x30 || rsaKey.end !== keyBits.end) reject();
+  const rsaFields = derChildren(bytes, rsaKey);
+  if (
+    rsaFields.length !== 2 || rsaFields[0].tag !== 0x02 ||
+    rsaFields[1].tag !== 0x02
+  ) {
+    reject();
+  }
+  for (const integer of rsaFields) {
+    if (
+      integer.valueStart === integer.end ||
+      (bytes[integer.valueStart] & 0x80) !== 0 ||
+      (integer.end - integer.valueStart > 1 &&
+        bytes[integer.valueStart] === 0x00 &&
+        (bytes[integer.valueStart + 1] & 0x80) === 0)
+    ) {
+      reject();
+    }
+  }
+  return { publicKeyKind: "rsa" as const, publicKeyCurveOid: null };
 }
 
 function parseCertificateDer(bytes: Uint8Array): ParsedCertificate {
@@ -215,7 +374,10 @@ function parseCertificateDer(bytes: Uint8Array): ParsedCertificate {
     reject();
   }
   const certificateFields = derChildren(bytes, certificate);
-  if (certificateFields.length !== 3 || certificateFields[0].tag !== 0x30) {
+  if (
+    certificateFields.length !== 3 || certificateFields[0].tag !== 0x30 ||
+    certificateFields[1].tag !== 0x30 || certificateFields[2].tag !== 0x03
+  ) {
     reject();
   }
 
@@ -237,6 +399,27 @@ function parseCertificateDer(bytes: Uint8Array): ParsedCertificate {
   const subject = tbsFields[index + 4];
   if (validity.length !== 2) reject();
 
+  if (
+    !equalBytes(
+      elementBytes(bytes, tbsFields[index + 1]),
+      elementBytes(bytes, certificateFields[1]),
+    )
+  ) {
+    reject();
+  }
+  const signatureAlgorithmOid = parseCertificateSignatureAlgorithm(
+    bytes,
+    certificateFields[1],
+  );
+  const certificateSignature = certificateFields[2];
+  if (
+    certificateSignature.end - certificateSignature.valueStart < 2 ||
+    bytes[certificateSignature.valueStart] !== 0x00
+  ) {
+    reject();
+  }
+  const publicKey = parseSubjectPublicKeyInfo(bytes, tbsFields[index + 5]);
+
   const extensionWrappers = tbsFields.filter((field) => field.tag === 0xa3);
   if (
     extensionWrappers.length !== 1 ||
@@ -244,12 +427,20 @@ function parseCertificateDer(bytes: Uint8Array): ParsedCertificate {
   ) {
     reject();
   }
+  const { extensionOids, extensionValues } = parseExtensions(
+    bytes,
+    extensionWrappers[0],
+  );
   return {
     issuerName: elementBytes(bytes, issuer),
     subjectName: elementBytes(bytes, subject),
     validFromMs: parseDerTime(bytes, validity[0]),
     validToMs: parseDerTime(bytes, validity[1]),
-    extensionOids: parseExtensions(bytes, extensionWrappers[0]),
+    extensionOids,
+    isCa: parseBasicConstraints(extensionValues),
+    publicKeyKind: publicKey.publicKeyKind,
+    publicKeyCurveOid: publicKey.publicKeyCurveOid,
+    signatureAlgorithmOid,
   };
 }
 
@@ -315,6 +506,12 @@ function appleOidKey(oid: Uint8Array) {
   return Buffer.from(oid).toString("hex");
 }
 
+function parseJsrsasignCertificate(der: Uint8Array) {
+  const certificate = new X509();
+  certificate.readCertHex(Buffer.from(der).toString("hex"));
+  return certificate;
+}
+
 /**
  * Deno-compatible, fail-closed verification for an Apple transaction JWS.
  *
@@ -366,17 +563,19 @@ export function verifyAppleTransactionJwsCompatibility(
     const intermediateDer = strictBase64(header.x5c[1], maxCertificateBytes);
     // Validate the third entry's encoding and size, but never use it for trust.
     strictBase64(header.x5c[2], maxCertificateBytes);
-    const leaf = new X509Certificate(leafDer);
-    const intermediate = new X509Certificate(intermediateDer);
-    const parsedLeaf = parseCertificateDer(leaf.raw);
-    const parsedIntermediate = parseCertificateDer(intermediate.raw);
+    const parsedLeaf = parseCertificateDer(leafDer);
+    const parsedIntermediate = parseCertificateDer(intermediateDer);
+    const leaf = parseJsrsasignCertificate(leafDer);
+    const intermediate = parseJsrsasignCertificate(intermediateDer);
     const signedDate = payload.signedDate as number;
 
     if (
-      leaf.ca ||
-      !intermediate.ca ||
+      parsedLeaf.isCa ||
+      !parsedIntermediate.isCa ||
+      parsedLeaf.signatureAlgorithmOid === sha1WithRsaOidKey ||
+      parsedIntermediate.signatureAlgorithmOid === sha1WithRsaOidKey ||
       !equalBytes(parsedLeaf.issuerName, parsedIntermediate.subjectName) ||
-      !leaf.verify(intermediate.publicKey) ||
+      !leaf.verifySignature(intermediate.getPublicKey()) ||
       !parsedLeaf.extensionOids.has(appleOidKey(appleLeafSigningOid)) ||
       !parsedIntermediate.extensionOids.has(
         appleOidKey(appleIntermediateOid),
@@ -391,12 +590,12 @@ export function verifyAppleTransactionJwsCompatibility(
     for (const trustedRootDer of options.trustedRoots) {
       try {
         if (trustedRootDer.byteLength > maxCertificateBytes) continue;
-        const root = new X509Certificate(trustedRootDer);
-        const parsedRoot = parseCertificateDer(root.raw);
+        const parsedRoot = parseCertificateDer(trustedRootDer);
+        const root = parseJsrsasignCertificate(trustedRootDer);
         if (
-          root.ca &&
+          parsedRoot.isCa &&
           equalBytes(parsedIntermediate.issuerName, parsedRoot.subjectName) &&
-          intermediate.verify(root.publicKey) &&
+          intermediate.verifySignature(root.getPublicKey()) &&
           certificateValidAt(parsedRoot, signedDate)
         ) {
           matchedRoot = true;
@@ -408,13 +607,16 @@ export function verifyAppleTransactionJwsCompatibility(
     }
     if (!matchedRoot) reject();
 
-    const leafJwk = leaf.publicKey.export({ format: "jwk" });
-    if (leafJwk.kty !== "EC" || leafJwk.crv !== "P-256") reject();
-    const verified = verifyCryptoSignature(
-      "sha256",
-      Buffer.from(`${segments[0]}.${segments[1]}`, "ascii"),
-      { key: leaf.publicKey, dsaEncoding: "ieee-p1363" },
-      signature,
+    if (
+      parsedLeaf.publicKeyKind !== "ec" ||
+      parsedLeaf.publicKeyCurveOid !== p256CurveOidKey
+    ) {
+      reject();
+    }
+    const verified = KJUR.jws.JWS.verify(
+      signedTransaction,
+      leaf.getPublicKey() as Parameters<typeof KJUR.jws.JWS.verify>[1],
+      ["ES256"],
     );
     if (!verified) reject();
     return payload;

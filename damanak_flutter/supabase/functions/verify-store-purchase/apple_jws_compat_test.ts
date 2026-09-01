@@ -7,6 +7,7 @@ import {
 import { importPKCS8, SignJWT } from "jose";
 import type { JWTHeaderParameters } from "jose";
 import { Buffer } from "node:buffer";
+import { X509Certificate } from "node:crypto";
 import {
   AppleJwsCompatibilityError,
   verifyAppleTransactionJwsCompatibility,
@@ -39,6 +40,22 @@ function verifyFixture(candidate: string, bundleId = "com.example") {
     environment: "sandbox",
     trustedRoots: [Buffer.from(appleTestRootDerBase64, "base64")],
   });
+}
+
+function nodeX509CertificateVerificationAvailable() {
+  try {
+    const chain = fixtureHeader().x5c;
+    const leaf = new X509Certificate(Buffer.from(chain[0], "base64"));
+    const intermediate = new X509Certificate(
+      Buffer.from(chain[1], "base64"),
+    );
+    leaf.toString();
+    void leaf.raw;
+    void leaf.ca;
+    return leaf.verify(intermediate.publicKey);
+  } catch {
+    return false;
+  }
 }
 
 function damanakTestHeader(): JWTHeaderParameters {
@@ -88,20 +105,24 @@ async function expectCompatibilityRejection(
 
 Deno.test("Apple compatibility verifies the official public JWS fixture", async () => {
   const payload = verifyFixture(appleTestTransactionJws);
-  const official = await new SignedDataVerifier(
-    [Buffer.from(appleTestRootDerBase64, "base64")],
-    false,
-    Environment.SANDBOX,
-    "com.example",
-    undefined,
-  ).verifyAndDecodeTransaction(appleTestTransactionJws);
   if (
     payload.bundleId !== "com.example" ||
     payload.environment !== "Sandbox" ||
-    payload.signedDate !== fixtureSignedDate ||
-    official.bundleId !== payload.bundleId
+    payload.signedDate !== fixtureSignedDate
   ) {
     throw new Error("Apple's official fixture was decoded incorrectly");
+  }
+  if (nodeX509CertificateVerificationAvailable()) {
+    const official = await new SignedDataVerifier(
+      [Buffer.from(appleTestRootDerBase64, "base64")],
+      false,
+      Environment.SANDBOX,
+      "com.example",
+      undefined,
+    ).verifyAndDecodeTransaction(appleTestTransactionJws);
+    if (official.bundleId !== payload.bundleId) {
+      throw new Error("compatibility diverged from Apple's verifier");
+    }
   }
   const presentedRoot = (fixtureHeader().x5c as string[])[2];
   if (presentedRoot === appleTestRootDerBase64) {
@@ -121,21 +142,59 @@ Deno.test("Apple compatibility accepts a fully bound transaction payload", async
     appAccountToken: token,
   });
   const payload = verifyDamanakTestChain(signedTransaction);
-  const official = await new SignedDataVerifier(
-    [Buffer.from(damanakTestRootDerBase64, "base64")],
-    false,
-    Environment.SANDBOX,
-    "com.damanak.damanak",
-    undefined,
-  ).verifyAndDecodeTransaction(signedTransaction);
   if (
     payload.transactionId !== "2000000123456790" ||
     payload.originalTransactionId !== "2000000123456789" ||
     payload.productId !== "com.damanak.subscription.scale.yearly" ||
-    payload.appAccountToken !== token ||
-    official.transactionId !== payload.transactionId
+    payload.appAccountToken !== token
   ) {
     throw new Error("verified transaction identity was not preserved");
+  }
+  if (nodeX509CertificateVerificationAvailable()) {
+    const official = await new SignedDataVerifier(
+      [Buffer.from(damanakTestRootDerBase64, "base64")],
+      false,
+      Environment.SANDBOX,
+      "com.damanak.damanak",
+      undefined,
+    ).verifyAndDecodeTransaction(signedTransaction);
+    if (official.transactionId !== payload.transactionId) {
+      throw new Error("compatibility diverged from Apple's verifier");
+    }
+  }
+});
+
+Deno.test("Apple compatibility never calls Node X509Certificate", () => {
+  const prototype = X509Certificate.prototype;
+  const properties = ["raw", "verify", "ca", "publicKey"] as const;
+  const descriptors = properties.map((property) => {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, property);
+    if (descriptor == null || descriptor.configurable !== true) {
+      throw new Error(`cannot guard X509Certificate.${property}`);
+    }
+    return [property, descriptor] as const;
+  });
+  const forbidden = () => {
+    throw new Error("compatibility called Node X509Certificate");
+  };
+  try {
+    for (const [property, descriptor] of descriptors) {
+      Object.defineProperty(
+        prototype,
+        property,
+        "value" in descriptor
+          ? { ...descriptor, value: forbidden }
+          : { ...descriptor, get: forbidden },
+      );
+    }
+    const payload = verifyFixture(appleTestTransactionJws);
+    if (payload.bundleId !== "com.example") {
+      throw new Error("fixture was not verified while Node X509 was blocked");
+    }
+  } finally {
+    for (const [property, descriptor] of descriptors) {
+      Object.defineProperty(prototype, property, descriptor);
+    }
   }
 });
 
