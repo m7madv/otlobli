@@ -1,6 +1,6 @@
 # خطة إكمال «ضمانك»
 
-آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.0+29`، وiPhone Buildات `24` حتى `28` في TestFlight، وحزمة App Review/Google Build `23`
+آخر تحديث: 2026-09-01 — المصدر المحلي `4.5.1+29`، وiPhone Buildات `24` حتى `28` في TestFlight، وGoogle Alpha على Build `23`، وإصدار Apple `4.5.0` منشور
 
 ## مكتمل داخل التطبيق والخادم
 
@@ -18,7 +18,7 @@
 - [x] التفعيل الأول يعيد تحميل مساحة العمل ويتطلب فرع `MAIN` بعد إكمال المعاملة، ولا يفتح من نافذة الدفع وحدها.
 - [x] الاستعادة الصريحة بعد حذف حساب ضمانك تتحقق من Apple JWS أو Google lineage ولا تنتقل إذا بقيت الهوية القديمة أو وُجد ربط/entitlement منافس.
 - [x] Google completion يفحص رد BillingClient الفعلي ويبقي المعاملة لإعادة المحاولة عند non-OK، مع إقرار خادمي خلفي غير حاجب.
-- [x] Build `23` مرفوع إلى Apple وGoogle. مسودة Apple ذات 8 عناصر `Waiting for Review`، وGoogle Alpha قيد المراجعة.
+- [x] Build `23` رُفع إلى Apple وGoogle؛ أصبح إصدار Apple `4.5.0` لاحقاً `READY_FOR_SALE` ولا توجد مسودة مراجعة نشطة، وبقي Google Alpha قيد المراجعة.
 
 ## حالة توزيع Build 24
 
@@ -83,8 +83,9 @@
 - [x] يقرأ كل شراء الاشتراك المرجعي من الخادم قبل فتح المتجر، وتمنع حراس الترتيب أي workspace/refresh/restore قديم من الكتابة فوق إيصال أحدث أو إنهاء تحقق جارٍ.
 - [x] بُسّطت واجهة الاشتراك إلى ملخص واحد وثلاث باقات مضغوطة وإجراء أساسي واحد، مع الاستعادة والإدارة كإجراءين ثانويين والأسعار من المتجر فقط.
 - [x] نجح `flutter analyze` و`211/211` اختبار Flutter و`69/69` اختبار اشتراك مركز و`77/77` اختبار Deno و`deno fmt --check` على 27 ملفاً و`git diff --check`.
-- [x] نجح web release وAndroid debug. APK المحلي `build/app/outputs/flutter-apk/app-debug.apk` حجمه `208,066,330` بايت وSHA-256 `08D0DDEC1E1BA1C734DA36C1F4CDCA5F2B77543D8044A8D523435E034E14A0AE`.
+- [x] نجح web release وAndroid debug للمصدر `4.5.1+29`. أكد `aapt` أن APK المحلي يحمل `versionName=4.5.1` و`versionCode=29`؛ حجمه `180,868,636` بايت وSHA-256 `C00835D114330136AC2A7A2411C2283C8A564EFC3AAF0DD08388081011E115C1`.
 - [x] سُجلت مراجعة Apple Design في `docs/DESIGN_AUDIT.md`، ونجح RTL و`320×568` وتكبير النص `200%` والتمرير آلياً بلا overflow.
+- [x] نجح فحص iOS الموقّع بلا رفع في [33531820327](https://github.com/m7madv/otlobli/actions/runs/33531820327). رفضت Apple محاولة `4.5.0 (29)` في [33532659092](https://github.com/m7madv/otlobli/actions/runs/33532659092) فقط لأن الإصدار صار `READY_FOR_SALE` وقطاره مغلقاً؛ نُقل رقم التسويق إلى `4.5.1` مع إبقاء Build `29`.
 - [ ] رفع iPhone Build `29` الموقّع إلى TestFlight والتحقق من `VALID` وربطه بـ`Damanak Internal` من دون تغيير App Review.
 - [ ] تثبيت Build `29` على iPhone حقيقي وتنفيذ شراء/استعادة/ترقية/تغيير دورة وقبول VoiceOver؛ لا تُعد الاختبارات الآلية بديلاً عنها.
 

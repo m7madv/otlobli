@@ -217,7 +217,7 @@ class AccountScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 4.5.0',
+                'ضمانك للأعمال 4.5.1',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),
