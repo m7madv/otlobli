@@ -61,6 +61,8 @@ const appleRootCertificatePins = [
 let pinnedAppleRootCertificates: Buffer[] | null = null;
 let appleSandboxVerifier: SignedDataVerifier | null = null;
 let appleProductionVerifier: SignedDataVerifier | null = null;
+let appleSandboxSignedDateVerifier: SignedDataVerifier | null = null;
+let appleProductionSignedDateVerifier: SignedDataVerifier | null = null;
 
 function appleRootCertificates() {
   if (pinnedAppleRootCertificates != null) return pinnedAppleRootCertificates;
@@ -78,25 +80,46 @@ function appleRootCertificates() {
   return pinnedAppleRootCertificates;
 }
 
-function appleSignedDataVerifier(environment: "sandbox" | "production") {
+function appleSignedDataVerifier(
+  environment: "sandbox" | "production",
+  enableOnlineChecks: boolean,
+) {
   if (environment === "sandbox") {
-    appleSandboxVerifier ??= new SignedDataVerifier(
+    const cached = enableOnlineChecks
+      ? appleSandboxVerifier
+      : appleSandboxSignedDateVerifier;
+    if (cached != null) return cached;
+    const verifier = new SignedDataVerifier(
       appleRootCertificates(),
-      true,
+      enableOnlineChecks,
       Environment.SANDBOX,
       bundleId,
       undefined,
     );
-    return appleSandboxVerifier;
+    if (enableOnlineChecks) {
+      appleSandboxVerifier = verifier;
+    } else {
+      appleSandboxSignedDateVerifier = verifier;
+    }
+    return verifier;
   }
-  appleProductionVerifier ??= new SignedDataVerifier(
+  const cached = enableOnlineChecks
+    ? appleProductionVerifier
+    : appleProductionSignedDateVerifier;
+  if (cached != null) return cached;
+  const verifier = new SignedDataVerifier(
     appleRootCertificates(),
-    true,
+    enableOnlineChecks,
     Environment.PRODUCTION,
     bundleId,
     appAppleId,
   );
-  return appleProductionVerifier;
+  if (enableOnlineChecks) {
+    appleProductionVerifier = verifier;
+  } else {
+    appleProductionSignedDateVerifier = verifier;
+  }
+  return verifier;
 }
 
 type PurchaseBody = {
@@ -844,13 +867,25 @@ export type AppleRecoveryTransactionVerifier = (
   environment: "sandbox" | "production",
 ) => Promise<Record<string, unknown>>;
 
-async function verifyAppleRecoveryTransaction(
+export type AppleRecoveryVerificationRunner = (
   signedTransaction: string,
   environment: "sandbox" | "production",
+  enableOnlineChecks: boolean,
+) => Promise<Record<string, unknown>>;
+
+async function runAppleRecoveryVerification(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+  enableOnlineChecks: boolean,
 ) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const verifier = appleSignedDataVerifier(environment);
+    const verifier = appleSignedDataVerifier(environment, enableOnlineChecks);
+    if (!enableOnlineChecks) {
+      return await verifier.verifyAndDecodeTransaction(
+        signedTransaction,
+      ) as Record<string, unknown>;
+    }
     const verifierTimeout = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(
         () => reject(new Error("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE")),
@@ -863,27 +898,140 @@ async function verifyAppleRecoveryTransaction(
       >,
       verifierTimeout,
     ]);
-  } catch (error) {
-    if (
-      error instanceof VerificationException &&
-      error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE
-    ) {
-      throw new Error("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE");
-    }
-    if (error instanceof VerificationException) {
-      throw new Error("APPLE_RECOVERY_PROOF_INVALID");
-    }
-    if (
-      error instanceof Error &&
-      (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
-        error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
-    ) {
-      throw error;
-    }
-    throw new Error("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE");
   } finally {
     if (timeoutId != null) clearTimeout(timeoutId);
   }
+}
+
+function appleRecoveryVerificationStatus(error: unknown) {
+  if (error instanceof VerificationException) {
+    return {
+      status: error.status,
+      statusName: VerificationStatus[error.status] ?? "UNKNOWN",
+    };
+  }
+  if (
+    error instanceof Error &&
+    error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE"
+  ) {
+    return { status: "timeout", statusName: "ONLINE_CHECK_TIMEOUT" };
+  }
+  return { status: "unavailable", statusName: "UNEXPECTED_ERROR" };
+}
+
+function appleRecoveryProofShape(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) {
+  const segments = signedTransaction.split(".");
+  let header: Record<string, unknown> = {};
+  let payload: Record<string, unknown> = {};
+  try {
+    header = JSON.parse(
+      Buffer.from(segments[0] ?? "", "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+  } catch {
+    // Shape-only telemetry must never change verification behavior.
+  }
+  try {
+    payload = JSON.parse(
+      Buffer.from(segments[1] ?? "", "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+  } catch {
+    // Shape-only telemetry must never change verification behavior.
+  }
+  return {
+    environment,
+    jwsLength: signedTransaction.length,
+    segmentCount: segments.length,
+    algorithm: header.alg === "ES256" ? "ES256" : "unexpected",
+    certificateCount: Array.isArray(header.x5c) ? header.x5c.length : 0,
+    signedDatePresent: typeof payload.signedDate === "number" &&
+      Number.isFinite(payload.signedDate),
+    bundleMatches: payload.bundleId === bundleId,
+    environmentMatches:
+      normalizedAppleEnvironment(payload.environment) === environment,
+  };
+}
+
+export function shouldRetryAppleVerificationAtSignedDate(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE"
+  ) {
+    return true;
+  }
+  if (!(error instanceof VerificationException)) return false;
+  // Apple's offline mode still verifies the JWS signature, its complete x5c
+  // chain against the pinned Apple roots, bundle and environment. It only
+  // replaces current-time/OCSP checks with certificate validity at signedDate.
+  // The library may surface OCSP/runtime failures through these statuses, so
+  // they are retried through that same official verifier. FAILURE stays
+  // fail-closed because it can represent an explicit non-good OCSP status.
+  return error.status === VerificationStatus.VERIFICATION_FAILURE ||
+    error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE ||
+    error.status === VerificationStatus.INVALID_CERTIFICATE;
+}
+
+function throwAppleRecoveryVerificationError(error: unknown): never {
+  if (error instanceof VerificationException) {
+    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+  }
+  if (
+    error instanceof Error &&
+    (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
+      error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
+  ) {
+    throw error;
+  }
+  throw new Error("APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE");
+}
+
+export async function verifyAppleRecoveryTransactionWithFallback(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+  runVerification: AppleRecoveryVerificationRunner =
+    runAppleRecoveryVerification,
+) {
+  try {
+    return await runVerification(signedTransaction, environment, true);
+  } catch (onlineError) {
+    if (!shouldRetryAppleVerificationAtSignedDate(onlineError)) {
+      throwAppleRecoveryVerificationError(onlineError);
+    }
+    console.warn("APPLE_RECOVERY_SIGNED_DATE_FALLBACK", {
+      ...appleRecoveryVerificationStatus(onlineError),
+      ...appleRecoveryProofShape(signedTransaction, environment),
+    });
+    try {
+      const verified = await runVerification(
+        signedTransaction,
+        environment,
+        false,
+      );
+      console.warn("APPLE_RECOVERY_SIGNED_DATE_FALLBACK_SUCCEEDED", {
+        ...appleRecoveryVerificationStatus(onlineError),
+        environment,
+      });
+      return verified;
+    } catch (signedDateError) {
+      console.warn("APPLE_RECOVERY_SIGNED_DATE_FALLBACK_REJECTED", {
+        ...appleRecoveryVerificationStatus(signedDateError),
+        environment,
+      });
+      throwAppleRecoveryVerificationError(signedDateError);
+    }
+  }
+}
+
+async function verifyAppleRecoveryTransaction(
+  signedTransaction: string,
+  environment: "sandbox" | "production",
+) {
+  return await verifyAppleRecoveryTransactionWithFallback(
+    signedTransaction,
+    environment,
+  );
 }
 
 export async function assertAppleRecoveryTransactionProof(

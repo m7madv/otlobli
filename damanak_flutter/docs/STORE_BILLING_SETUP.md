@@ -13,7 +13,7 @@ Build `23` هو حزمة App Review وGoogle Alpha، وBuildات `24` و`25` و`
 - أضيف رابط EULA القياسي إلى وصف App Store، وأُكد للمراجعة أن أسعار «توسع» المقصودة تأتي من App Store. لا توجد أسعار بديلة داخل التطبيق.
 - Google Build `23` موجود على مسار Alpha رقم `4699097266255892286` وقيد المراجعة. قائمة `All Apps - Closed Testers` دائمة وتضم بالضبط 12 مختبراً؛ لا تُنشئ قائمة أخرى ولا تعدّلها.
 - رابط الانضمام هو `https://play.google.com/apps/testing/com.damanak.damanak`. لا يبدأ عداد 14 يوماً إلا بعد قبول Google وانضمام المختبرين فعلياً.
-- لم يُثبت Build `26` على iPhone حقيقي، ولم يُثبت شراء أو استعادة حقيقيان على iPhone أو Android. حالة المتجر أو نجاح البناء لا يثبتان ذلك.
+- ثبت Build `26` وشراء Apple حقيقي على iPhone من TestFlight. حذف المستخدم حساب ضمانك بعد نجاح الشراء مباشرةً، فبقي الاشتراك لدى Apple وصارت استعادته orphan؛ الاستعادة بعد إصلاح الخادم v26 ما تزال بانتظار إعادة المحاولة، ولم يُثبت شراء أو استعادة Android.
 
 ## عقد المنتج
 
@@ -61,12 +61,12 @@ Build `24` وما بعده يرسل `obfuscatedAccountId` لحساب ضمانك 
 مشروع Supabase الصحيح هو `exxayzlklvgeyqhvtzgi`:
 
 - migrations مطبقة حتى `20260901012000`. تضيف migration الأخيرة استعادة Google orphan/lineage الذرية بمعامل افتراضيه `false` وأقفال token hashes مرتبة، مع بقاء مسار المتجر بلا تجربة من Build `25`.
-- `verify-store-purchase` v25 نشطة مع `verify_jwt=false` والتحقق اليدوي من الجلسة، و`refresh-store-entitlements` v7 نشطة.
+- `verify-store-purchase` v26 نشطة مع `verify_jwt=false` والتحقق اليدوي من الجلسة وSHA-256 للحزمة `2e99b9097d3f18014720fd2f0d9b73a1ed2eaa5ae7f39fe6af9745d9917d65e4`، و`refresh-store-entitlements` v7 نشطة.
 - `dispatch-webhooks` v11، `damanak-api` v10، `analyze-claim-ai` v10، `import-products-ai` v12، `legal` v16، و`warranty-card` v14 نشطة.
 - جدولة `damanak-entitlement-refresh` تعمل كل 5 دقائق.
 - يربط الخادم الإيصال بمتجر واحد ذرياً، ويرفض فرع Google الشقيق أو replay لتوكن لم يعد current receipt.
 - يقر Google purchase بعد تطبيق الاستحقاق في مهمة خادمية غير حاجبة، وتعيد مهمة التحديث المحاولة عند الحاجة. Build `26` ينفذ إقرار الجهاز أيضاً ويفحص `BillingResultWrapper.responseCode`؛ non-OK يبقي المعاملة قابلة لإعادة المحاولة. حالة الإقرار غير المعروفة تفشل مغلقة.
-- Apple orphan يستخدم `@apple/app-store-server-library@3.1.0` والجذور الرسمية الثلاث المثبتة؛ طابقت بصمات DER الملفات المنشورة من Apple. التحقق المشفر lazy للمسار orphan فقط حتى لا تجعل OCSP الاستعادة ذات الربط الموجود رهينة للشبكة.
+- Apple orphan يستخدم `@apple/app-store-server-library@3.1.0` والجذور الرسمية الثلاث المثبتة؛ طابقت بصمات DER الملفات المنشورة من Apple. يبدأ التحقق بالفاحص المتصل، ثم يعيد المهلة والحالات `VERIFICATION_FAILURE` و`RETRYABLE_VERIFICATION_FAILURE` و`INVALID_CERTIFICATE` عبر الفاحص الرسمي عند `signedDate`. تبقى `FAILURE` التي قد تمثل OCSP غير `good`، ومعرّف التطبيق والبيئة وطول السلسلة، مرفوضة بلا fallback. حتى بعد نجاح التوقيع يجب أن تتطابق الحقول الستة مع App Store Server API وأن تنجح حواجز الحساب المحذوف والربط الذري.
 - `supabase/schema.sql` حجمه `395,324` بايت وSHA-256 هو `5A1E083994801006E3C620E6D91C611E2097D3B216FA1D3E8123F97DAD2F8F3C`. اختبار PGlite يطبق migration ويثبت تطابق تعريف RPC بين المخطط والترحيل.
 
 نجحت اختبارات SQL الحية التالية داخل `BEGIN/ROLLBACK`:

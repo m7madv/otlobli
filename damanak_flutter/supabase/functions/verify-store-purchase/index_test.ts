@@ -1,4 +1,8 @@
 import {
+  VerificationException,
+  VerificationStatus,
+} from "@apple/app-store-server-library";
+import {
   appleAccountBindingKind,
   appleAccountTokenUpdateRequest,
   appleEntitlementPeriodEnd,
@@ -27,6 +31,7 @@ import {
   scheduleBestEffortPostCommitTask,
   selectGoogleLineItem,
   setGoogleAccessTokenTestHook,
+  verifyAppleRecoveryTransactionWithFallback,
 } from "./index.ts";
 
 function unsignedJwt(payload: Record<string, unknown>) {
@@ -292,6 +297,182 @@ Deno.test("Apple orphan recovery rejects forged or mismatched device JWS", async
     }
     if (!preserved) {
       throw new Error("Apple provider failure lost its retryable category");
+    }
+  }
+});
+
+Deno.test("Apple recovery uses the online verifier when it succeeds", async () => {
+  const calls: boolean[] = [];
+  const verified = { bundleId: "com.damanak.damanak" };
+  const result = await verifyAppleRecoveryTransactionWithFallback(
+    unsignedJwt({
+      bundleId: "com.damanak.damanak",
+      environment: "Sandbox",
+    }),
+    "sandbox",
+    (_candidate, _environment, enableOnlineChecks) => {
+      calls.push(enableOnlineChecks);
+      return Promise.resolve(verified);
+    },
+  );
+  if (result !== verified || calls.join(",") !== "true") {
+    throw new Error("Apple recovery bypassed a successful online verifier");
+  }
+});
+
+Deno.test("Apple recovery retries online-check failures at the signed date", async () => {
+  const signedTransaction = unsignedJwt({
+    bundleId: "com.damanak.damanak",
+    environment: "Sandbox",
+    signedDate: Date.now(),
+  });
+  const retryableFailures: unknown[] = [
+    new VerificationException(VerificationStatus.VERIFICATION_FAILURE),
+    new VerificationException(
+      VerificationStatus.RETRYABLE_VERIFICATION_FAILURE,
+    ),
+    new VerificationException(VerificationStatus.INVALID_CERTIFICATE),
+    new Error("APPLE_CERTIFICATE_VERIFICATION_RETRYABLE"),
+  ];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const onlineFailure of retryableFailures) {
+      const calls: boolean[] = [];
+      const verified = { bundleId: "com.damanak.damanak" };
+      const result = await verifyAppleRecoveryTransactionWithFallback(
+        signedTransaction,
+        "sandbox",
+        (_candidate, _environment, enableOnlineChecks) => {
+          calls.push(enableOnlineChecks);
+          return enableOnlineChecks
+            ? Promise.reject(onlineFailure)
+            : Promise.resolve(verified);
+        },
+      );
+      if (result !== verified || calls.join(",") !== "true,false") {
+        throw new Error("Apple signed-date fallback did not run exactly once");
+      }
+    }
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+Deno.test("Apple recovery never falls back for identity or chain-shape failures", async () => {
+  const signedTransaction = unsignedJwt({
+    bundleId: "com.damanak.damanak",
+    environment: "Sandbox",
+  });
+  for (
+    const status of [
+      VerificationStatus.INVALID_APP_IDENTIFIER,
+      VerificationStatus.INVALID_ENVIRONMENT,
+      VerificationStatus.INVALID_CHAIN_LENGTH,
+      VerificationStatus.FAILURE,
+    ]
+  ) {
+    const calls: boolean[] = [];
+    let message = "";
+    try {
+      await verifyAppleRecoveryTransactionWithFallback(
+        signedTransaction,
+        "sandbox",
+        (_candidate, _environment, enableOnlineChecks) => {
+          calls.push(enableOnlineChecks);
+          return Promise.reject(new VerificationException(status));
+        },
+      );
+    } catch (error) {
+      message = error instanceof Error ? error.message : "";
+    }
+    if (
+      message !== "APPLE_RECOVERY_PROOF_INVALID" ||
+      calls.join(",") !== "true"
+    ) {
+      throw new Error("Apple identity or chain-shape failure reached fallback");
+    }
+  }
+
+  const calls: boolean[] = [];
+  let message = "";
+  try {
+    await verifyAppleRecoveryTransactionWithFallback(
+      signedTransaction,
+      "sandbox",
+      (_candidate, _environment, enableOnlineChecks) => {
+        calls.push(enableOnlineChecks);
+        return Promise.reject(new Error("unexpected verifier crash"));
+      },
+    );
+  } catch (error) {
+    message = error instanceof Error ? error.message : "";
+  }
+  if (
+    message !== "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE" ||
+    calls.join(",") !== "true"
+  ) {
+    throw new Error("unexpected verifier errors were retried or misclassified");
+  }
+});
+
+Deno.test("Apple signed-date fallback fails closed and logs no purchase secrets", async () => {
+  const secretToken = "33333333-3333-4333-8333-333333333333";
+  const secretTransaction = "2000000123456789";
+  const secretCertificate = "sensitive-certificate-material";
+  const encode = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
+  const signedTransaction = `${
+    encode({ alg: "ES256", x5c: [secretCertificate, "two", "three"] })
+  }.${
+    encode({
+      bundleId: "com.damanak.damanak",
+      environment: "Sandbox",
+      signedDate: Date.now(),
+      transactionId: secretTransaction,
+      appAccountToken: secretToken,
+    })
+  }.sensitive-signature-material`;
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(JSON.stringify(args));
+  let message = "";
+  try {
+    await verifyAppleRecoveryTransactionWithFallback(
+      signedTransaction,
+      "sandbox",
+      (_candidate, _environment, enableOnlineChecks) =>
+        Promise.reject(
+          new VerificationException(
+            enableOnlineChecks
+              ? VerificationStatus.INVALID_CERTIFICATE
+              : VerificationStatus.VERIFICATION_FAILURE,
+          ),
+        ),
+    );
+  } catch (error) {
+    message = error instanceof Error ? error.message : "";
+  } finally {
+    console.warn = originalWarn;
+  }
+  const telemetry = warnings.join("\n");
+  if (message !== "APPLE_RECOVERY_PROOF_INVALID" || warnings.length !== 2) {
+    throw new Error("a rejected signed-date proof did not fail closed");
+  }
+  for (
+    const secret of [
+      secretToken,
+      secretTransaction,
+      secretCertificate,
+      signedTransaction,
+      "sensitive-signature-material",
+    ]
+  ) {
+    if (telemetry.includes(secret)) {
+      throw new Error("Apple fallback telemetry exposed purchase material");
     }
   }
 });
