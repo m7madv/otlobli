@@ -321,45 +321,56 @@ void main() {
 
       expect(snapshot.purchased, isEmpty);
       expect(snapshot.pending, hasLength(1));
-    });
-
-    test('يبقي تغيير Google غير الملتزم معلقًا ويمنع تغييرًا آخر', () {
-      final snapshot = selectGoogleSubscriptionPurchases(
-        response: _googlePurchasesResponse([
-          _googlePurchase(
-            productId: 'com.damanak.subscription.scale',
-            purchaseTime: 200,
-            accountId: 'account-a',
-            storeId: 'store-a',
-            pendingPurchaseUpdate: const PendingPurchaseUpdateWrapper(
-              purchaseToken: 'pending-token-with-enough-length',
-              products: ['com.damanak.subscription.growth'],
-            ),
-          ),
-        ]),
-        accountId: 'account-a',
-      );
-
-      expect(snapshot.pendingReplacementCount, 1);
       expect(
-        storePurchaseEventStatus(snapshot.purchased.single, restoring: false),
+        storePurchaseEventStatus(snapshot.pending.single, restoring: true),
         StorePurchaseStatus.pending,
       );
-      expect(
-        () => validatedGoogleSubscriptionForPurchase(
-          snapshot: snapshot,
-          storeId: 'store-a',
-          requireExistingSubscription: true,
-        ),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'GOOGLE_SUBSCRIPTION_PENDING',
-          ),
-        ),
-      );
     });
+
+    test(
+      'يتحقق من الاستحقاق الحالي مع تغيير Google مؤجل ويمنع تغييرًا آخر',
+      () {
+        final snapshot = selectGoogleSubscriptionPurchases(
+          response: _googlePurchasesResponse([
+            _googlePurchase(
+              productId: 'com.damanak.subscription.scale',
+              purchaseTime: 200,
+              accountId: 'account-a',
+              storeId: 'store-a',
+              pendingPurchaseUpdate: const PendingPurchaseUpdateWrapper(
+                purchaseToken: 'pending-token-with-enough-length',
+                products: ['com.damanak.subscription.growth'],
+              ),
+            ),
+          ]),
+          accountId: 'account-a',
+        );
+
+        expect(snapshot.pendingReplacementCount, 1);
+        expect(
+          storePurchaseEventStatus(snapshot.purchased.single, restoring: false),
+          StorePurchaseStatus.pending,
+        );
+        expect(
+          storePurchaseEventStatus(snapshot.purchased.single, restoring: true),
+          StorePurchaseStatus.restored,
+        );
+        expect(
+          () => validatedGoogleSubscriptionForPurchase(
+            snapshot: snapshot,
+            storeId: 'store-a',
+            requireExistingSubscription: true,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'GOOGLE_SUBSCRIPTION_PENDING',
+            ),
+          ),
+        );
+      },
+    );
 
     test('يرفض اختيار اشتراك Google اعتباطيًا عند تعدد المشتريات', () {
       final snapshot = selectGoogleSubscriptionPurchases(
@@ -859,6 +870,17 @@ void main() {
         ),
         StoreSubscriptionTransitionKind.billingCycleChange,
       );
+      expect(StoreSubscriptionTransitionKind.start.canStartPurchase, isTrue);
+      expect(StoreSubscriptionTransitionKind.upgrade.canStartPurchase, isTrue);
+      expect(
+        StoreSubscriptionTransitionKind.billingCycleChange.canStartPurchase,
+        isTrue,
+      );
+      expect(StoreSubscriptionTransitionKind.current.canStartPurchase, isFalse);
+      expect(
+        StoreSubscriptionTransitionKind.blockedDowngrade.canStartPurchase,
+        isFalse,
+      );
     });
 
     test('يصنف كل انتقال بين بداية ونمو وتوسع حسب ترتيب الباقة', () {
@@ -877,7 +899,7 @@ void main() {
               : DamanakStoreCatalog.planRank(target) >
                     DamanakStoreCatalog.planRank(current)
               ? StoreSubscriptionTransitionKind.upgrade
-              : StoreSubscriptionTransitionKind.downgrade;
+              : StoreSubscriptionTransitionKind.blockedDowngrade;
           expect(result, expected, reason: '$current → $target');
         }
       }
@@ -885,7 +907,7 @@ void main() {
   });
 
   group('تغيير اشتراك Google', () {
-    test('يستخدم مصفوفة صريحة للترقية والتخفيض وتغيير الدورة', () {
+    test('يستخدم مصفوفة صريحة للترقية ويمنع الخفض ويغيّر الدورة', () {
       expect(
         googleSubscriptionReplacementMode(
           existingProductId: 'com.damanak.subscription.starter',
@@ -911,12 +933,18 @@ void main() {
         ReplacementMode.chargeFullPrice,
       );
       expect(
-        googleSubscriptionReplacementMode(
+        () => googleSubscriptionReplacementMode(
           existingProductId: 'com.damanak.subscription.scale',
           existingCycle: BillingCycle.yearly,
           replacement: _googleOffer('growth', BillingCycle.monthly),
         ),
-        ReplacementMode.deferred,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'GOOGLE_SUBSCRIPTION_DOWNGRADE_NOT_ALLOWED',
+          ),
+        ),
       );
       expect(
         googleSubscriptionReplacementMode(
@@ -966,6 +994,222 @@ void main() {
         ),
       );
     });
+  });
+
+  group('حارس بدء شراء الاشتراك', () {
+    test('يسمح بالبدء والترقية وتغيير الدورة', () {
+      expect(
+        validateStoreSubscriptionPurchase(
+          currentPlanId: null,
+          currentCycle: null,
+          offer: _googleOffer('starter', BillingCycle.monthly),
+        ),
+        StoreSubscriptionTransitionKind.start,
+      );
+      expect(
+        validateStoreSubscriptionPurchase(
+          currentPlanId: 'starter',
+          currentCycle: BillingCycle.monthly,
+          offer: _googleOffer('growth', BillingCycle.monthly),
+        ),
+        StoreSubscriptionTransitionKind.upgrade,
+      );
+      expect(
+        validateStoreSubscriptionPurchase(
+          currentPlanId: 'growth',
+          currentCycle: BillingCycle.monthly,
+          offer: _googleOffer('growth', BillingCycle.yearly),
+        ),
+        StoreSubscriptionTransitionKind.billingCycleChange,
+      );
+    });
+
+    test('يرفض الخطة الحالية وأي باقة أدنى قبل فتح المتجر', () {
+      expect(
+        () => validateStoreSubscriptionPurchase(
+          currentPlanId: 'growth',
+          currentCycle: BillingCycle.monthly,
+          offer: _googleOffer('growth', BillingCycle.monthly),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'STORE_SUBSCRIPTION_ALREADY_ACTIVE',
+          ),
+        ),
+      );
+      expect(
+        () => validateStoreSubscriptionPurchase(
+          currentPlanId: 'scale',
+          currentCycle: BillingCycle.monthly,
+          offer: _googleOffer('growth', BillingCycle.monthly),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'STORE_SUBSCRIPTION_DOWNGRADE_NOT_ALLOWED',
+          ),
+        ),
+      );
+    });
+
+    test('يرفض حالة خادمية فيها خطة حالية بلا دورة فوترة', () {
+      expect(
+        () => validateStoreSubscriptionPurchase(
+          currentPlanId: 'growth',
+          currentCycle: null,
+          offer: _googleOffer('scale', BillingCycle.monthly),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'STORE_SUBSCRIPTION_STATE_INVALID',
+          ),
+        ),
+      );
+    });
+  });
+
+  group('حارس ملكية Apple قبل فتح الدفع', () {
+    test(
+      'يمنع الشراء بعد تنظيف الربط الخادمي إذا بقي الاشتراك على Apple ID',
+      () async {
+        var lookupCalls = 0;
+
+        await expectLater(
+          validateAppleSubscriptionOwnershipBeforePurchase(
+            currentPlanId: null,
+            currentProductId: null,
+            currentOriginalTransactionId: null,
+            timeout: const Duration(seconds: 1),
+            queryEntitlements: () async {
+              lookupCalls += 1;
+              return const [
+                AppleSubscriptionEntitlement(
+                  productId: 'com.damanak.subscription.scale.monthly',
+                  originalTransactionId: '100000000000001',
+                  appAccountToken: 'deleted-store',
+                ),
+              ];
+            },
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'APPLE_EXISTING_SUBSCRIPTION_RESTORE_REQUIRED',
+            ),
+          ),
+        );
+        expect(lookupCalls, 1);
+      },
+    );
+
+    test('يسمح ببدء اشتراك جديد عندما يؤكد StoreKit خلو الملكية', () async {
+      await validateAppleSubscriptionOwnershipBeforePurchase(
+        currentPlanId: null,
+        currentProductId: null,
+        currentOriginalTransactionId: null,
+        timeout: const Duration(seconds: 1),
+        queryEntitlements: () async => const [],
+      );
+    });
+
+    test('يفشل مغلقاً إذا تعذر فحص ملكية Apple', () async {
+      await expectLater(
+        validateAppleSubscriptionOwnershipBeforePurchase(
+          currentPlanId: null,
+          currentProductId: null,
+          currentOriginalTransactionId: null,
+          timeout: const Duration(milliseconds: 5),
+          queryEntitlements: () =>
+              Completer<List<AppleSubscriptionEntitlement>>().future,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'APPLE_SUBSCRIPTION_LOOKUP_TIMEOUT',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'يمنع الترقية إذا كان الاشتراك الخادمي غائباً عن Apple ID الحالي',
+      () async {
+        var lookupCalls = 0;
+        await expectLater(
+          validateAppleSubscriptionOwnershipBeforePurchase(
+            currentPlanId: 'growth',
+            currentProductId: 'com.damanak.subscription.growth.monthly',
+            currentOriginalTransactionId: '100000000000001',
+            timeout: const Duration(seconds: 1),
+            queryEntitlements: () async {
+              lookupCalls += 1;
+              return const [];
+            },
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'APPLE_SUBSCRIPTION_ACCOUNT_MISMATCH',
+            ),
+          ),
+        );
+        expect(lookupCalls, 1);
+      },
+    );
+
+    test('يمنع الترقية إذا كان Apple ID الحالي يملك سلسلة مختلفة', () async {
+      await expectLater(
+        validateAppleSubscriptionOwnershipBeforePurchase(
+          currentPlanId: 'growth',
+          currentProductId: 'com.damanak.subscription.growth.monthly',
+          currentOriginalTransactionId: '100000000000001',
+          timeout: const Duration(seconds: 1),
+          queryEntitlements: () async => const [
+            AppleSubscriptionEntitlement(
+              productId: 'com.damanak.subscription.growth.monthly',
+              originalTransactionId: '100000000000002',
+              appAccountToken: 'another-store',
+            ),
+          ],
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'APPLE_SUBSCRIPTION_ACCOUNT_MISMATCH',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'يسمح بالترقية فقط عندما يملك Apple ID السلسلة الخادمية نفسها',
+      () async {
+        await validateAppleSubscriptionOwnershipBeforePurchase(
+          currentPlanId: 'growth',
+          currentProductId: 'com.damanak.subscription.growth.monthly',
+          currentOriginalTransactionId: '100000000000001',
+          timeout: const Duration(seconds: 1),
+          queryEntitlements: () async => const [
+            AppleSubscriptionEntitlement(
+              productId: 'com.damanak.subscription.growth.monthly',
+              originalTransactionId: '100000000000001',
+              // Legacy/recovered chains may retain an old token; the exact
+              // original transaction id is the server binding authority.
+              appAccountToken: 'legacy-store-token',
+            ),
+          ],
+        );
+      },
+    );
   });
 
   test('قناة أحداث الشراء تحفظ الحدث المبكر وتسمح بمستمع واحد', () async {
@@ -1300,6 +1544,9 @@ class _ControlledStoreBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) async {
@@ -1355,6 +1602,9 @@ class _HangingStoreBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) async {}

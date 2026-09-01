@@ -1514,6 +1514,7 @@ class DemoDamanakRepository implements DamanakRepository {
       source: _subscription.source,
       billingProvider: _subscription.billingProvider,
       storeProductId: _subscription.storeProductId,
+      originalTransactionId: _subscription.originalTransactionId,
       billingCycle: _subscription.billingCycle,
       autoRenews: _subscription.autoRenews,
       lastVerifiedAt: _subscription.lastVerifiedAt,

@@ -291,6 +291,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       targetPlanId: offer.planId,
       targetCycle: offer.cycle,
     );
+    if (!transition.canStartPurchase) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            transition == StoreSubscriptionTransitionKind.current
+                ? 'هذه الخطة ودورة الفوترة فعّالتان بالفعل.'
+                : 'لا يمكن الانتقال إلى باقة أقل أثناء سريان الاشتراك الحالي.',
+          ),
+        ),
+      );
+      return;
+    }
     final remainingAfterUpgrade =
         (targetPlan.monthlyWarranties - current.usedWarranties).clamp(
           0,
@@ -300,7 +312,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       StoreSubscriptionTransitionKind.start => 'تأكيد الاشتراك',
       StoreSubscriptionTransitionKind.current => 'الباقة مفعّلة',
       StoreSubscriptionTransitionKind.upgrade => 'تأكيد الترقية',
-      StoreSubscriptionTransitionKind.downgrade => 'تأكيد الخفض عند التجديد',
+      StoreSubscriptionTransitionKind.blockedDowngrade =>
+        'الباقة الأقل غير متاحة',
       StoreSubscriptionTransitionKind.billingCycleChange =>
         'تأكيد تغيير الفوترة',
     };
@@ -311,8 +324,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         'باقة ${targetPlan.name} • ${offer.cycle.label} مفعّلة بالفعل',
       StoreSubscriptionTransitionKind.upgrade =>
         'ترقية من ${current.plan.name} إلى ${targetPlan.name} • ${offer.cycle.label}',
-      StoreSubscriptionTransitionKind.downgrade =>
-        'خفض من ${current.plan.name} إلى ${targetPlan.name} • ${offer.cycle.label}',
+      StoreSubscriptionTransitionKind.blockedDowngrade =>
+        'لا يمكن الانتقال من ${current.plan.name} إلى باقة أقل أثناء سريان الاشتراك',
       StoreSubscriptionTransitionKind.billingCycleChange =>
         'تغيير فوترة ${targetPlan.name} إلى ${offer.cycle.label}',
     };
@@ -320,7 +333,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       StoreSubscriptionTransitionKind.start => 'المتابعة للاشتراك',
       StoreSubscriptionTransitionKind.current => 'إغلاق',
       StoreSubscriptionTransitionKind.upgrade => 'المتابعة للترقية',
-      StoreSubscriptionTransitionKind.downgrade => 'جدولة الخفض في المتجر',
+      StoreSubscriptionTransitionKind.blockedDowngrade => 'إغلاق',
       StoreSubscriptionTransitionKind.billingCycleChange =>
         'متابعة تغيير الفوترة',
     };
@@ -346,18 +359,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 '${targetPlan.monthlyWarranties} ضماناً. تبقى '
                 '${current.usedWarranties} ضماناً أصدرتها هذا الشهر محسوبة، '
                 'فيصبح المتاح $remainingAfterUpgrade. لا تُجمع حصص الباقات.',
-              ),
-            ] else if (transition ==
-                StoreSubscriptionTransitionKind.downgrade) ...[
-              const SizedBox(height: 10),
-              Text(
-                'تبقى باقة ${current.plan.name} وحدودها فعّالة حتى التجديد. '
-                'بعد اعتماد المتجر للخفض يصبح الحد '
-                '${targetPlan.monthlyWarranties} ضماناً شهرياً. لا تُحذف '
-                'الضمانات السابقة؛ وإذا تجاوز استخدام الشهر الحد الجديد '
-                'يتوقف الإصدار الجديد حتى يتجدد الحد أول الشهر. عند التطبيق '
-                'تُعلّق العضويات الزائدة وتُعطّل الفروع الزائدة ومزايا الباقة '
-                'الأعلى مثل API وWebhooks.',
               ),
             ] else if (transition ==
                 StoreSubscriptionTransitionKind.billingCycleChange) ...[
@@ -1073,9 +1074,10 @@ class _PlanCard extends StatelessWidget {
         'ترقية فورية: يصبح حد هذا الشهر ${plan.monthlyWarranties} ضماناً. '
             'استخدمت ${subscription.usedWarranties}، والمتاح بعد الترقية '
             '$remainingAfterUpgrade. لا تُجمع حصص الباقات.',
-      StoreSubscriptionTransitionKind.downgrade =>
-        'خفض مجدول: تبقى باقة ${subscription.plan.name} وحدودها حتى '
-            'التجديد، ثم يطبّق المتجر باقة ${plan.name}.',
+      StoreSubscriptionTransitionKind.blockedDowngrade =>
+        'هذه باقة أقل من ${subscription.plan.name}، لذلك لا يمكن اختيارها '
+            'أثناء سريان الاشتراك الحالي. يمكنك تغيير دورة الفوترة أو إدارة '
+            'التجديد من المتجر.',
       StoreSubscriptionTransitionKind.billingCycleChange =>
         'تغيير دورة الفوترة فقط: تبقى باقة ${plan.name} وحصة الشهر كما هي، '
             'ويحدد المتجر موعد التطبيق النهائي.',
@@ -1089,20 +1091,18 @@ class _PlanCard extends StatelessWidget {
             StoreSubscriptionTransitionKind.start => 'الاشتراك في ${plan.name}',
             StoreSubscriptionTransitionKind.current => 'الخطة الحالية',
             StoreSubscriptionTransitionKind.upgrade => 'ترقية إلى ${plan.name}',
-            StoreSubscriptionTransitionKind.downgrade =>
-              'خفض إلى ${plan.name} عند التجديد',
+            StoreSubscriptionTransitionKind.blockedDowngrade =>
+              'غير متاحة مع باقتك الحالية',
             StoreSubscriptionTransitionKind.billingCycleChange =>
               'تغيير الفوترة إلى ${offer!.cycle.label.toLowerCase()}',
           };
     final secondaryAction = const {
       StoreSubscriptionTransitionKind.current,
-      StoreSubscriptionTransitionKind.downgrade,
+      StoreSubscriptionTransitionKind.blockedDowngrade,
       StoreSubscriptionTransitionKind.billingCycleChange,
     }.contains(effectiveTransition);
     final actionEnabled =
-        available &&
-        canBuy &&
-        effectiveTransition != StoreSubscriptionTransitionKind.current;
+        available && canBuy && effectiveTransition.canStartPurchase;
     return Card(
       color: colors.surface,
       shape: RoundedRectangleBorder(
@@ -1186,8 +1186,8 @@ class _PlanCard extends StatelessWidget {
                     Icons.check_circle_outline_rounded,
                   StoreSubscriptionTransitionKind.upgrade =>
                     Icons.arrow_upward_rounded,
-                  StoreSubscriptionTransitionKind.downgrade =>
-                    Icons.schedule_rounded,
+                  StoreSubscriptionTransitionKind.blockedDowngrade =>
+                    Icons.lock_outline_rounded,
                   StoreSubscriptionTransitionKind.billingCycleChange =>
                     Icons.sync_rounded,
                   StoreSubscriptionTransitionKind.start =>

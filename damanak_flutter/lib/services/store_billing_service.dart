@@ -17,10 +17,126 @@ typedef StoreProductQuery =
 
 typedef GoogleSubscriptionQuery = Future<PurchasesResultWrapper> Function();
 
+typedef AppleSubscriptionEntitlementQuery =
+    Future<List<AppleSubscriptionEntitlement>> Function();
+
 typedef NativePurchaseCompletion =
     Future<void> Function(PurchaseDetails purchase);
 typedef GooglePurchaseCompletion =
     Future<BillingResultWrapper> Function(GooglePlayPurchaseDetails purchase);
+
+const _appleEntitlementChannel = MethodChannel(
+  'com.damanak.damanak/storekit_entitlements',
+);
+
+@visibleForTesting
+class AppleSubscriptionEntitlement {
+  const AppleSubscriptionEntitlement({
+    required this.productId,
+    required this.originalTransactionId,
+    this.appAccountToken,
+  });
+
+  final String productId;
+  final String originalTransactionId;
+  final String? appAccountToken;
+
+  factory AppleSubscriptionEntitlement.fromChannelValue(Object? value) {
+    if (value is! Map) {
+      throw const FormatException('Invalid StoreKit entitlement payload.');
+    }
+    final productId = value['productId'];
+    if (productId is! String || productId.trim().isEmpty) {
+      throw const FormatException('Missing StoreKit entitlement product.');
+    }
+    final originalTransactionId = value['originalTransactionId'];
+    if (originalTransactionId is! String ||
+        originalTransactionId.trim().isEmpty) {
+      throw const FormatException(
+        'Missing StoreKit original transaction identifier.',
+      );
+    }
+    final token = value['appAccountToken'];
+    if (token != null && token is! String) {
+      throw const FormatException('Invalid StoreKit app account token.');
+    }
+    final normalizedToken = token is String ? token.trim() : null;
+    return AppleSubscriptionEntitlement(
+      productId: productId.trim(),
+      originalTransactionId: originalTransactionId.trim(),
+      appAccountToken: normalizedToken == null || normalizedToken.isEmpty
+          ? null
+          : normalizedToken,
+    );
+  }
+}
+
+Future<List<AppleSubscriptionEntitlement>>
+queryAppleCurrentSubscriptionEntitlements() async {
+  final values = await _appleEntitlementChannel.invokeListMethod<Object?>(
+    'currentSubscriptionEntitlements',
+  );
+  if (values == null) {
+    throw StateError('APPLE_SUBSCRIPTION_LOOKUP_FAILED');
+  }
+  return values
+      .map(AppleSubscriptionEntitlement.fromChannelValue)
+      .toList(growable: false);
+}
+
+@visibleForTesting
+Future<void> validateAppleSubscriptionOwnershipBeforePurchase({
+  required String? currentPlanId,
+  required String? currentProductId,
+  required String? currentOriginalTransactionId,
+  required AppleSubscriptionEntitlementQuery queryEntitlements,
+  required Duration timeout,
+}) async {
+  // The server is authoritative for entitlement state, while StoreKit proves
+  // that the Apple ID about to open the purchase sheet owns that exact chain.
+  // Checking only appAccountToken is insufficient for legacy/recovered chains;
+  // originalTransactionId is the stable link shared by StoreKit and the server.
+
+  late final List<AppleSubscriptionEntitlement> entitlements;
+  try {
+    entitlements = await queryEntitlements().timeout(timeout);
+  } on TimeoutException {
+    throw StateError('APPLE_SUBSCRIPTION_LOOKUP_TIMEOUT');
+  } on StateError {
+    rethrow;
+  } on Object {
+    throw StateError('APPLE_SUBSCRIPTION_LOOKUP_FAILED');
+  }
+
+  final damanakEntitlements = entitlements
+      .where(
+        (entitlement) =>
+            DamanakStoreCatalog.appleProductIds.contains(entitlement.productId),
+      )
+      .toList(growable: false);
+  if (currentPlanId == null) {
+    if (damanakEntitlements.isEmpty) return;
+    throw StateError('APPLE_EXISTING_SUBSCRIPTION_RESTORE_REQUIRED');
+  }
+
+  final expectedProductId = currentProductId?.trim() ?? '';
+  final expectedOriginalTransactionId =
+      currentOriginalTransactionId?.trim() ?? '';
+  if (expectedProductId.isEmpty || expectedOriginalTransactionId.isEmpty) {
+    throw StateError('APPLE_SUBSCRIPTION_STATE_INVALID');
+  }
+  if (damanakEntitlements.length != 1) {
+    throw StateError('APPLE_SUBSCRIPTION_ACCOUNT_MISMATCH');
+  }
+  final currentEntitlement = damanakEntitlements.single;
+  if (currentEntitlement.originalTransactionId !=
+      expectedOriginalTransactionId) {
+    throw StateError('APPLE_SUBSCRIPTION_ACCOUNT_MISMATCH');
+  }
+  if (currentEntitlement.productId != expectedProductId) {
+    throw StateError('APPLE_SUBSCRIPTION_STATE_CHANGED');
+  }
+}
 
 @visibleForTesting
 Future<void> completeGooglePlayPurchaseWithResultCheck({
@@ -271,9 +387,11 @@ ReplacementMode googleSubscriptionReplacementMode({
     throw StateError('GOOGLE_SUBSCRIPTION_TRANSITION_INVALID');
   }
 
-  // A lower entitlement always waits until the already-paid higher tier ends,
-  // regardless of a simultaneous cycle change.
-  if (replacementRank < existingRank) return ReplacementMode.deferred;
+  // Product policy is upgrade-only while a higher subscription is active.
+  // Never open Google Play with a deferred lower entitlement.
+  if (replacementRank < existingRank) {
+    throw StateError('GOOGLE_SUBSCRIPTION_DOWNGRADE_NOT_ALLOWED');
+  }
 
   if (existingCycle == null) {
     throw StateError('GOOGLE_EXISTING_CYCLE_UNKNOWN');
@@ -306,16 +424,49 @@ ReplacementMode googleSubscriptionReplacementMode({
 }
 
 @visibleForTesting
+StoreSubscriptionTransitionKind validateStoreSubscriptionPurchase({
+  required String? currentPlanId,
+  required BillingCycle? currentCycle,
+  required StoreProductOffer offer,
+}) {
+  if (currentPlanId != null &&
+      (DamanakStoreCatalog.planRank(currentPlanId) == 0 ||
+          currentCycle == null)) {
+    throw StateError('STORE_SUBSCRIPTION_STATE_INVALID');
+  }
+  final transition = DamanakStoreCatalog.subscriptionTransition(
+    hasActiveStoreSubscription: currentPlanId != null,
+    currentPlanId: currentPlanId,
+    currentBillingCycle: currentCycle?.value,
+    targetPlanId: offer.planId,
+    targetCycle: offer.cycle,
+  );
+  if (!transition.canStartPurchase) {
+    throw StateError(
+      transition == StoreSubscriptionTransitionKind.current
+          ? 'STORE_SUBSCRIPTION_ALREADY_ACTIVE'
+          : 'STORE_SUBSCRIPTION_DOWNGRADE_NOT_ALLOWED',
+    );
+  }
+  return transition;
+}
+
+@visibleForTesting
 StorePurchaseStatus storePurchaseEventStatus(
   PurchaseDetails purchase, {
   required bool restoring,
 }) {
+  // Google keeps the current subscription in the purchased state while a
+  // deferred replacement is waiting for renewal. pendingPurchaseUpdate
+  // describes that future replacement, not a pending payment for the current
+  // entitlement. Explicit restore must verify the currently owned token;
+  // outside restore, keep the replacement pending until Play commits it.
+  if (restoring && purchase.status == PurchaseStatus.purchased) {
+    return StorePurchaseStatus.restored;
+  }
   if (purchase is GooglePlayPurchaseDetails &&
       purchase.billingClientPurchase.pendingPurchaseUpdate != null) {
     return StorePurchaseStatus.pending;
-  }
-  if (restoring && purchase.status == PurchaseStatus.purchased) {
-    return StorePurchaseStatus.restored;
   }
   return switch (purchase.status) {
     PurchaseStatus.pending => StorePurchaseStatus.pending,
@@ -554,6 +705,9 @@ abstract interface class StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   });
@@ -600,6 +754,9 @@ class UnavailableStoreBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) => throw StateError('STORE_UNAVAILABLE');
@@ -629,12 +786,15 @@ class PlatformStoreBillingService implements StoreBillingService {
     InAppPurchase? client,
     GoogleSubscriptionQuery? googleSubscriptionQuery,
     GooglePurchaseCompletion? googlePurchaseCompletion,
+    AppleSubscriptionEntitlementQuery? appleSubscriptionEntitlementQuery,
     this.availabilityTimeout = const Duration(seconds: 6),
     this.productQueryTimeout = const Duration(seconds: 16),
     this.purchaseLookupTimeout = const Duration(seconds: 8),
   }) : _client = client ?? InAppPurchase.instance,
        _googleSubscriptionQueryOverride = googleSubscriptionQuery,
-       _googlePurchaseCompletionOverride = googlePurchaseCompletion {
+       _googlePurchaseCompletionOverride = googlePurchaseCompletion,
+       _appleSubscriptionEntitlementQueryOverride =
+           appleSubscriptionEntitlementQuery {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
       onError: (Object error) {
@@ -665,6 +825,8 @@ class PlatformStoreBillingService implements StoreBillingService {
   final Duration purchaseLookupTimeout;
   final GoogleSubscriptionQuery? _googleSubscriptionQueryOverride;
   final GooglePurchaseCompletion? _googlePurchaseCompletionOverride;
+  final AppleSubscriptionEntitlementQuery?
+  _appleSubscriptionEntitlementQueryOverride;
   final StreamController<List<StorePurchaseEvent>> _updates =
       createBufferedStorePurchaseController();
   final Map<String, ProductDetails> _nativeProducts = {};
@@ -900,24 +1062,45 @@ class PlatformStoreBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) async {
+    validateStoreSubscriptionPurchase(
+      currentPlanId: currentPlanId,
+      currentCycle: currentCycle,
+      offer: offer,
+    );
     if (_purchaseLaunchInProgress) {
       throw StateError('STORE_PURCHASE_IN_PROGRESS');
     }
     final product = _nativeProducts[offer.key];
     if (product == null) throw StateError('STORE_PRODUCT_UNAVAILABLE');
 
-    final launch = _ActiveStorePurchaseLaunch(
-      productId: offer.productId,
-      accountId: accountId,
-      storeId: storeId,
-      startedAt: DateTime.now(),
-    );
-    _activeLaunch = launch;
+    _ActiveStorePurchaseLaunch? launch;
     _purchaseLaunchInProgress = true;
     try {
+      if (platform == StoreBillingPlatform.appStore) {
+        await validateAppleSubscriptionOwnershipBeforePurchase(
+          currentPlanId: currentPlanId,
+          currentProductId: currentProductId,
+          currentOriginalTransactionId: currentOriginalTransactionId,
+          queryEntitlements:
+              _appleSubscriptionEntitlementQueryOverride ??
+              queryAppleCurrentSubscriptionEntitlements,
+          timeout: purchaseLookupTimeout,
+        );
+      }
+
+      launch = _ActiveStorePurchaseLaunch(
+        productId: offer.productId,
+        accountId: accountId,
+        storeId: storeId,
+        startedAt: DateTime.now(),
+      );
+      _activeLaunch = launch;
       if (product is GooglePlayProductDetails) {
         await _purchaseGoogleSubscription(
           product,
@@ -941,7 +1124,9 @@ class PlatformStoreBillingService implements StoreBillingService {
       );
       if (!launched) throw StateError('STORE_PURCHASE_NOT_LAUNCHED');
     } catch (_) {
-      if (identical(_activeLaunch, launch)) _activeLaunch = null;
+      if (launch != null && identical(_activeLaunch, launch)) {
+        _activeLaunch = null;
+      }
       rethrow;
     } finally {
       _purchaseLaunchInProgress = false;

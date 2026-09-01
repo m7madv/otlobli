@@ -137,6 +137,72 @@ void main() {
       expect(controller.errorMessage, contains('فعّالتان بالفعل'));
     });
 
+    test('يمنع خفض الباقة بعد الفحص الخادمي ولا يفتح المتجر', () async {
+      final repository = _SubscriptionRepository(
+        subscription: _subscription(
+          provider: 'app_store',
+          plan: _scalePlan,
+          productId: 'com.damanak.subscription.scale.monthly',
+        ),
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.appStore,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      final lowerOffer = controller.storeOffer('growth', BillingCycle.monthly)!;
+      await controller.purchaseSubscription(lowerOffer);
+
+      expect(repository.refreshCalls, 1);
+      expect(billing.purchaseCalls, 0);
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(
+        controller.errorMessage,
+        contains('لا يمكن الانتقال إلى باقة أقل'),
+      );
+    });
+
+    test(
+      'يمرر سلسلة Apple الخادمية إلى حارس الخدمة قبل تغيير الدورة',
+      () async {
+        final repository = _SubscriptionRepository(
+          subscription: _subscription(
+            provider: 'app_store',
+            productId: 'com.damanak.subscription.growth.monthly',
+            originalTransactionId: '100000000000001',
+          ),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+        addTearDown(controller.dispose);
+
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+        final yearly = controller.storeOffer('growth', BillingCycle.yearly)!;
+        await controller.purchaseSubscription(yearly);
+
+        expect(billing.purchaseCalls, 1);
+        expect(billing.currentPlanId, 'growth');
+        expect(
+          billing.currentProductId,
+          'com.damanak.subscription.growth.monthly',
+        );
+        expect(billing.currentOriginalTransactionId, '100000000000001');
+        expect(billing.currentCycle, BillingCycle.monthly);
+      },
+    );
+
     test('يمسح الخطأ القديم عند بدء شراء جديد لمتجر مقفول', () async {
       final repository = _SubscriptionRepository(
         subscription: _initialPaymentSubscription(),
@@ -901,6 +967,53 @@ void main() {
       },
     );
 
+    test('تتحقق استعادة Google من الاستحقاق الحالي مع خفض مؤجل قديم', () async {
+      final verified = _subscription(
+        provider: 'google_play',
+        plan: _scalePlan,
+        productId: 'com.damanak.subscription.scale',
+      );
+      final repository = _SubscriptionRepository(
+        subscription: _trialSubscription(),
+        verifiedSubscription: verified,
+      );
+      final billing = _LifecycleBillingService(
+        platform: StoreBillingPlatform.googlePlay,
+      );
+      final controller = AppController.withRepository(
+        repository,
+        billingService: billing,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      await controller.refreshStoreProducts();
+      await _waitUntil(() => billing.restoreCalls == 1);
+      await _waitUntil(() => !controller.storeBillingOperationInProgress);
+      billing.restoreResult = const StoreRestoreResult(
+        platform: StoreBillingPlatform.googlePlay,
+        restoredPurchases: 1,
+      );
+      final restore = controller.restoreStorePurchases();
+      await _waitUntil(() => billing.restoreCalls == 2);
+      billing.emit(
+        _googlePurchasedEvent(
+          key: 'legacy-deferred-downgrade',
+          status: StorePurchaseStatus.restored,
+          productId: 'com.damanak.subscription.scale',
+          pendingProductIds: const ['com.damanak.subscription.growth'],
+        ),
+      );
+      await restore;
+
+      expect(repository.verifyCalls, 1);
+      expect(repository.receipts.single.productId, verified.storeProductId);
+      expect(controller.subscription?.plan.id, 'scale');
+      expect(controller.storeBillingState, StoreBillingState.ready);
+      expect(controller.storeBillingMessage, isNull);
+      expect(controller.errorMessage, isNull);
+    });
+
     test('يفتح إدارة الاشتراك وفق المزود المحفوظ لا متجر الجهاز', () async {
       final repository = _SubscriptionRepository(
         subscription: _subscription(provider: 'app_store'),
@@ -924,7 +1037,7 @@ void main() {
       );
     });
 
-    test('يربط حدث تخفيض Google المؤجل حتى إذا أعاد المنتج القديم', () async {
+    test('يمنع خفض Google قبل إنشاء عملية استبدال', () async {
       final repository = _SubscriptionRepository(
         subscription: _subscription(
           provider: 'google_play',
@@ -949,51 +1062,15 @@ void main() {
         (offer) => offer.planId == 'growth',
       );
       await controller.purchaseSubscription(downgrade);
-      expect(billing.requiredExistingSubscription, isTrue);
 
-      billing.emit(
-        StorePurchaseEvent(
-          key: 'deferred-token',
-          status: StorePurchaseStatus.pending,
-          platform: StoreBillingPlatform.googlePlay,
-          productId: 'com.damanak.subscription.scale',
-          basePlanId: 'monthly',
-          purchaseId: 'order-deferred',
-          transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
-          verificationData: 'deferred-token',
-          verificationSource: 'google_play',
-          needsCompletion: false,
-          accountId: 'demo-owner',
-          storeId: 'demo-store',
-          pendingProductIds: ['com.damanak.subscription.growth'],
-        ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-
+      expect(billing.purchaseCalls, 0);
+      expect(billing.requiredExistingSubscription, isNull);
       expect(repository.verifyCalls, 0);
-      expect(controller.storeBillingState, StoreBillingState.pending);
-
-      billing.emit(
-        StorePurchaseEvent(
-          key: 'committed-deferred-token',
-          status: StorePurchaseStatus.purchased,
-          platform: StoreBillingPlatform.googlePlay,
-          productId: 'com.damanak.subscription.growth',
-          basePlanId: 'monthly',
-          purchaseId: 'order-committed-deferred',
-          transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
-          verificationData: 'committed-deferred-token',
-          verificationSource: 'google_play',
-          needsCompletion: false,
-          accountId: 'demo-owner',
-          storeId: 'demo-store',
-        ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-
-      expect(repository.verifyCalls, 1);
       expect(controller.storeBillingState, StoreBillingState.ready);
-      expect(controller.noticeMessage, contains('قبل المتجر طلب التغيير'));
+      expect(
+        controller.errorMessage,
+        contains('لا يمكن الانتقال إلى باقة أقل'),
+      );
     });
 
     test('يخرج من pending عند وصول تأكيد متأخر بعد الاستعادة', () async {
@@ -1451,7 +1528,9 @@ void main() {
     expect(find.textContaining('فيصبح المتاح 570'), findsOneWidget);
   });
 
-  testWidgets('يعرض نمو لمشترك توسع كخفض مجدول لا كاشتراك ثان', (tester) async {
+  testWidgets('يعرض نمو لمشترك توسع كباقة أدنى غير قابلة للشراء', (
+    tester,
+  ) async {
     final repository = _SubscriptionRepository(
       subscription: _subscription(
         provider: 'app_store',
@@ -1497,29 +1576,19 @@ void main() {
     await tester.tap(growthPicker);
     await tester.pumpAndSettle();
 
-    final downgradeButton = find.descendant(
+    final blockedButton = find.descendant(
       of: find.byKey(const ValueKey('subscription-plan-growth')),
-      matching: find.widgetWithText(OutlinedButton, 'خفض إلى نمو عند التجديد'),
+      matching: find.widgetWithText(
+        OutlinedButton,
+        'غير متاحة مع باقتك الحالية',
+      ),
     );
-    await tester.scrollUntilVisible(
-      downgradeButton,
-      240,
-      scrollable: scrollable,
-    );
-    expect(downgradeButton, findsOneWidget);
-    expect(find.textContaining('تبقى باقة توسع وحدودها'), findsOneWidget);
+    await tester.scrollUntilVisible(blockedButton, 240, scrollable: scrollable);
+    expect(blockedButton, findsOneWidget);
+    expect(tester.widget<OutlinedButton>(blockedButton).onPressed, isNull);
+    expect(find.textContaining('لا يمكن اختيارها'), findsOneWidget);
     expect(find.text('الاشتراك في نمو'), findsNothing);
-
-    await tester.drag(scrollable, const Offset(0, -180));
-    await tester.pumpAndSettle();
-    await tester.tap(downgradeButton.hitTestable());
-    await tester.pumpAndSettle();
-
-    expect(find.text('تأكيد الخفض عند التجديد'), findsOneWidget);
-    expect(find.text('جدولة الخفض في المتجر'), findsOneWidget);
-    expect(find.textContaining('لا تُحذف الضمانات السابقة'), findsOneWidget);
-    expect(find.textContaining('تُعلّق العضويات الزائدة'), findsOneWidget);
-    expect(find.textContaining('تُعطّل الفروع الزائدة'), findsOneWidget);
+    expect(find.textContaining('خفض'), findsNothing);
   });
 
   testWidgets('تعرض الدورة والمزود وروابط المستندات القانونية', (tester) async {
@@ -1736,6 +1805,7 @@ StorePurchaseEvent _googlePurchasedEvent({
   String productId = 'com.damanak.subscription.growth',
   String? accountId = 'demo-owner',
   String? storeId = 'demo-store',
+  List<String> pendingProductIds = const [],
 }) => StorePurchaseEvent(
   key: key,
   status: status,
@@ -1749,6 +1819,7 @@ StorePurchaseEvent _googlePurchasedEvent({
   needsCompletion: needsCompletion,
   accountId: accountId,
   storeId: storeId,
+  pendingProductIds: pendingProductIds,
 );
 
 StorePurchaseEvent _appleRestoredEvent({
@@ -1810,6 +1881,7 @@ SubscriptionInfo _subscription({
   required String provider,
   PlanInfo plan = _growthPlan,
   String? productId,
+  String? originalTransactionId = '100000000000001',
   int usedWarranties = 12,
   String billingCycle = 'monthly',
 }) => SubscriptionInfo(
@@ -1822,6 +1894,7 @@ SubscriptionInfo _subscription({
   source: 'store',
   billingProvider: provider,
   storeProductId: productId ?? 'com.damanak.subscription.growth.monthly',
+  originalTransactionId: originalTransactionId,
   billingCycle: billingCycle,
   autoRenews: true,
   lastVerifiedAt: DateTime.now(),
@@ -1984,6 +2057,10 @@ class _LifecycleBillingService implements StoreBillingService {
   final List<StoreProductOffer> purchasedOffers = [];
   final List<bool> restoreRecoveryRequests = [];
   bool? requiredExistingSubscription;
+  String? currentPlanId;
+  String? currentProductId;
+  String? currentOriginalTransactionId;
+  BillingCycle? currentCycle;
   StoreBillingPlatform? managedProvider;
   String? managedProductId;
 
@@ -2032,11 +2109,18 @@ class _LifecycleBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) async {
     purchaseCalls += 1;
     purchasedOffers.add(offer);
+    this.currentPlanId = currentPlanId;
+    this.currentProductId = currentProductId;
+    this.currentOriginalTransactionId = currentOriginalTransactionId;
+    this.currentCycle = currentCycle;
     requiredExistingSubscription = requireExistingSubscription;
     final error = purchaseError;
     if (error != null) throw error;

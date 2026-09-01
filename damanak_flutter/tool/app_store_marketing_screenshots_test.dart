@@ -535,6 +535,9 @@ class _MarketingBillingService implements StoreBillingService {
     StoreProductOffer offer, {
     required String accountId,
     required String storeId,
+    required String? currentPlanId,
+    required String? currentProductId,
+    required String? currentOriginalTransactionId,
     required BillingCycle? currentCycle,
     required bool requireExistingSubscription,
   }) async {}

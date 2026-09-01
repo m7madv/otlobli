@@ -900,6 +900,7 @@ class AppController extends ChangeNotifier {
           source: current.source,
           billingProvider: current.billingProvider,
           storeProductId: current.storeProductId,
+          originalTransactionId: current.originalTransactionId,
           billingCycle: current.billingCycle,
           autoRenews: current.autoRenews,
           lastVerifiedAt: current.lastVerifiedAt,
@@ -1553,13 +1554,27 @@ class AppController extends ChangeNotifier {
       targetPlanId: offer.planId,
       targetCycle: offer.cycle,
     );
-    if (transition == StoreSubscriptionTransitionKind.current) {
+    if (!transition.canStartPurchase) {
       _storeBillingState = _idleStoreBillingState;
       _storeBillingMessage = null;
-      _setStoreBillingError('هذه الخطة ودورة الفوترة فعّالتان بالفعل.');
+      _setStoreBillingError(
+        transition == StoreSubscriptionTransitionKind.current
+            ? 'هذه الخطة ودورة الفوترة فعّالتان بالفعل.'
+            : 'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.',
+      );
       notifyListeners();
       return;
     }
+    final currentPlanId = subscription?.hasUnexpiredStorePeriod == true
+        ? subscription?.plan.id
+        : null;
+    final currentProductId = subscription?.hasUnexpiredStorePeriod == true
+        ? subscription?.storeProductId
+        : null;
+    final currentOriginalTransactionId =
+        subscription?.hasUnexpiredStorePeriod == true
+        ? subscription?.originalTransactionId
+        : null;
     final currentCycle = switch (subscription?.billingCycle) {
       'monthly' when subscription?.hasUnexpiredStorePeriod == true =>
         BillingCycle.monthly,
@@ -1591,6 +1606,9 @@ class AppController extends ChangeNotifier {
         offer,
         accountId: account.id,
         storeId: store.id,
+        currentPlanId: currentPlanId,
+        currentProductId: currentProductId,
+        currentOriginalTransactionId: currentOriginalTransactionId,
         currentCycle: currentCycle,
         requireExistingSubscription: requireExistingSubscription,
       );
@@ -2841,6 +2859,20 @@ class AppController extends ChangeNotifier {
         value.contains('google_subscription_lookup_failed')) {
       return 'تعذر تأكيد اشتراك Google Play الحالي. لم يبدأ ضمانك اشتراكاً جديداً؛ تحقق من الاتصال ثم حاول مجدداً.';
     }
+    if (value.contains('apple_existing_subscription_restore_required')) {
+      return 'وجد App Store اشتراك ضمانك فعالاً، بينما لا توجد حالة مرتبطة بهذا المتجر. لم نفتح الدفع؛ استخدم استعادة المشتريات لربطه بأمان.';
+    }
+    if (value.contains('apple_subscription_account_mismatch')) {
+      return 'اشتراك هذا المتجر مرتبط بحساب App Store آخر. لم نفتح الدفع لتجنب اشتراكين؛ سجّل الدخول إلى حساب الوسائط والمشتريات الذي اشتركت منه ثم أعد المحاولة.';
+    }
+    if (value.contains('apple_subscription_state_changed') ||
+        value.contains('apple_subscription_state_invalid')) {
+      return 'تغيّرت حالة اشتراك App Store أو تعذر مطابقتها بأمان. لم نفتح الدفع؛ حدّث الحالة ثم أعد المحاولة.';
+    }
+    if (value.contains('apple_subscription_lookup_timeout') ||
+        value.contains('apple_subscription_lookup_failed')) {
+      return 'تعذر التأكد من اشتراكات App Store الحالية. لم نفتح الدفع لتجنب عملية مكررة؛ تحقق من الاتصال ثم استخدم الاستعادة أو أعد المحاولة.';
+    }
     if (value.contains('google_subscription_account_conflict')) {
       return 'وجد Google Play اشتراك ضمانك لحساب آخر. استخدم حساب ضمانك الأصلي أو غيّر حساب Google Play.';
     }
@@ -2872,6 +2904,10 @@ class AppController extends ChangeNotifier {
     if (value.contains('google_subscription_already_active')) {
       return 'هذه الخطة ودورة الفوترة فعّالتان بالفعل.';
     }
+    if (value.contains('store_subscription_downgrade_not_allowed') ||
+        value.contains('google_subscription_downgrade_not_allowed')) {
+      return 'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.';
+    }
     if (value.contains('store_account_mismatch') ||
         value.contains('apple_account_mismatch') ||
         value.contains('google_account_mismatch') ||
@@ -2888,7 +2924,8 @@ class AppController extends ChangeNotifier {
     }
     if (value.contains('store_existing_subscription_required') ||
         value.contains('store_subscription_lookup_failed') ||
-        value.contains('store_subscription_history_unavailable')) {
+        value.contains('store_subscription_history_unavailable') ||
+        value.contains('store_subscription_state_invalid')) {
       return 'تعذر تأكيد الاشتراك الحالي قبل تغييره. لم يبدأ ضمانك اشتراكاً جديداً؛ تحقق من حساب المتجر ثم حاول مجدداً.';
     }
     if (value.contains('item_already_owned') ||

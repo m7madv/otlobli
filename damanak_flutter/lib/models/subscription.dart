@@ -146,6 +146,7 @@ class SubscriptionInfo {
     this.source = 'trial',
     this.billingProvider,
     this.storeProductId,
+    this.originalTransactionId,
     this.billingCycle,
     this.autoRenews = false,
     this.lastVerifiedAt,
@@ -160,6 +161,7 @@ class SubscriptionInfo {
   final String source;
   final String? billingProvider;
   final String? storeProductId;
+  final String? originalTransactionId;
   final String? billingCycle;
   final bool autoRenews;
   final DateTime? lastVerifiedAt;

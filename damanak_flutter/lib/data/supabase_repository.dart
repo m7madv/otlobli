@@ -311,6 +311,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
       source: subscriptionJson['source'] as String? ?? 'trial',
       billingProvider: subscriptionJson['billing_provider'] as String?,
       storeProductId: subscriptionJson['store_product_id'] as String?,
+      originalTransactionId:
+          subscriptionJson['original_transaction_id'] as String?,
       billingCycle: subscriptionJson['billing_cycle'] as String?,
       autoRenews: subscriptionJson['auto_renews'] as bool? ?? false,
       lastVerifiedAt: _dateOrNull(subscriptionJson['last_store_verified_at']),

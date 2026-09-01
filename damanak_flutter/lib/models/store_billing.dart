@@ -43,8 +43,18 @@ enum StoreSubscriptionTransitionKind {
   start,
   current,
   upgrade,
-  downgrade,
+  blockedDowngrade,
   billingCycleChange,
+}
+
+extension StoreSubscriptionTransitionPolicy on StoreSubscriptionTransitionKind {
+  bool get canStartPurchase => switch (this) {
+    StoreSubscriptionTransitionKind.start ||
+    StoreSubscriptionTransitionKind.upgrade ||
+    StoreSubscriptionTransitionKind.billingCycleChange => true,
+    StoreSubscriptionTransitionKind.current ||
+    StoreSubscriptionTransitionKind.blockedDowngrade => false,
+  };
 }
 
 abstract final class DamanakStoreCatalog {
@@ -124,7 +134,7 @@ abstract final class DamanakStoreCatalog {
     }
     return targetRank > currentRank
         ? StoreSubscriptionTransitionKind.upgrade
-        : StoreSubscriptionTransitionKind.downgrade;
+        : StoreSubscriptionTransitionKind.blockedDowngrade;
   }
 
   static bool contains(StoreBillingPlatform platform, String productId) =>
