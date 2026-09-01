@@ -63,7 +63,7 @@
         How VoiceBrief handles your data and the audio you choose.
       </p>
       <p class="updated">
-        Last updated: <time datetime="2026-08-30">August 30, 2026</time>
+        Last updated: <time datetime="2026-09-01">September 1, 2026</time>
       </p>
       <section>
         <h2>Scope</h2>
@@ -99,6 +99,27 @@
             and hashed identifiers used to prevent abuse.
           </li>
         </ul>
+      </section>
+      <section>
+        <h2>Google Sign-In SDK Disclosure</h2>
+        <p>
+          Build 18 includes the Google Sign-In SDK. Under the SDK disclosure
+          supplied for Google Play, when Google sign-in is made available or
+          used, the SDK may collect <strong>Name</strong>,
+          <strong>Email</strong>, <strong>Phone Number</strong>,
+          <strong>Coarse Location</strong>, <strong>User ID</strong>,
+          <strong>Device ID</strong>, <strong>Other Usage Data</strong>, and
+          <strong>Other Data Types</strong> for app functionality and analytics.
+          These SDK data categories are treated as linked to the user and are
+          not used for tracking.
+        </p>
+        <p>
+          This disclosure describes potential processing by the embedded Google
+          SDK; VoiceBrief does not directly ask you for a phone number or coarse
+          or precise location, and the app does not request location permission
+          for this purpose. Actual processing by Google depends on account,
+          device, and service configuration and Google’s policies.
+        </p>
       </section>
       <section>
         <h2>How Audio and Results Are Processed</h2>
@@ -149,11 +170,12 @@
             summaries, tasks, dates, and suggested replies.
           </li>
           <li>
-            <strong>RevenueCat, Apple, and Google:</strong> subscription and
-            purchase status. VoiceBrief uses the Supabase account ID as the
-            RevenueCat App User ID, and these providers may process product,
-            entitlement, purchase date, expiration, and transaction history
-            under their policies.
+            <strong>RevenueCat, Apple, and Google:</strong> subscription status
+            and Purchase History. VoiceBrief maps the Supabase account ID to the
+            RevenueCat App User ID, so RevenueCat Purchase History and
+            subscription or entitlement status are linked to the VoiceBrief
+            user. These providers may process product, entitlement, purchase
+            date, expiration, and transaction history under their policies.
           </li>
           <li>
             <strong>Apple or Google:</strong> sign-in when you choose that
@@ -226,7 +248,7 @@
       <h1>الخصوصية</h1>
       <p class="lede">كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.</p>
       <p class="updated">
-        آخر تحديث: <time datetime="2026-08-30">30 أغسطس 2026</time>
+        آخر تحديث: <time datetime="2026-09-01">1 سبتمبر 2026</time>
       </p>
       <section>
         <h2>نطاق هذه السياسة</h2>
@@ -261,6 +283,26 @@
             لمكافحة الإساءة.
           </li>
         </ul>
+      </section>
+      <section>
+        <h2>إفصاح حزمة Google Sign-In</h2>
+        <p>
+          يتضمن البناء 18 حزمة Google Sign-In SDK. وفق إفصاح الحزمة المقدم إلى
+          Google Play، قد تجمع الحزمة عند إتاحة تسجيل الدخول عبر Google أو
+          استخدامه: <strong>الاسم</strong>، <strong>البريد الإلكتروني</strong>،
+          <strong>رقم الهاتف</strong>، <strong>الموقع التقريبي</strong>،
+          <strong>معرّف المستخدم</strong>، <strong>معرّف الجهاز</strong>،
+          <strong>بيانات استخدام أخرى</strong>، و<strong
+            >أنواع بيانات أخرى</strong
+          >، لأغراض وظائف التطبيق والتحليلات. تُعامل فئات بيانات الحزمة هذه على
+          أنها مرتبطة بالمستخدم ولا تُستخدم للتتبع.
+        </p>
+        <p>
+          يصف هذا الإفصاح معالجة محتملة من حزمة Google المضمّنة؛ لا يطلب
+          VoiceBrief منك مباشرة رقم الهاتف أو الموقع التقريبي أو الدقيق، ولا
+          يطلب التطبيق إذن الموقع لهذا الغرض. تعتمد المعالجة الفعلية لدى Google
+          على إعدادات الحساب والجهاز والخدمة وسياسات Google.
+        </p>
       </section>
       <section>
         <h2>طريقة معالجة الصوت والنتائج</h2>
@@ -308,10 +350,11 @@
             والمواعيد والردود.
           </li>
           <li>
-            <strong>RevenueCat ومتجرا Apple وGoogle:</strong> إدارة الاشتراك
-            وحالة الشراء. يستخدم VoiceBrief معرّف حساب Supabase كمعرّف مستخدم
-            RevenueCat، وقد يعالج هؤلاء المزودون المنتج والاستحقاق وتاريخ الشراء
-            والانتهاء وسجل المعاملة وفق سياساتهم.
+            <strong>RevenueCat ومتجرا Apple وGoogle:</strong> حالة الاشتراك وسجل
+            الشراء. يربط VoiceBrief معرّف حساب Supabase بمعرّف مستخدم
+            RevenueCat؛ لذلك يرتبط سجل الشراء وحالة الاشتراك أو الاستحقاق لدى
+            RevenueCat بمستخدم VoiceBrief. وقد يعالج هؤلاء المزودون المنتج
+            والاستحقاق وتاريخ الشراء والانتهاء وسجل المعاملة وفق سياساتهم.
           </li>
           <li>
             <strong>Apple أو Google:</strong> تسجيل الدخول عندما تختار أحدهما،
