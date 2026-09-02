@@ -44,6 +44,7 @@ class AppController extends ChangeNotifier {
     Duration storeRestoreVerificationSettleTimeout = const Duration(
       seconds: 35,
     ),
+    Duration storeRestoreEventQuietPeriod = const Duration(milliseconds: 200),
     Duration initialActivationWorkspaceTimeout = const Duration(seconds: 20),
     Duration purchaseEventTimeout = const Duration(minutes: 2),
     Duration purchaseResumeGracePeriod = const Duration(seconds: 12),
@@ -56,6 +57,7 @@ class AppController extends ChangeNotifier {
        _storeRestoreVerificationTimeout = storeRestoreVerificationTimeout,
        _storeRestoreVerificationSettleTimeout =
            storeRestoreVerificationSettleTimeout,
+       _storeRestoreEventQuietPeriod = storeRestoreEventQuietPeriod,
        _initialActivationWorkspaceTimeout = initialActivationWorkspaceTimeout,
        _purchaseEventTimeout = purchaseEventTimeout,
        _purchaseResumeGracePeriod = purchaseResumeGracePeriod {
@@ -71,6 +73,7 @@ class AppController extends ChangeNotifier {
     Duration storeRestoreVerificationSettleTimeout = const Duration(
       seconds: 35,
     ),
+    Duration storeRestoreEventQuietPeriod = const Duration(milliseconds: 200),
     Duration initialActivationWorkspaceTimeout = const Duration(seconds: 20),
     Duration purchaseEventTimeout = const Duration(minutes: 2),
     Duration purchaseResumeGracePeriod = const Duration(seconds: 12),
@@ -82,6 +85,7 @@ class AppController extends ChangeNotifier {
        _storeRestoreVerificationTimeout = storeRestoreVerificationTimeout,
        _storeRestoreVerificationSettleTimeout =
            storeRestoreVerificationSettleTimeout,
+       _storeRestoreEventQuietPeriod = storeRestoreEventQuietPeriod,
        _initialActivationWorkspaceTimeout = initialActivationWorkspaceTimeout,
        _purchaseEventTimeout = purchaseEventTimeout,
        _purchaseResumeGracePeriod = purchaseResumeGracePeriod {
@@ -95,11 +99,13 @@ class AppController extends ChangeNotifier {
   final Duration _storePurchaseVerificationTimeout;
   final Duration _storeRestoreVerificationTimeout;
   final Duration _storeRestoreVerificationSettleTimeout;
+  final Duration _storeRestoreEventQuietPeriod;
   final Duration _initialActivationWorkspaceTimeout;
   final Duration _purchaseEventTimeout;
   final Duration _purchaseResumeGracePeriod;
   StreamSubscription<List<StorePurchaseEvent>>? _billingSubscription;
   Future<void> _purchaseEventSerial = Future<void>.value();
+  int _purchaseEventEnqueueRevision = 0;
   Timer? _purchaseWatchdog;
   final List<StorePurchaseEvent> _queuedStorePurchaseEvents = [];
   _StorePurchaseIntent? _activePurchaseIntent;
@@ -1369,6 +1375,7 @@ class AppController extends ChangeNotifier {
   void _listenToStoreBilling() {
     _billingSubscription = _billingService.purchaseUpdates.listen(
       (events) {
+        _purchaseEventEnqueueRevision += 1;
         _purchaseEventSerial = _purchaseEventSerial
             .then((_) => _handleStorePurchaseUpdates(events))
             .catchError((Object error, StackTrace _) {
@@ -1377,6 +1384,7 @@ class AppController extends ChangeNotifier {
             });
       },
       onError: (Object error) {
+        _purchaseEventEnqueueRevision += 1;
         _recordStoreBillingFailure(error);
         notifyListeners();
       },
@@ -1819,6 +1827,8 @@ class AppController extends ChangeNotifier {
             .restorePurchases(
               accountId: account.id,
               storeId: store.id,
+              currentOriginalTransactionId:
+                  _subscription?.originalTransactionId,
               recoveryRequested: true,
             )
             .timeout(_storeRestoreTimeout);
@@ -1832,13 +1842,27 @@ class AppController extends ChangeNotifier {
           operationId: operationId,
           message: 'استغرق طلب App Store وقتاً أطول. ننتظر وصول الإيصال بأمان…',
         );
+        session.restoreResultUnknown = true;
         notifyListeners();
         final outcome = await _waitForRestoreVerificationOutcome(session);
         if (!_restoreSessionMatches(session)) return;
-        await _applyRestoreVerificationOutcome(session, outcome);
+        // A single StoreKit restore batch can contain multiple unfinished
+        // transactions. The first active result completes the outcome future,
+        // but every remaining event must retain the explicit-recovery scope
+        // until it is verified and finished as well.
+        await _drainRestorePurchaseEvents(session);
+        if (!_restoreSessionMatches(session)) return;
+        await _applyRestoreVerificationOutcome(
+          session,
+          session.outcomeAfterDrain(outcome),
+        );
         return;
       }
       if (!_restoreSessionMatches(session)) return;
+      session.expectedStorePurchases = result.restoredPurchases ?? 0;
+      session.remainingStorePurchases = result.remainingPurchases;
+      session.unfinishedLookupFailed = result.unfinishedLookupFailed;
+      session.officialRestoreFailed = result.officialRestoreFailed;
       if (result.accountMismatchDetected &&
           (result.restoredPurchases ?? 0) == 0 &&
           result.pendingPurchases == 0) {
@@ -1853,17 +1877,29 @@ class AppController extends ChangeNotifier {
         );
         return;
       }
+      if (result.officialRestoreFailed &&
+          (result.restoredPurchases ?? 0) == 0) {
+        final firstOutcome = await _waitForRestoreVerificationOutcome(session);
+        if (!_restoreSessionMatches(session)) return;
+        await _drainRestorePurchaseEvents(session);
+        if (!_restoreSessionMatches(session)) return;
+        await _applyRestoreVerificationOutcome(
+          session,
+          session.outcomeAfterDrain(firstOutcome),
+        );
+        return;
+      }
       if (result.restoredPurchases == 0) {
         // Google يرسل عناصر الاستعادة عبر stream منفصل. أعطِ stream دورة
         // event loop ثم صرّف كل الأحداث التي سبق أن أرسلها قبل اعتبار النتيجة
         // فارغة، كي لا يتنافس fallback خادمي مع تحقق إيصال أحدث.
         await Future<void>.delayed(Duration.zero);
-        await _purchaseEventSerial;
+        await _drainRestorePurchaseEvents(session);
         if (!_restoreSessionMatches(session)) return;
         if (session.completer.isCompleted) {
           await _applyRestoreVerificationOutcome(
             session,
-            await session.completer.future,
+            session.outcomeAfterDrain(await session.completer.future),
           );
           return;
         }
@@ -1878,9 +1914,14 @@ class AppController extends ChangeNotifier {
         return;
       }
 
-      final outcome = await _waitForRestoreVerificationOutcome(session);
+      final firstOutcome = await _waitForRestoreVerificationOutcome(session);
       if (!_restoreSessionMatches(session)) return;
-      await _applyRestoreVerificationOutcome(session, outcome);
+      await _drainRestorePurchaseEvents(session);
+      if (!_restoreSessionMatches(session)) return;
+      await _applyRestoreVerificationOutcome(
+        session,
+        session.outcomeAfterDrain(firstOutcome),
+      );
     } catch (error) {
       if (_restoreSessionMatches(session)) {
         _setStoreBillingError(_friendlyError(error));
@@ -1931,20 +1972,64 @@ class AppController extends ChangeNotifier {
     );
     switch (outcome) {
       case _RestoreVerificationOutcome.active:
-        _noticeMessage = 'تمت استعادة الاشتراك والتحقق منه بأمان.';
+        if (session.remainingStorePurchases > 0) {
+          _noticeMessage =
+              'تمت معالجة دفعة من معاملات App Store القديمة بأمان. اضغط استعادة المشتريات مرة أخرى لإكمال الباقي قبل اختيار الباقة.';
+        } else if (session.officialRestoreFailed) {
+          _noticeMessage =
+              'تمت معالجة معاملات App Store القديمة، لكن تعذرت الاستعادة الرسمية الحالية. أعد الاستعادة قبل اختيار الباقة.';
+        } else if (session.restoreResultUnknown) {
+          _noticeMessage =
+              'تم التحقق من دفعة وصلت من App Store، لكن نتيجة طلب الاستعادة لم تكتمل. أعد الاستعادة قبل اختيار الباقة.';
+        } else if (session.unfinishedLookupFailed) {
+          _noticeMessage =
+              'تمت استعادة الاشتراك الحالي، لكن تعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل إعادة الشراء.';
+        } else {
+          _noticeMessage = 'تمت استعادة الاشتراك والتحقق منه بأمان.';
+        }
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: session.operationId,
-          message: null,
+          message: session.remainingStorePurchases > 0
+              ? 'بقيت ${session.remainingStorePurchases} معاملة قديمة. أكملها باستعادة إضافية قبل الشراء.'
+              : session.officialRestoreFailed
+              ? 'تعذرت الاستعادة الرسمية الحالية بعد معالجة المعاملات القديمة. أعد الاستعادة قبل الشراء.'
+              : session.restoreResultUnknown
+              ? 'لم تكتمل نتيجة طلب الاستعادة. أعد الاستعادة قبل الشراء.'
+              : session.unfinishedLookupFailed
+              ? 'تعذر فحص معاملات App Store القديمة؛ أعد الاستعادة لاحقاً قبل الشراء.'
+              : null,
         );
       case _RestoreVerificationOutcome.inactive:
+        if (session.remainingStorePurchases > 0) {
+          _noticeMessage =
+              'تمت معالجة دفعة قديمة غير فعالة، وبقيت ${session.remainingStorePurchases} معاملة. أعد استعادة المشتريات قبل اختيار باقة.';
+        }
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: session.operationId,
-          message: 'وجد المتجر اشتراكاً سابقاً، لكنه لا يمنح فترة فعّالة الآن.',
+          message: session.remainingStorePurchases > 0
+              ? 'وجد المتجر اشتراكاً سابقاً غير فعال، وبقيت ${session.remainingStorePurchases} معاملة قديمة. أعد الاستعادة قبل الشراء.'
+              : session.officialRestoreFailed
+              ? 'عولجت المعاملات القديمة غير الفعالة، لكن تعذرت الاستعادة الرسمية الحالية. أعد الاستعادة قبل الشراء.'
+              : session.restoreResultUnknown
+              ? 'تحققت دفعة قديمة غير فعالة، لكن نتيجة الاستعادة لم تكتمل. أعد الاستعادة قبل الشراء.'
+              : session.unfinishedLookupFailed
+              ? 'وجد المتجر اشتراكاً سابقاً غير فعال، وتعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل الشراء.'
+              : 'وجد المتجر اشتراكاً سابقاً، لكنه لا يمنح فترة فعّالة الآن.',
         );
       case _RestoreVerificationOutcome.failed:
-      // رسالة الخطأ التفصيلية عُرضت من مسار التحقق.
+        if (_errorMessageValue == null) {
+          _setStoreBillingError(
+            'لم تكتمل معالجة كل معاملات المتجر بأمان. لا تدفع مرة أخرى؛ أعد استعادة المشتريات بعد قليل.',
+          );
+        }
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: session.operationId,
+          message:
+              'لم تكتمل معالجة معاملات المتجر. لا تدفع مرة أخرى؛ أعد الاستعادة بعد قليل.',
+        );
       case _RestoreVerificationOutcome.notFound:
         await _finishRestoreWithoutStoreEvents(session);
     }
@@ -1975,6 +2060,48 @@ class AppController extends ChangeNotifier {
       return session.timeoutOutcome;
     },
   );
+
+  Future<void> _drainRestorePurchaseEvents(_StoreRestoreSession session) async {
+    if (storeBillingPlatform != StoreBillingPlatform.appStore) {
+      await _purchaseEventSerial;
+      if (session.verificationInProgress) {
+        await session.waitForVerificationToSettle().timeout(
+          _storeRestoreVerificationSettleTimeout,
+          onTimeout: () => throw StateError('STORE_VERIFICATION_TIMEOUT'),
+        );
+      }
+      return;
+    }
+    // StoreKit 2's native restore method can return before its MainActor task
+    // publishes currentEntitlements to Flutter. Keep the explicit restore
+    // session alive until the serialized stream stays quiet for a bounded
+    // period; this also waits for every verification already in flight.
+    for (var round = 0; round < 4; round += 1) {
+      await Future<void>.delayed(Duration.zero);
+      await _purchaseEventSerial;
+      if (!_restoreSessionMatches(session)) return;
+      if (session.verificationInProgress) {
+        await session.waitForVerificationToSettle().timeout(
+          _storeRestoreVerificationSettleTimeout,
+          onTimeout: () => throw StateError('STORE_VERIFICATION_TIMEOUT'),
+        );
+      }
+      final sessionRevision = session.eventRevision;
+      final enqueueRevision = _purchaseEventEnqueueRevision;
+      await Future<void>.delayed(_storeRestoreEventQuietPeriod);
+      await Future<void>.delayed(Duration.zero);
+      final latestSerial = _purchaseEventSerial;
+      await latestSerial;
+      if (!_restoreSessionMatches(session)) return;
+      if (!session.verificationInProgress &&
+          session.eventRevision == sessionRevision &&
+          _purchaseEventEnqueueRevision == enqueueRevision &&
+          identical(latestSerial, _purchaseEventSerial)) {
+        return;
+      }
+    }
+    throw StateError('STORE_RESTORE_STREAM_NOT_SETTLED');
+  }
 
   void _startPurchaseWatchdog(
     _StorePurchaseIntent intent, {
@@ -2117,7 +2244,7 @@ class AppController extends ChangeNotifier {
           );
         }
         if (matchesRestore) {
-          restoreSession.complete(_RestoreVerificationOutcome.failed);
+          restoreSession.markFailure(event.key);
           if (!restoreSession.silent) {
             _setStoreBillingError(
               _friendlyError(StateError('STORE_ACCOUNT_MISMATCH')),
@@ -2152,8 +2279,7 @@ class AppController extends ChangeNotifier {
             _noticeMessage = 'أُغلقت عملية الشراء من دون تأكيد اشتراك.';
           }
           if (matchesRestore) {
-            restoreSession.verificationFailed = true;
-            restoreSession.complete(_RestoreVerificationOutcome.failed);
+            restoreSession.markFailure(event.key);
             if (!restoreSession.silent) {
               _setStoreBillingError(
                 'أُغلقت استعادة المشتريات من المتجر من دون تأكيد اشتراك.',
@@ -2174,8 +2300,7 @@ class AppController extends ChangeNotifier {
             _setStoreBillingError(_friendlyStoreEventError(event));
           }
           if (matchesRestore) {
-            restoreSession.verificationFailed = true;
-            restoreSession.complete(_RestoreVerificationOutcome.failed);
+            restoreSession.markFailure(event.key);
             if (!restoreSession.silent) {
               _setStoreBillingError(_friendlyStoreEventError(event));
             }
@@ -2191,6 +2316,7 @@ class AppController extends ChangeNotifier {
           }
         case StorePurchaseStatus.purchased:
         case StorePurchaseStatus.restored:
+          if (matchesRestore) restoreSession.observe(event.key);
           if (matchesIntent && intent != null) {
             _cancelPurchaseWatchdog(intent);
           }
@@ -2217,16 +2343,38 @@ class AppController extends ChangeNotifier {
     final sessionEpoch = _billingSessionEpoch;
     final eventKey = '$sessionEpoch:${event.key}';
     if (_verifiedPurchaseEvents.contains(eventKey)) {
+      if (event.needsCompletion) {
+        try {
+          await _billingService
+              .completePurchase(event)
+              .timeout(const Duration(seconds: 20));
+          if (restoreSession?.verificationFailed != true) {
+            _clearStoreBillingErrorAfterReceiptSuccess();
+          }
+        } catch (_) {
+          if (intent != null && identical(_activePurchaseIntent, intent)) {
+            _finishPurchaseIntent(intent);
+          }
+          if (restoreSession != null &&
+              _restoreSessionMatches(restoreSession)) {
+            restoreSession.markFailure(event.key);
+          }
+          _setStoreBillingError(
+            'سبق التحقق من الاشتراك، لكن تعذر إغلاق معاملة المتجر. لا تدفع مرة أخرى؛ استخدم الاستعادة لإكمالها.',
+          );
+          return;
+        }
+      }
       if (intent != null && identical(_activePurchaseIntent, intent)) {
         _finishPurchaseIntent(intent);
         _noticeMessage = 'سبق التحقق من هذه العملية بأمان.';
       }
       if (restoreSession != null && _restoreSessionMatches(restoreSession)) {
-        if (_subscription?.isUsable == true) {
-          restoreSession.complete(_RestoreVerificationOutcome.active);
-        } else {
-          restoreSession.sawInactivePurchase = true;
-        }
+        restoreSession.markVerified(
+          event.key,
+          usable: _subscription?.isUsable == true,
+          settled: true,
+        );
       }
       return;
     }
@@ -2350,6 +2498,7 @@ class AppController extends ChangeNotifier {
             )) {
               throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
             }
+            _rememberVerifiedPurchaseEvent(eventKey);
           }
           final operationMatches =
               completionContextMatches &&
@@ -2359,11 +2508,12 @@ class AppController extends ChangeNotifier {
           if (operationMatches) {
             if (intent != null) _finishPurchaseIntent(intent);
             if (restoreSession != null) {
-              if (verifiedSubscription.isUsable) {
-                restoreSession.complete(_RestoreVerificationOutcome.active);
-              } else {
-                restoreSession.sawInactivePurchase = true;
-              }
+              restoreSession.markVerified(
+                event.key,
+                usable: verifiedSubscription.isUsable,
+                settled: false,
+              );
+              restoreSession.markFailure(event.key);
             }
             if (intent == null &&
                 restoreSession == null &&
@@ -2423,17 +2573,19 @@ class AppController extends ChangeNotifier {
         throw StateError('STORE_SUBSCRIPTION_STATE_CHANGED');
       }
       _rememberVerifiedPurchaseEvent(eventKey);
-      _clearStoreBillingErrorAfterReceiptSuccess();
+      if (restoreSession?.verificationFailed != true) {
+        _clearStoreBillingErrorAfterReceiptSuccess();
+      }
       final operationMatches =
           (intent == null || identical(_activePurchaseIntent, intent)) &&
           (restoreSession == null || _restoreSessionMatches(restoreSession));
       if (operationMatches && intent != null) _finishPurchaseIntent(intent);
       if (operationMatches && restoreSession != null) {
-        if (verifiedSubscription.isUsable) {
-          restoreSession.complete(_RestoreVerificationOutcome.active);
-        } else {
-          restoreSession.sawInactivePurchase = true;
-        }
+        restoreSession.markVerified(
+          event.key,
+          usable: verifiedSubscription.isUsable,
+          settled: true,
+        );
       }
       final canResolveOrphanOperation =
           intent == null &&
@@ -2452,11 +2604,7 @@ class AppController extends ChangeNotifier {
               : 'تحققنا من العملية، لكنها لا تمنح فترة اشتراك فعّالة الآن.',
         );
       }
-      if (operationMatches && restoreSession != null) {
-        if (!restoreSession.silent && verifiedSubscription.isUsable) {
-          _noticeMessage = 'تمت استعادة الاشتراك والتحقق منه بأمان.';
-        }
-      } else if (operationMatches && intent != null) {
+      if (operationMatches && intent != null) {
         final changeDeferred =
             verifiedSubscription.plan.id != intent.planId ||
             verifiedSubscription.billingCycle != intent.cycle.value;
@@ -2484,8 +2632,7 @@ class AppController extends ChangeNotifier {
             (restoreSession == null || _restoreSessionMatches(restoreSession));
         if (operationMatches && intent != null) _finishPurchaseIntent(intent);
         if (operationMatches && restoreSession != null) {
-          restoreSession.verificationFailed = true;
-          restoreSession.complete(_RestoreVerificationOutcome.failed);
+          restoreSession.markFailure(event.key);
         }
         if (intent == null &&
             restoreSession == null &&
@@ -2591,8 +2738,7 @@ class AppController extends ChangeNotifier {
       _finishPurchaseIntent(intent);
     }
     if (restoreSession != null && _restoreSessionMatches(restoreSession)) {
-      restoreSession.verificationFailed = true;
-      restoreSession.complete(_RestoreVerificationOutcome.failed);
+      restoreSession.markFailure();
     }
   }
 
@@ -2802,15 +2948,14 @@ class AppController extends ChangeNotifier {
       try {
         final refreshed = await _refreshStoreSubscriptionShared(scope);
         await Future<void>.delayed(Duration.zero);
-        await _purchaseEventSerial;
+        await _drainRestorePurchaseEvents(session);
         if (!_restoreSessionMatches(session)) return;
         if (session.completer.isCompleted) {
-          final outcome = await session.completer.future;
-          if (outcome == _RestoreVerificationOutcome.active ||
-              outcome == _RestoreVerificationOutcome.inactive) {
-            await _applyRestoreVerificationOutcome(session, outcome);
-            return;
-          }
+          await _applyRestoreVerificationOutcome(
+            session,
+            session.outcomeAfterDrain(await session.completer.future),
+          );
+          return;
         }
         if (session.sawInactivePurchase) {
           await _applyRestoreVerificationOutcome(
@@ -2833,12 +2978,15 @@ class AppController extends ChangeNotifier {
           );
           if (!workspaceReady || !_restoreSessionMatches(session)) return;
           _updateSubscription(refreshed, operationId: session.operationId);
-          _noticeMessage =
-              'لم يرسل المتجر عملية جديدة، وتم تحديث حالة الاشتراك الحالي من الخادم.';
+          _noticeMessage = session.unfinishedLookupFailed
+              ? 'تم تحديث الاشتراك الحالي من الخادم، لكن تعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل الشراء.'
+              : 'لم يرسل المتجر عملية جديدة، وتم تحديث حالة الاشتراك الحالي من الخادم.';
           _subscriptionFlow.setMessage(
             scope: scope,
             operationId: session.operationId,
-            message: null,
+            message: session.unfinishedLookupFailed
+                ? 'تعذر فحص معاملات App Store القديمة؛ أعد الاستعادة لاحقاً قبل الشراء.'
+                : null,
           );
           return;
         }
@@ -2856,7 +3004,9 @@ class AppController extends ChangeNotifier {
     _subscriptionFlow.setMessage(
       scope: scope,
       operationId: session.operationId,
-      message: 'لم نجد مشتريات قابلة للاستعادة على حساب المتجر الحالي.',
+      message: session.unfinishedLookupFailed
+          ? 'لم نجد اشتراكاً حالياً، وتعذر فحص معاملات App Store القديمة. تحقق من الاتصال ثم أعد الاستعادة.'
+          : 'لم نجد مشتريات قابلة للاستعادة على حساب المتجر الحالي.',
     );
   }
 
@@ -2970,8 +3120,7 @@ class AppController extends ChangeNotifier {
         operationId: restore.operationId,
         message: message,
       );
-      restore.verificationFailed = true;
-      restore.complete(_RestoreVerificationOutcome.failed);
+      restore.markFailure();
       return;
     }
     final scope = _currentBillingScope;
@@ -3410,7 +3559,7 @@ class AppController extends ChangeNotifier {
         value.contains('storekitduplicateproductobject') ||
         value.contains('unfinished_transaction') ||
         value.contains('unfinished transaction')) {
-      return 'يوجد اشتراك مملوك أو عملية متجر سابقة غير منتهية. لا تدفع مرة أخرى؛ استخدم استعادة المشتريات أولاً.';
+      return 'وجد App Store معاملة سابقة غير منتهية لهذه الباقة. لا تدفع مرة أخرى؛ اضغط استعادة المشتريات، وانتظر نتيجتها، ثم أعد اختيار الباقة.';
     }
     if (value.contains('store_rate_limited') ||
         value.contains('store_verification_rate_limited') ||
@@ -3674,10 +3823,22 @@ class _StoreRestoreSession {
   final Completer<_RestoreVerificationOutcome> completer = Completer();
   bool sawInactivePurchase = false;
   bool verificationFailed = false;
+  int expectedStorePurchases = 0;
+  int remainingStorePurchases = 0;
+  bool unfinishedLookupFailed = false;
+  bool officialRestoreFailed = false;
+  bool restoreResultUnknown = false;
+  final Set<String> _observedEventKeys = <String>{};
+  final Set<String> _verifiedEventKeys = <String>{};
+  final Set<String> _activeEventKeys = <String>{};
+  final Set<String> _settledEventKeys = <String>{};
+  final Set<String> _failedEventKeys = <String>{};
+  int _eventRevision = 0;
   int _verificationsInProgress = 0;
   Completer<void>? _verificationSettled;
 
   bool get verificationInProgress => _verificationsInProgress > 0;
+  int get eventRevision => _eventRevision;
 
   void beginVerification() {
     if (_verificationsInProgress == 0) {
@@ -3699,9 +3860,71 @@ class _StoreRestoreSession {
       ? _verificationSettled!.future
       : Future<void>.value();
 
-  _RestoreVerificationOutcome get timeoutOutcome {
+  void observe(String eventKey) {
+    _eventRevision += 1;
+    _observedEventKeys.add(eventKey);
+  }
+
+  void markVerified(
+    String eventKey, {
+    required bool usable,
+    required bool settled,
+  }) {
+    observe(eventKey);
+    _verifiedEventKeys.add(eventKey);
+    if (settled) _settledEventKeys.add(eventKey);
+    if (usable) {
+      _activeEventKeys.add(eventKey);
+      complete(_RestoreVerificationOutcome.active);
+    } else {
+      sawInactivePurchase = true;
+      complete(_RestoreVerificationOutcome.inactive);
+    }
+  }
+
+  void markFailure([String? eventKey]) {
+    verificationFailed = true;
+    if (eventKey != null) {
+      observe(eventKey);
+      _failedEventKeys.add(eventKey);
+    }
+    complete(_RestoreVerificationOutcome.failed);
+  }
+
+  _RestoreVerificationOutcome outcomeAfterDrain(
+    _RestoreVerificationOutcome firstOutcome,
+  ) {
+    final expectedEventsMissing =
+        expectedStorePurchases > 0 &&
+        _observedEventKeys.length < expectedStorePurchases;
+    if (verificationFailed ||
+        _failedEventKeys.isNotEmpty ||
+        expectedEventsMissing) {
+      return _RestoreVerificationOutcome.failed;
+    }
+    if (_verifiedEventKeys.isNotEmpty) {
+      if (_settledEventKeys.length < _verifiedEventKeys.length) {
+        return _RestoreVerificationOutcome.failed;
+      }
+      if (_activeEventKeys.isNotEmpty) {
+        return _RestoreVerificationOutcome.active;
+      }
+    }
     if (sawInactivePurchase) return _RestoreVerificationOutcome.inactive;
-    if (verificationFailed) return _RestoreVerificationOutcome.failed;
+    if (unfinishedLookupFailed || officialRestoreFailed) {
+      return _RestoreVerificationOutcome.failed;
+    }
+    return firstOutcome;
+  }
+
+  _RestoreVerificationOutcome get timeoutOutcome {
+    if (verificationFailed ||
+        unfinishedLookupFailed ||
+        officialRestoreFailed ||
+        restoreResultUnknown) {
+      return _RestoreVerificationOutcome.failed;
+    }
+    if (sawInactivePurchase) return _RestoreVerificationOutcome.inactive;
     return _RestoreVerificationOutcome.notFound;
   }
 

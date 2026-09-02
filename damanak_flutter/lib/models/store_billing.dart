@@ -269,6 +269,9 @@ class StoreRestoreResult {
     required this.platform,
     this.restoredPurchases,
     this.pendingPurchases = 0,
+    this.remainingPurchases = 0,
+    this.unfinishedLookupFailed = false,
+    this.officialRestoreFailed = false,
     this.accountMismatchDetected = false,
   });
 
@@ -277,8 +280,14 @@ class StoreRestoreResult {
   /// عدد النتائج التي أعادها المتجر عندما يكون قابلاً للمعرفة مباشرة.
   ///
   /// يعيد Google Play عدداً نهائياً، بينما قد يرسل App Store النتائج لاحقاً
-  /// على stream المعاملات؛ لذلك تكون القيمة null على Apple.
+  /// على stream المعاملات؛ لذلك قد تكون القيمة null على Apple.
   final int? restoredPurchases;
   final int pendingPurchases;
+
+  /// عدد معاملات المتجر التي بقيت خارج الدفعة الحالية للحفاظ على حدود
+  /// التحقق. قيمة موجبة تعني أن على المستخدم تكرار الاستعادة بعد اكتمالها.
+  final int remainingPurchases;
+  final bool unfinishedLookupFailed;
+  final bool officialRestoreFailed;
   final bool accountMismatchDetected;
 }

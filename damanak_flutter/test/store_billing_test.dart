@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
 void main() {
   group('كتالوج اشتراكات المتجر', () {
@@ -835,6 +837,314 @@ void main() {
     });
   });
 
+  group('مصالحة معاملات Apple غير المنتهية', () {
+    test('يعيد فقط معاملات ضمانك الموثقة القابلة للإغلاق دون تكرار', () async {
+      final purchases = await queryAppleUnfinishedStorePurchases(
+        timeout: const Duration(seconds: 1),
+        expectedOriginalTransactionId: '2000000123456789',
+        trustedAppAccountTokens: const {'store-a'},
+        queryTransactions: () async => [
+          SK2Transaction(
+            id: '2000000123456790',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.scale.yearly',
+            purchaseDate: '1788345000000',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-scale-yearly',
+            jsonRepresentation: '{"transactionId":"2000000123456790"}',
+          ),
+          SK2Transaction(
+            id: '2000000123456790',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.scale.yearly',
+            purchaseDate: '1788345000000',
+            appAccountToken: 'store-a',
+            receiptData: 'duplicate-jws',
+          ),
+          SK2Transaction(
+            id: '2000000123456791',
+            originalId: '2000000123456791',
+            productId: 'com.example.unrelated.yearly',
+            purchaseDate: '1788345001000',
+            appAccountToken: 'store-a',
+            receiptData: 'unrelated-jws',
+          ),
+          SK2Transaction(
+            id: 'not-a-transaction-id',
+            originalId: 'not-a-transaction-id',
+            productId: 'com.damanak.subscription.growth.yearly',
+            purchaseDate: '1788345002000',
+            appAccountToken: 'store-a',
+            receiptData: 'invalid-id-jws',
+          ),
+        ],
+      );
+
+      expect(purchases.purchases, hasLength(1));
+      expect(purchases.remainingPurchases, 0);
+      final purchase = purchases.purchases.single as SK2PurchaseDetails;
+      expect(purchase.productID, 'com.damanak.subscription.scale.yearly');
+      expect(purchase.purchaseID, '2000000123456790');
+      expect(purchase.status, PurchaseStatus.purchased);
+      expect(purchase.pendingCompletePurchase, isTrue);
+      expect(purchase.appAccountToken, 'store-a');
+      expect(
+        purchase.verificationData.serverVerificationData,
+        'signed-scale-yearly',
+      );
+    });
+
+    test('يمكن حصر إصلاح المعاملة في المنتج المطلوب', () async {
+      final purchases = await queryAppleUnfinishedStorePurchases(
+        timeout: const Duration(seconds: 1),
+        expectedOriginalTransactionId: '2000000123456789',
+        trustedAppAccountTokens: const {'store-a'},
+        productId: 'com.damanak.subscription.scale.yearly',
+        queryTransactions: () async => [
+          SK2Transaction(
+            id: '2000000123456790',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.scale.yearly',
+            purchaseDate: '1788345000000',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-scale-yearly',
+          ),
+          SK2Transaction(
+            id: '2000000123456792',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.growth.yearly',
+            purchaseDate: '1788345002000',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-growth-yearly',
+          ),
+        ],
+      );
+
+      expect(purchases.purchases, hasLength(1));
+      expect(
+        purchases.purchases.single.productID,
+        'com.damanak.subscription.scale.yearly',
+      );
+    });
+
+    test('لا يحذف معاملة Apple من التتبع قبل نجاح الإغلاق', () async {
+      final purchases = await queryAppleUnfinishedStorePurchases(
+        timeout: const Duration(seconds: 1),
+        expectedOriginalTransactionId: '2000000123456789',
+        trustedAppAccountTokens: const {'store-a'},
+        queryTransactions: () async => [
+          SK2Transaction(
+            id: '2000000123456790',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.scale.yearly',
+            purchaseDate: '1788345000000',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-scale-yearly',
+          ),
+        ],
+      );
+      final tracked = <String, PurchaseDetails>{
+        'apple-unfinished': purchases.purchases.single,
+      };
+      var failCompletion = true;
+
+      Future<void> complete(PurchaseDetails purchase) async {
+        if (failCompletion) throw StateError('temporary-apple-finish-error');
+      }
+
+      await expectLater(
+        completeTrackedNativePurchase(
+          purchases: tracked,
+          eventKey: 'apple-unfinished',
+          completePurchase: complete,
+        ),
+        throwsStateError,
+      );
+      expect(tracked, contains('apple-unfinished'));
+
+      failCompletion = false;
+      await completeTrackedNativePurchase(
+        purchases: tracked,
+        eventKey: 'apple-unfinished',
+        completePurchase: complete,
+      );
+      expect(tracked, isEmpty);
+    });
+
+    test('لا يخلط بين سلسلتين حتى لو حملت القديمة رمز المتجر الحالي', () async {
+      final batch = await queryAppleUnfinishedStorePurchases(
+        timeout: const Duration(seconds: 1),
+        expectedOriginalTransactionId: '2000000123456789',
+        trustedAppAccountTokens: const {'store-a'},
+        queryTransactions: () async => [
+          SK2Transaction(
+            id: '2000000123456790',
+            originalId: '2000000123456788',
+            productId: 'com.damanak.subscription.scale.yearly',
+            purchaseDate: '1788345000000',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-other-chain',
+          ),
+          SK2Transaction(
+            id: '2000000123456791',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.growth.yearly',
+            purchaseDate: '1788345001000',
+            appAccountToken: 'other-store',
+            receiptData: 'signed-current-chain',
+          ),
+        ],
+      );
+
+      expect(batch.purchases, hasLength(1));
+      expect(batch.purchases.single.purchaseID, '2000000123456791');
+    });
+
+    test('يمرر orphan قديم ذي UUID فقط داخل الاستعادة الصريحة', () async {
+      Future<AppleUnfinishedPurchaseBatch> query({required bool recovery}) =>
+          queryAppleUnfinishedStorePurchases(
+            timeout: const Duration(seconds: 1),
+            expectedOriginalTransactionId: null,
+            trustedAppAccountTokens: const {
+              '11111111-1111-4111-8111-111111111111',
+            },
+            allowOrphanRecovery: recovery,
+            queryTransactions: () async => [
+              SK2Transaction(
+                id: '2000000123456790',
+                originalId: '2000000123456789',
+                productId: 'com.damanak.subscription.scale.yearly',
+                purchaseDate: '1788345000000',
+                appAccountToken: '22222222-2222-4222-8222-222222222222',
+                receiptData: 'signed-deleted-store-chain',
+              ),
+            ],
+          );
+
+      expect((await query(recovery: false)).purchases, isEmpty);
+      expect((await query(recovery: true)).purchases, hasLength(1));
+    });
+
+    test('يحد الدفعة بثمانية ويوزعها بعدل بين المنتجات', () async {
+      final transactions = <SK2Transaction>[
+        SK2Transaction(
+          id: '2000000123456800',
+          originalId: '2000000123456789',
+          productId: 'com.damanak.subscription.scale.yearly',
+          purchaseDate: '1788345000000',
+          appAccountToken: 'store-a',
+          receiptData: 'signed-scale-yearly',
+        ),
+        for (var index = 1; index <= 10; index += 1)
+          SK2Transaction(
+            id: '${2000000123456800 + index}',
+            originalId: '2000000123456789',
+            productId: 'com.damanak.subscription.starter.yearly',
+            purchaseDate: '${1788345000000 + index}',
+            appAccountToken: 'store-a',
+            receiptData: 'signed-starter-$index',
+          ),
+      ];
+
+      final batch = await queryAppleUnfinishedStorePurchases(
+        timeout: const Duration(seconds: 1),
+        expectedOriginalTransactionId: '2000000123456789',
+        trustedAppAccountTokens: const {'store-a'},
+        queryTransactions: () async => transactions,
+      );
+
+      expect(batch.purchases, hasLength(8));
+      expect(batch.remainingPurchases, 3);
+      expect(
+        batch.purchases.map((purchase) => purchase.productID),
+        contains('com.damanak.subscription.scale.yearly'),
+      );
+    });
+
+    test(
+      'ينفذ استعادة Apple الرسمية حتى لو فشل فحص المعاملات القديمة',
+      () async {
+        var officialRestoreCalls = 0;
+        var forwardedPurchases = 0;
+
+        final result = await restoreAppleStorePurchases(
+          storeKit2Enabled: true,
+          queryUnfinishedTransactions: () async =>
+              throw StateError('temporary-storekit-lookup-error'),
+          restoreCurrentEntitlements: () async {
+            officialRestoreCalls += 1;
+          },
+          forwardPurchases: (purchases) {
+            forwardedPurchases += purchases.length;
+          },
+          timeout: const Duration(seconds: 1),
+          accountId: 'account-a',
+          storeId: 'store-a',
+          currentOriginalTransactionId: '2000000123456789',
+          recoveryRequested: true,
+        );
+
+        expect(officialRestoreCalls, 1);
+        expect(forwardedPurchases, 0);
+        expect(result.unfinishedLookupFailed, isTrue);
+        expect(result.restoredPurchases, isNull);
+      },
+    );
+
+    test(
+      'يعيد نتيجة جزئية إذا فشلت الاستعادة الرسمية بعد إرسال دفعة',
+      () async {
+        var forwardedPurchases = 0;
+
+        final result = await restoreAppleStorePurchases(
+          storeKit2Enabled: true,
+          queryUnfinishedTransactions: () async => [
+            SK2Transaction(
+              id: '2000000123456790',
+              originalId: '2000000123456789',
+              productId: 'com.damanak.subscription.scale.yearly',
+              purchaseDate: '1788345000000',
+              appAccountToken: 'store-a',
+              receiptData: 'signed-scale-yearly',
+            ),
+          ],
+          restoreCurrentEntitlements: () async =>
+              throw StateError('official-restore-failed'),
+          forwardPurchases: (purchases) {
+            forwardedPurchases += purchases.length;
+          },
+          timeout: const Duration(seconds: 1),
+          accountId: 'account-a',
+          storeId: 'store-a',
+          currentOriginalTransactionId: '2000000123456789',
+          recoveryRequested: true,
+        );
+
+        expect(forwardedPurchases, 1);
+        expect(result.restoredPurchases, 1);
+        expect(result.officialRestoreFailed, isTrue);
+      },
+    );
+
+    test('ينظم فشل الاستعادة الرسمية حتى دون دفعة غير منتهية', () async {
+      final result = await restoreAppleStorePurchases(
+        storeKit2Enabled: true,
+        queryUnfinishedTransactions: () async => const [],
+        restoreCurrentEntitlements: () async =>
+            throw StateError('official-restore-failed-after-callback'),
+        forwardPurchases: (_) {},
+        timeout: const Duration(seconds: 1),
+        accountId: 'account-a',
+        storeId: 'store-a',
+        currentOriginalTransactionId: '2000000123456789',
+        recoveryRequested: true,
+      );
+
+      expect(result.restoredPurchases, isNull);
+      expect(result.officialRestoreFailed, isTrue);
+    });
+  });
+
   group('تصنيف انتقال الاشتراك', () {
     test('يميز البدء والخطة الحالية وتغيير دورة الفوترة', () {
       final monthly = _googleOffer('growth', BillingCycle.monthly);
@@ -1570,6 +1880,7 @@ class _ControlledStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    String? currentOriginalTransactionId,
     bool recoveryRequested = false,
   }) async => const StoreRestoreResult(
     platform: StoreBillingPlatform.appStore,
@@ -1613,6 +1924,7 @@ class _HangingStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    String? currentOriginalTransactionId,
     bool recoveryRequested = false,
   }) async => const StoreRestoreResult(
     platform: StoreBillingPlatform.appStore,

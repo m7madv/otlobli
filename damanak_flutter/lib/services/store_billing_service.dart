@@ -7,6 +7,7 @@ import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_interface.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,6 +20,8 @@ typedef GoogleSubscriptionQuery = Future<PurchasesResultWrapper> Function();
 
 typedef AppleSubscriptionEntitlementQuery =
     Future<List<AppleSubscriptionEntitlement>> Function();
+typedef AppleUnfinishedTransactionQuery =
+    Future<List<SK2Transaction>> Function();
 
 typedef NativePurchaseCompletion =
     Future<void> Function(PurchaseDetails purchase);
@@ -82,6 +85,199 @@ queryAppleCurrentSubscriptionEntitlements() async {
   return values
       .map(AppleSubscriptionEntitlement.fromChannelValue)
       .toList(growable: false);
+}
+
+@visibleForTesting
+class AppleUnfinishedPurchaseBatch {
+  const AppleUnfinishedPurchaseBatch({
+    required this.purchases,
+    required this.remainingPurchases,
+  });
+
+  final List<PurchaseDetails> purchases;
+  final int remainingPurchases;
+}
+
+@visibleForTesting
+Future<AppleUnfinishedPurchaseBatch> queryAppleUnfinishedStorePurchases({
+  required AppleUnfinishedTransactionQuery queryTransactions,
+  required Duration timeout,
+  required String? expectedOriginalTransactionId,
+  required Set<String> trustedAppAccountTokens,
+  String? productId,
+  int maxPurchases = 8,
+  bool allowOrphanRecovery = false,
+}) async {
+  if (maxPurchases < 1) {
+    throw ArgumentError.value(maxPurchases, 'maxPurchases');
+  }
+  late final List<SK2Transaction> transactions;
+  try {
+    transactions = await queryTransactions().timeout(timeout);
+  } on TimeoutException {
+    throw StateError('APPLE_SUBSCRIPTION_LOOKUP_TIMEOUT');
+  } on StateError {
+    rethrow;
+  } on Object {
+    throw StateError('APPLE_SUBSCRIPTION_LOOKUP_FAILED');
+  }
+
+  final requestedProductId = productId?.trim();
+  final expectedOriginalId = expectedOriginalTransactionId?.trim() ?? '';
+  final trustedTokens = trustedAppAccountTokens
+      .map((token) => token.trim().toLowerCase())
+      .where((token) => token.isNotEmpty)
+      .toSet();
+  final seenTransactionIds = <String>{};
+  final eligibleByProduct = <String, List<SK2Transaction>>{};
+  for (final transaction in transactions) {
+    final transactionId = transaction.id.trim();
+    final originalTransactionId = transaction.originalId.trim();
+    final transactionProductId = transaction.productId.trim();
+    final appAccountToken = transaction.appAccountToken?.trim().toLowerCase();
+    final receipt = transaction.receiptData?.trim() ?? '';
+    final hasRecoverableOrphanToken =
+        expectedOriginalId.isEmpty &&
+        allowOrphanRecovery &&
+        appAccountToken != null &&
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(appAccountToken);
+    final belongsToCurrentSubscription = expectedOriginalId.isNotEmpty
+        ? originalTransactionId == expectedOriginalId
+        : appAccountToken != null &&
+              (trustedTokens.contains(appAccountToken) ||
+                  hasRecoverableOrphanToken);
+    if (!DamanakStoreCatalog.appleProductIds.contains(transactionProductId) ||
+        (requestedProductId != null &&
+            requestedProductId.isNotEmpty &&
+            transactionProductId != requestedProductId) ||
+        int.tryParse(transactionId) == null ||
+        int.tryParse(originalTransactionId) == null ||
+        receipt.isEmpty ||
+        !belongsToCurrentSubscription ||
+        !seenTransactionIds.add(transactionId)) {
+      continue;
+    }
+    eligibleByProduct
+        .putIfAbsent(transactionProductId, () => <SK2Transaction>[])
+        .add(transaction);
+  }
+
+  for (final transactionsForProduct in eligibleByProduct.values) {
+    transactionsForProduct.sort((left, right) {
+      final leftDate = int.tryParse(left.purchaseDate) ?? 0;
+      final rightDate = int.tryParse(right.purchaseDate) ?? 0;
+      final dateOrder = rightDate.compareTo(leftDate);
+      return dateOrder != 0 ? dateOrder : right.id.compareTo(left.id);
+    });
+  }
+
+  // خذ معاملة واحدة من كل منتج في كل دورة. هذا يمنع تجديدات كثيرة لمنتج
+  // واحد من حجب معاملة Scale السنوية العالقة، مع إبقاء الدفعة تحت حد الخادم.
+  final selected = <SK2Transaction>[];
+  final productOffsets = <String, int>{};
+  var selectedInRound = true;
+  while (selected.length < maxPurchases && selectedInRound) {
+    selectedInRound = false;
+    for (final product in DamanakStoreCatalog.appleProductIds) {
+      final productTransactions = eligibleByProduct[product];
+      final offset = productOffsets[product] ?? 0;
+      if (productTransactions == null || offset >= productTransactions.length) {
+        continue;
+      }
+      selected.add(productTransactions[offset]);
+      productOffsets[product] = offset + 1;
+      selectedInRound = true;
+      if (selected.length == maxPurchases) break;
+    }
+  }
+
+  final eligibleCount = eligibleByProduct.values.fold<int>(
+    0,
+    (count, values) => count + values.length,
+  );
+  final purchases = selected
+      .map(
+        (transaction) => SK2PurchaseDetails(
+          productID: transaction.productId.trim(),
+          purchaseID: transaction.id.trim(),
+          verificationData: PurchaseVerificationData(
+            localVerificationData: transaction.jsonRepresentation ?? '',
+            serverVerificationData: transaction.receiptData ?? '',
+            source: 'app_store',
+          ),
+          transactionDate: transaction.purchaseDate,
+          status: PurchaseStatus.purchased,
+          appAccountToken: transaction.appAccountToken,
+        ),
+      )
+      .toList(growable: false);
+  return AppleUnfinishedPurchaseBatch(
+    purchases: purchases,
+    remainingPurchases: eligibleCount - purchases.length,
+  );
+}
+
+@visibleForTesting
+Future<StoreRestoreResult> restoreAppleStorePurchases({
+  required bool storeKit2Enabled,
+  required AppleUnfinishedTransactionQuery queryUnfinishedTransactions,
+  required Future<void> Function() restoreCurrentEntitlements,
+  required void Function(List<PurchaseDetails> purchases) forwardPurchases,
+  required Duration timeout,
+  required String accountId,
+  required String storeId,
+  required String? currentOriginalTransactionId,
+  required bool recoveryRequested,
+}) async {
+  var officialRestoreFailed = false;
+  final officialRestore = () async {
+    try {
+      await restoreCurrentEntitlements().timeout(timeout);
+    } on Object {
+      officialRestoreFailed = true;
+    }
+  }();
+  var unfinished = const AppleUnfinishedPurchaseBatch(
+    purchases: <PurchaseDetails>[],
+    remainingPurchases: 0,
+  );
+  var unfinishedLookupFailed = false;
+  if (storeKit2Enabled) {
+    try {
+      unfinished = await queryAppleUnfinishedStorePurchases(
+        queryTransactions: queryUnfinishedTransactions,
+        timeout: timeout,
+        expectedOriginalTransactionId: currentOriginalTransactionId,
+        trustedAppAccountTokens: {accountId, storeId},
+        allowOrphanRecovery: recoveryRequested,
+      );
+    } on Object {
+      unfinishedLookupFailed = true;
+    }
+  }
+  if (unfinished.purchases.isNotEmpty) {
+    forwardPurchases(unfinished.purchases);
+  }
+
+  // Apple's supported restore must run even when the optional unfinished
+  // lookup times out or fails; otherwise a repair path could break the normal
+  // current-entitlements restore.
+  await officialRestore;
+  // StoreKit can enqueue valid current-entitlement callbacks and still return
+  // an aggregate restore error for a different unverified item. The result is
+  // therefore structured even without an unfinished batch so AppController
+  // keeps the explicit-recovery session alive for those callbacks.
+  return StoreRestoreResult(
+    platform: StoreBillingPlatform.appStore,
+    restoredPurchases: unfinished.purchases.isEmpty
+        ? null
+        : unfinished.purchases.length,
+    remainingPurchases: unfinished.remainingPurchases,
+    unfinishedLookupFailed: unfinishedLookupFailed,
+    officialRestoreFailed: officialRestoreFailed,
+  );
 }
 
 @visibleForTesting
@@ -714,6 +910,7 @@ abstract interface class StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    String? currentOriginalTransactionId,
     bool recoveryRequested = false,
   });
   Future<void> completePurchase(StorePurchaseEvent event);
@@ -765,6 +962,7 @@ class UnavailableStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    String? currentOriginalTransactionId,
     bool recoveryRequested = false,
   }) => throw StateError('STORE_UNAVAILABLE');
 
@@ -787,6 +985,7 @@ class PlatformStoreBillingService implements StoreBillingService {
     GoogleSubscriptionQuery? googleSubscriptionQuery,
     GooglePurchaseCompletion? googlePurchaseCompletion,
     AppleSubscriptionEntitlementQuery? appleSubscriptionEntitlementQuery,
+    AppleUnfinishedTransactionQuery? appleUnfinishedTransactionQuery,
     this.availabilityTimeout = const Duration(seconds: 6),
     this.productQueryTimeout = const Duration(seconds: 16),
     this.purchaseLookupTimeout = const Duration(seconds: 8),
@@ -794,7 +993,9 @@ class PlatformStoreBillingService implements StoreBillingService {
        _googleSubscriptionQueryOverride = googleSubscriptionQuery,
        _googlePurchaseCompletionOverride = googlePurchaseCompletion,
        _appleSubscriptionEntitlementQueryOverride =
-           appleSubscriptionEntitlementQuery {
+           appleSubscriptionEntitlementQuery,
+       _appleUnfinishedTransactionQueryOverride =
+           appleUnfinishedTransactionQuery {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
       onError: (Object error) {
@@ -827,6 +1028,8 @@ class PlatformStoreBillingService implements StoreBillingService {
   final GooglePurchaseCompletion? _googlePurchaseCompletionOverride;
   final AppleSubscriptionEntitlementQuery?
   _appleSubscriptionEntitlementQueryOverride;
+  final AppleUnfinishedTransactionQuery?
+  _appleUnfinishedTransactionQueryOverride;
   final StreamController<List<StorePurchaseEvent>> _updates =
       createBufferedStorePurchaseController();
   final Map<String, ProductDetails> _nativeProducts = {};
@@ -1216,7 +1419,18 @@ class PlatformStoreBillingService implements StoreBillingService {
         purchase.purchaseID ?? productId,
         purchase.transactionDate ?? '',
       ].join(':');
-      _nativePurchases[key] = purchase;
+      final trackedPurchase = _nativePurchases[key];
+      // StoreKit 2 can deliver the same transaction twice during an explicit
+      // restore: once from Transaction.currentEntitlements as `restored`
+      // (pendingCompletePurchase=false), and once from Transaction.unfinished
+      // as `purchased` (pendingCompletePurchase=true). Never let the restored
+      // copy replace the unfinished copy, otherwise verification succeeds but
+      // the native transaction is never finished and blocks this product.
+      if (trackedPurchase == null ||
+          purchase.pendingCompletePurchase ||
+          !trackedPurchase.pendingCompletePurchase) {
+        _nativePurchases[key] = purchase;
+      }
       final googlePurchase = purchase is GooglePlayPurchaseDetails
           ? purchase.billingClientPurchase
           : null;
@@ -1321,6 +1535,7 @@ class PlatformStoreBillingService implements StoreBillingService {
   Future<StoreRestoreResult> restorePurchases({
     required String accountId,
     required String storeId,
+    String? currentOriginalTransactionId,
     bool recoveryRequested = false,
   }) async {
     if (platform == StoreBillingPlatform.googlePlay) {
@@ -1362,8 +1577,26 @@ class PlatformStoreBillingService implements StoreBillingService {
       );
     }
     if (platform == StoreBillingPlatform.appStore) {
-      await _client.restorePurchases(applicationUserName: accountId);
-      return const StoreRestoreResult(platform: StoreBillingPlatform.appStore);
+      // StoreKit 2's restorePurchases enumerates currentEntitlements only. A
+      // superseded transaction can remain in Transaction.unfinished and block
+      // only its product forever with storekit_duplicate_product_object.
+      // This repair is best-effort: a failure must never suppress Apple's
+      // official current-entitlements restore that follows it.
+      return restoreAppleStorePurchases(
+        storeKit2Enabled: InAppPurchaseStoreKitPlatform.isStoreKit2Enabled,
+        queryUnfinishedTransactions:
+            _appleUnfinishedTransactionQueryOverride ??
+            SK2Transaction.unfinishedTransactions,
+        restoreCurrentEntitlements: () =>
+            _client.restorePurchases(applicationUserName: accountId),
+        forwardPurchases: (purchases) =>
+            _forwardPurchases(purchases, restoring: true),
+        timeout: purchaseLookupTimeout,
+        accountId: accountId,
+        storeId: storeId,
+        currentOriginalTransactionId: currentOriginalTransactionId,
+        recoveryRequested: recoveryRequested,
+      );
     }
     throw StateError('STORE_UNAVAILABLE');
   }

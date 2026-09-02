@@ -152,11 +152,20 @@ export type VerifiedEntitlement = {
   purchaseTokenHash?: string;
   linkedPurchaseTokenHash?: string | null;
   appleAccountToken?: string | null;
+  appleRecoveryProof?: VerifiedAppleRecoveryProof;
   googleAcknowledgementPending?: boolean;
   googleOutOfApp?: boolean;
   googleRecoveryAccountId?: string | null;
   googleRecoveryStoreId?: string | null;
   googleOrphanLineageRecovery?: boolean;
+};
+
+export type VerifiedAppleRecoveryProof = {
+  transactionId: string;
+  originalTransactionId: string;
+  productId: string;
+  environment: "sandbox" | "production";
+  appleAccountToken: string | null;
 };
 
 export type VerificationFailure = {
@@ -1153,6 +1162,32 @@ async function verifyAppleRecoveryTransaction(
   );
 }
 
+async function verifyAppleRecoveryProofPayload(
+  clientSignedTransaction: unknown,
+  environment: "sandbox" | "production",
+  verifyTransaction: AppleRecoveryTransactionVerifier,
+) {
+  const clientJws = typeof clientSignedTransaction === "string"
+    ? clientSignedTransaction.trim()
+    : "";
+  if (!clientJws) {
+    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+  }
+
+  try {
+    return await verifyTransaction(clientJws, environment);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
+        error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
+    ) {
+      throw error;
+    }
+    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
+  }
+}
+
 export async function assertAppleRecoveryTransactionProof(
   clientSignedTransaction: unknown,
   entitlement: Pick<
@@ -1166,29 +1201,11 @@ export async function assertAppleRecoveryTransactionProof(
   verifyTransaction: AppleRecoveryTransactionVerifier =
     verifyAppleRecoveryTransaction,
 ) {
-  const clientJws = typeof clientSignedTransaction === "string"
-    ? clientSignedTransaction
-    : "";
-  if (!clientJws) {
-    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
-  }
-
-  let clientTransaction: Record<string, unknown>;
-  try {
-    clientTransaction = await verifyTransaction(
-      clientJws,
-      entitlement.environment,
-    );
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message === "APPLE_CERTIFICATE_VERIFICATION_RETRYABLE" ||
-        error.message === "APPLE_CERTIFICATE_VERIFICATION_UNAVAILABLE")
-    ) {
-      throw error;
-    }
-    throw new Error("APPLE_RECOVERY_PROOF_INVALID");
-  }
+  const clientTransaction = await verifyAppleRecoveryProofPayload(
+    clientSignedTransaction,
+    entitlement.environment,
+    verifyTransaction,
+  );
   const clientToken = typeof clientTransaction.appAccountToken === "string"
     ? clientTransaction.appAccountToken.trim().toLowerCase()
     : null;
@@ -1209,6 +1226,28 @@ export async function assertAppleRecoveryTransactionProof(
   }
 }
 
+export function assertVerifiedAppleRecoveryChainProof(
+  proof: VerifiedAppleRecoveryProof,
+  entitlement: Pick<
+    VerifiedEntitlement,
+    "originalTransactionId" | "environment" | "appleAccountToken"
+  >,
+) {
+  const proofToken = proof.appleAccountToken?.trim().toLowerCase() ?? null;
+  const expectedToken = entitlement.appleAccountToken?.trim().toLowerCase() ??
+    null;
+  if (
+    !/^\d{6,30}$/.test(proof.transactionId) ||
+    !/^\d{6,30}$/.test(proof.originalTransactionId) ||
+    !isAllowedStoreProduct("app_store", proof.productId) ||
+    proof.originalTransactionId !== entitlement.originalTransactionId ||
+    proof.environment !== entitlement.environment ||
+    proofToken !== expectedToken
+  ) {
+    throw new Error("APPLE_RECOVERY_PROOF_MISMATCH");
+  }
+}
+
 export async function assertAppleRecoveryProofForBinding(
   orphanRecoveryRequired: boolean,
   clientSignedTransaction: unknown,
@@ -1219,10 +1258,18 @@ export async function assertAppleRecoveryProofForBinding(
     | "productId"
     | "environment"
     | "appleAccountToken"
+    | "appleRecoveryProof"
   >,
   verifyTransaction?: AppleRecoveryTransactionVerifier,
 ) {
   if (!orphanRecoveryRequired) return;
+  if (entitlement.appleRecoveryProof != null) {
+    assertVerifiedAppleRecoveryChainProof(
+      entitlement.appleRecoveryProof,
+      entitlement,
+    );
+    return;
+  }
   await assertAppleRecoveryTransactionProof(
     clientSignedTransaction,
     entitlement,
@@ -1384,14 +1431,74 @@ async function fetchAppleStatus(
   throw new Error(`APPLE_STATUS_${statuses.join("_")}`);
 }
 
+export type AppleStatusTransaction = {
+  item: Record<string, unknown>;
+  transaction: Record<string, unknown>;
+  renewal: Record<string, unknown>;
+};
+
+export function selectAppleStatusTransaction(
+  transactions: AppleStatusTransaction[],
+  transactionId: string,
+  verifiedOriginalTransactionId: string | null,
+  allowOriginalTransactionLookup: boolean,
+) {
+  let matches: AppleStatusTransaction[];
+  if (verifiedOriginalTransactionId != null) {
+    matches = transactions.filter((candidate) =>
+      String(candidate.transaction.originalTransactionId ?? "") ===
+        verifiedOriginalTransactionId
+    );
+    if (matches.length === 0) {
+      throw new Error("APPLE_RECOVERY_PROOF_MISMATCH");
+    }
+  } else if (allowOriginalTransactionLookup) {
+    matches = transactions.filter((candidate) =>
+      String(candidate.transaction.transactionId ?? "") === transactionId
+    );
+    if (matches.length === 0) {
+      matches = transactions.filter((candidate) =>
+        String(candidate.transaction.originalTransactionId ?? "") ===
+          transactionId
+      );
+    }
+  } else {
+    matches = transactions.filter((candidate) =>
+      String(candidate.transaction.transactionId ?? "") === transactionId
+    );
+  }
+
+  matches.sort((a, b) =>
+    Number(b.transaction.expiresDate ?? 0) -
+    Number(a.transaction.expiresDate ?? 0)
+  );
+  const current = matches[0];
+  if (!current) throw new Error("APPLE_SUBSCRIPTION_NOT_FOUND");
+  return current;
+}
+
+type AppleStatusResult = {
+  environment: "sandbox" | "production";
+  body: Record<string, unknown>;
+};
+
+export type ApplePurchaseVerificationDependencies = {
+  fetchStatus?: (
+    transactionId: string,
+    environmentHint: unknown,
+  ) => Promise<AppleStatusResult>;
+  verifyRecoveryTransaction?: AppleRecoveryTransactionVerifier;
+};
+
 export async function verifyApplePurchase(
   body: PurchaseBody,
   _userId: string,
+  dependencies: ApplePurchaseVerificationDependencies = {},
 ): Promise<VerifiedEntitlement> {
-  const clientTransaction = decodeAppleClientTransaction(body);
+  const decodedClientTransaction = decodeAppleClientTransaction(body);
   const transactionId = body.purchaseId?.trim() ||
-    (typeof clientTransaction?.transactionId === "string"
-      ? clientTransaction.transactionId
+    (typeof decodedClientTransaction?.transactionId === "string"
+      ? decodedClientTransaction.transactionId
       : null);
   if (!transactionId || !/^\d{6,30}$/.test(transactionId)) {
     throw new Error("APPLE_TRANSACTION_REQUIRED");
@@ -1400,20 +1507,59 @@ export async function verifyApplePurchase(
     throw new Error("APPLE_SOURCE_MISMATCH");
   }
 
-  const apple = await fetchAppleStatus(
+  const apple = await (dependencies.fetchStatus ?? fetchAppleStatus)(
     transactionId,
-    clientTransaction?.environment,
+    decodedClientTransaction?.environment,
   );
   if (apple.body.bundleId !== bundleId) {
     throw new Error("APPLE_BUNDLE_MISMATCH");
   }
 
+  let recoveryProof: VerifiedAppleRecoveryProof | undefined;
+  if (body.recoveryRequested === true) {
+    const verifiedClientTransaction = await verifyAppleRecoveryProofPayload(
+      body.verificationData,
+      apple.environment,
+      dependencies.verifyRecoveryTransaction ??
+        verifyAppleRecoveryTransaction,
+    );
+    const verifiedTransactionId = String(
+      verifiedClientTransaction.transactionId ?? "",
+    );
+    const verifiedOriginalTransactionId = String(
+      verifiedClientTransaction.originalTransactionId ?? "",
+    );
+    const verifiedProductId = String(
+      verifiedClientTransaction.productId ?? "",
+    );
+    const verifiedEnvironment = normalizedAppleEnvironment(
+      verifiedClientTransaction.environment,
+    );
+    const verifiedAccountToken =
+      typeof verifiedClientTransaction.appAccountToken === "string"
+        ? verifiedClientTransaction.appAccountToken.trim()
+        : null;
+    if (
+      String(verifiedClientTransaction.bundleId ?? "") !== bundleId ||
+      verifiedTransactionId !== transactionId ||
+      !/^\d{6,30}$/.test(verifiedOriginalTransactionId) ||
+      !isAllowedStoreProduct("app_store", verifiedProductId) ||
+      (body.productId != null && body.productId !== verifiedProductId) ||
+      verifiedEnvironment !== apple.environment
+    ) {
+      throw new Error("APPLE_RECOVERY_PROOF_MISMATCH");
+    }
+    recoveryProof = {
+      transactionId: verifiedTransactionId,
+      originalTransactionId: verifiedOriginalTransactionId,
+      productId: verifiedProductId,
+      environment: apple.environment,
+      appleAccountToken: verifiedAccountToken || null,
+    };
+  }
+
   const groups = Array.isArray(apple.body.data) ? apple.body.data : [];
-  const transactions: Array<{
-    item: Record<string, unknown>;
-    transaction: Record<string, unknown>;
-    renewal: Record<string, unknown>;
-  }> = [];
+  const transactions: AppleStatusTransaction[] = [];
   for (const rawGroup of groups) {
     const group = rawGroup as Record<string, unknown>;
     const last = Array.isArray(group.lastTransactions)
@@ -1433,12 +1579,12 @@ export async function verifyApplePurchase(
       });
     }
   }
-  transactions.sort((a, b) =>
-    Number(b.transaction.expiresDate ?? 0) -
-    Number(a.transaction.expiresDate ?? 0)
+  const current = selectAppleStatusTransaction(
+    transactions,
+    transactionId,
+    recoveryProof?.originalTransactionId ?? null,
+    decodedClientTransaction == null,
   );
-  const current = transactions[0];
-  if (!current) throw new Error("APPLE_SUBSCRIPTION_NOT_FOUND");
 
   const transaction = current.transaction;
   if (transaction.bundleId !== bundleId) {
@@ -1483,6 +1629,7 @@ export async function verifyApplePurchase(
     ),
     autoRenews: Number(current.renewal.autoRenewStatus ?? 0) === 1,
     appleAccountToken: appAccountToken || null,
+    appleRecoveryProof: recoveryProof,
   };
 }
 

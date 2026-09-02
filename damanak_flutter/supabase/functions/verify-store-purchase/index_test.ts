@@ -35,6 +35,7 @@ import {
   storeEntitlementRefreshIsAllowed,
   storeRefreshSnapshotCanBeReused,
   storeRefreshSnapshotIsFresh,
+  verifyApplePurchase,
   verifyAppleRecoveryTransactionWithFallback,
 } from "./index.ts";
 
@@ -67,6 +68,168 @@ Deno.test("unknown Apple environment retains production-first fallback", () => {
   const order = appleEnvironmentOrder(null);
   if (order[0].name !== "production" || order[1].name !== "sandbox") {
     throw new Error("unknown transactions must retain Apple's fallback order");
+  }
+});
+
+Deno.test("Apple explicit recovery stays inside the signed transaction lineage", async () => {
+  const oldStoreId = "33333333-3333-4333-8333-333333333333";
+  const submittedA = {
+    bundleId: "com.damanak.damanak",
+    transactionId: "2000000123456701",
+    originalTransactionId: "2000000123456700",
+    productId: "com.damanak.subscription.starter.yearly",
+    environment: "Sandbox",
+    appAccountToken: oldStoreId,
+  };
+  const latestA = {
+    ...submittedA,
+    transactionId: "2000000123456702",
+    productId: "com.damanak.subscription.scale.yearly",
+    purchaseDate: Date.parse("2026-08-01T00:00:00.000Z"),
+    expiresDate: Date.parse("2026-08-31T00:00:00.000Z"),
+  };
+  const latestB = {
+    ...submittedA,
+    transactionId: "2000000123456799",
+    originalTransactionId: "2000000123456798",
+    productId: "com.damanak.subscription.growth.yearly",
+    appAccountToken: "44444444-4444-4444-8444-444444444444",
+    purchaseDate: Date.parse("2026-09-01T00:00:00.000Z"),
+    expiresDate: Date.parse("2027-09-01T00:00:00.000Z"),
+  };
+  const entitlement = await verifyApplePurchase(
+    {
+      platform: "app_store",
+      productId: submittedA.productId,
+      purchaseId: submittedA.transactionId,
+      verificationData: unsignedJwt(submittedA),
+      verificationSource: "app_store",
+      recoveryRequested: true,
+    },
+    "22222222-2222-4222-8222-222222222222",
+    {
+      fetchStatus: (transactionId, environmentHint) => {
+        if (
+          transactionId !== submittedA.transactionId ||
+          String(environmentHint).toLowerCase() !== "sandbox"
+        ) {
+          throw new Error("unexpected Apple status request");
+        }
+        return Promise.resolve({
+          environment: "sandbox" as const,
+          body: {
+            bundleId: "com.damanak.damanak",
+            environment: "Sandbox",
+            data: [{
+              lastTransactions: [
+                {
+                  status: 1,
+                  signedTransactionInfo: unsignedJwt(latestB),
+                  signedRenewalInfo: unsignedJwt({ autoRenewStatus: 1 }),
+                },
+                {
+                  status: 2,
+                  signedTransactionInfo: unsignedJwt(latestA),
+                  signedRenewalInfo: unsignedJwt({ autoRenewStatus: 0 }),
+                },
+              ],
+            }],
+          },
+        });
+      },
+      verifyRecoveryTransaction: (signedTransaction, environment) => {
+        const decoded = decodeAppleClientTransaction({
+          verificationData: signedTransaction,
+        });
+        if (decoded == null || environment !== "sandbox") {
+          throw new Error("fixture verification failed");
+        }
+        return Promise.resolve(decoded);
+      },
+    },
+  );
+
+  if (
+    entitlement.transactionId !== latestA.transactionId ||
+    entitlement.originalTransactionId !== submittedA.originalTransactionId ||
+    entitlement.productId !== latestA.productId ||
+    entitlement.appleAccountToken !== oldStoreId ||
+    entitlement.appleRecoveryProof?.transactionId !==
+      submittedA.transactionId
+  ) {
+    throw new Error("Apple recovery crossed from subscription A into B");
+  }
+
+  let redundantVerifierCalls = 0;
+  await assertAppleRecoveryProofForBinding(
+    true,
+    unsignedJwt(submittedA),
+    entitlement,
+    () => {
+      redundantVerifierCalls += 1;
+      return Promise.reject(new Error("must not reverify"));
+    },
+  );
+  if (redundantVerifierCalls !== 0) {
+    throw new Error("the already verified recovery proof was verified twice");
+  }
+});
+
+Deno.test("Apple transaction A is rejected when status contains only lineage B", async () => {
+  const submittedA = {
+    bundleId: "com.damanak.damanak",
+    transactionId: "2000000123456701",
+    originalTransactionId: "2000000123456700",
+    productId: "com.damanak.subscription.scale.yearly",
+    environment: "Sandbox",
+    appAccountToken: "33333333-3333-4333-8333-333333333333",
+  };
+  const latestB = {
+    ...submittedA,
+    transactionId: "2000000123456799",
+    originalTransactionId: "2000000123456798",
+    expiresDate: Date.parse("2027-09-01T00:00:00.000Z"),
+  };
+  let failure = "";
+  try {
+    await verifyApplePurchase(
+      {
+        platform: "app_store",
+        productId: submittedA.productId,
+        purchaseId: submittedA.transactionId,
+        verificationData: unsignedJwt(submittedA),
+        verificationSource: "app_store",
+        recoveryRequested: true,
+      },
+      "22222222-2222-4222-8222-222222222222",
+      {
+        fetchStatus: () =>
+          Promise.resolve({
+            environment: "sandbox" as const,
+            body: {
+              bundleId: "com.damanak.damanak",
+              data: [{
+                lastTransactions: [{
+                  status: 1,
+                  signedTransactionInfo: unsignedJwt(latestB),
+                }],
+              }],
+            },
+          }),
+        verifyRecoveryTransaction: (signedTransaction) => {
+          const decoded = decodeAppleClientTransaction({
+            verificationData: signedTransaction,
+          });
+          if (decoded == null) throw new Error("fixture decode failed");
+          return Promise.resolve(decoded);
+        },
+      },
+    );
+  } catch (error) {
+    failure = error instanceof Error ? error.message : "";
+  }
+  if (failure !== "APPLE_RECOVERY_PROOF_MISMATCH") {
+    throw new Error("transaction A was allowed to finish from lineage B");
   }
 });
 
