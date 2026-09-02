@@ -43,6 +43,241 @@ void main() {
     expect((await repository.restore()).tier, SubscriptionTier.pro);
   });
 
+  test('subscription sync waits until the webhook exposes Pro usage', () async {
+    var reads = 0;
+    final waits = <Duration>[];
+    final status = await synchronizeSubscriptionStatus(
+      storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+      retryDelays: const [
+        Duration.zero,
+        Duration(milliseconds: 10),
+        Duration(milliseconds: 20),
+      ],
+      wait: (duration) async => waits.add(duration),
+      loadServerStatus: (storeStatus) async {
+        reads += 1;
+        return _subscriptionStatus(
+          reads < 3 ? SubscriptionTier.free : SubscriptionTier.pro,
+        );
+      },
+    );
+
+    expect(status.tier, SubscriptionTier.pro);
+    expect(reads, 3);
+    expect(waits, const [
+      Duration(milliseconds: 10),
+      Duration(milliseconds: 20),
+    ]);
+  });
+
+  test(
+    'successful server reconciliation runs before first status read',
+    () async {
+      var recovered = false;
+      var reads = 0;
+      final status = await synchronizeSubscriptionStatus(
+        storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+        retryDelays: const [Duration.zero],
+        requestServerSync: () async => recovered = true,
+        loadServerStatus: (_) async {
+          reads += 1;
+          return _subscriptionStatus(
+            recovered ? SubscriptionTier.pro : SubscriptionTier.free,
+          );
+        },
+      );
+
+      expect(status.tier, SubscriptionTier.pro);
+      expect(reads, 1);
+    },
+  );
+
+  test(
+    'reconciliation uses 0/1s/3s retries without an extra success wait',
+    () async {
+      var syncAttempts = 0;
+      final waits = <Duration>[];
+      final status = await synchronizeSubscriptionStatus(
+        storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+        retryDelays: const [Duration.zero],
+        requestRetryDelays: subscriptionSyncRequestRetryDelays,
+        wait: (duration) async => waits.add(duration),
+        requestServerSync: () async {
+          syncAttempts += 1;
+          if (syncAttempts < 2) {
+            throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+          }
+        },
+        loadServerStatus: (_) async =>
+            _subscriptionStatus(SubscriptionTier.pro),
+      );
+
+      expect(status.tier, SubscriptionTier.pro);
+      expect(syncAttempts, 2);
+      expect(waits, const [Duration(seconds: 1)]);
+    },
+  );
+
+  test(
+    'subscription sync never returns a stale Free result after purchase',
+    () async {
+      await expectLater(
+        synchronizeSubscriptionStatus(
+          storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+          retryDelays: const [Duration.zero, Duration(milliseconds: 1)],
+          wait: (_) async {},
+          loadServerStatus: (_) async =>
+              _subscriptionStatus(SubscriptionTier.free),
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.code,
+            'code',
+            AppFailureCode.subscriptionSyncPending,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('subscription sync reads a Free account only once', () async {
+    var reads = 0;
+    final status = await synchronizeSubscriptionStatus(
+      storeStatus: _subscriptionStatus(SubscriptionTier.free),
+      retryDelays: const [
+        Duration.zero,
+        Duration(seconds: 1),
+        Duration(seconds: 2),
+      ],
+      wait: (_) async => fail('Free status must not wait for a webhook.'),
+      loadServerStatus: (_) async {
+        reads += 1;
+        return _subscriptionStatus(SubscriptionTier.free);
+      },
+    );
+
+    expect(status.tier, SubscriptionTier.free);
+    expect(reads, 1);
+  });
+
+  test('Free restore syncs first and returns the server Free state', () async {
+    var syncRequested = false;
+    var reads = 0;
+    final status = await synchronizeSubscriptionStatus(
+      storeStatus: _subscriptionStatus(SubscriptionTier.free),
+      retryDelays: const [Duration.zero],
+      requestServerSync: () async => syncRequested = true,
+      loadServerStatus: (_) async {
+        expect(syncRequested, isTrue);
+        reads += 1;
+        return _subscriptionStatus(SubscriptionTier.free);
+      },
+    );
+
+    expect(status.tier, SubscriptionTier.free);
+    expect(reads, 1);
+  });
+
+  test('failed Free restore sync never trusts stale server Pro', () async {
+    await expectLater(
+      synchronizeSubscriptionStatus(
+        storeStatus: _subscriptionStatus(SubscriptionTier.free),
+        retryDelays: const [Duration.zero],
+        requestRetryDelays: const [Duration.zero],
+        requestServerSync: () async =>
+            throw const AppFailure(AppFailureCode.subscriptionUnavailable),
+        loadServerStatus: (_) async =>
+            _subscriptionStatus(SubscriptionTier.pro),
+      ),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.code,
+          'code',
+          AppFailureCode.subscriptionSyncPending,
+        ),
+      ),
+    );
+  });
+
+  test('failed Pro sync never accepts an older server Pro period', () async {
+    var syncAttempts = 0;
+    var reads = 0;
+    await expectLater(
+      synchronizeSubscriptionStatus(
+        storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+        retryDelays: const [Duration.zero, Duration(milliseconds: 1)],
+        requestRetryDelays: const [Duration.zero, Duration(milliseconds: 1)],
+        wait: (_) async {},
+        requestServerSync: () async {
+          syncAttempts += 1;
+          throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+        },
+        loadServerStatus: (_) async {
+          reads += 1;
+          return _subscriptionStatus(SubscriptionTier.pro);
+        },
+      ),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.code,
+          'code',
+          AppFailureCode.subscriptionSyncPending,
+        ),
+      ),
+    );
+
+    expect(syncAttempts, 2);
+    expect(reads, 0);
+  });
+
+  test(
+    'server reconciliation retries are capped below the rate limit',
+    () async {
+      var syncAttempts = 0;
+      await expectLater(
+        synchronizeSubscriptionStatus(
+          storeStatus: _subscriptionStatus(SubscriptionTier.pro),
+          retryDelays: const [Duration.zero],
+          requestRetryDelays: List<Duration>.filled(8, Duration.zero),
+          requestServerSync: () async {
+            syncAttempts += 1;
+            throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+          },
+          loadServerStatus: (_) async =>
+              _subscriptionStatus(SubscriptionTier.pro),
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+
+      expect(syncAttempts, maxSubscriptionSyncRequestAttempts);
+    },
+  );
+
+  test(
+    'early renewal bridge remains server-authoritative under clock skew',
+    () {
+      final status = subscriptionStatusFromServerSnapshot(
+        _subscriptionStatus(SubscriptionTier.pro),
+        <String, dynamic>{
+          'tier': 'pro',
+          'quotaMinutes': 300,
+          'usedMinutes': 2,
+          'reservedMinutes': 0,
+          'periodKey': 'pro-month-old-generation-0',
+          'periodStartsAt': '2098-12-01T00:00:00.000Z',
+          'periodEndsAt': '2099-01-02T00:00:00.000Z',
+          // Deliberately far from the test machine clock. The client validates
+          // the shape but never decides access by comparing this timestamp.
+          'serverNow': '2099-01-01T00:00:00.000Z',
+        },
+      );
+
+      expect(status.tier, SubscriptionTier.pro);
+      expect(status.remainingMinutes, 298);
+      expect(status.totalMinutes, 300);
+    },
+  );
+
   test(
     'memory history remains isolated by account and supports deletion',
     () async {
@@ -57,3 +292,11 @@ void main() {
     },
   );
 }
+
+SubscriptionStatus _subscriptionStatus(SubscriptionTier tier) =>
+    SubscriptionStatus(
+      tier: tier,
+      remainingMinutes: tier == SubscriptionTier.pro ? 300 : 10,
+      totalMinutes: tier == SubscriptionTier.pro ? 300 : 10,
+      offeringsLoaded: true,
+    );

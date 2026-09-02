@@ -18,7 +18,7 @@ RevenueCat UI state improves responsiveness, but only webhook-maintained server 
 
 ## ADR-005 — Current OpenAI server defaults
 
-`gpt-transcribe` is the server transcription default for multilingual speech. `gpt-5.6-luna` is the cost-sensitive structured-output default. Both are environment-configurable, and the client knows neither the model nor the OpenAI key.
+`gpt-4o-mini-transcribe` is the server transcription default for multilingual speech. `gpt-5.6-luna` is the cost-sensitive structured-output default. Both are environment-configurable, and the client knows neither the model nor the OpenAI key.
 
 ## ADR-006 — No FFmpeg in MVP
 
@@ -30,7 +30,7 @@ The clear placeholder `app.voicebrief.mobile` replaces `com.yourcompany.voicebri
 
 ## ADR-008 — Conservative prepaid AI launch budget
 
-The initial OpenAI balance is limited to `$10` with automatic recharge disabled. `gpt-transcribe` remains the high-accuracy transcription default and `gpt-5.6-luna` remains the cost-sensitive structured-output default. A private, server-only database ledger caps the initial service at 500 rounded audio minutes per UTC month; failed work counts against that cap once an AI request starts. This is a conservative operational guard, not a promise that token pricing can never change.
+The initial OpenAI balance is limited to `$10` with automatic recharge disabled. `gpt-4o-mini-transcribe` remains the transcription default and `gpt-5.6-luna` remains the cost-sensitive structured-output default. A private, server-only database ledger caps the initial service at 500 rounded audio minutes per UTC month; failed work counts against that cap once an AI request starts. This is a conservative operational guard, not a promise that token pricing can never change.
 
 ## ADR-009 — Do not send private voice transcripts to Gemini's free tier
 

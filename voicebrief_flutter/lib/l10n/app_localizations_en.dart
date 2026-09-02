@@ -805,7 +805,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get monthly => 'Monthly';
 
   @override
-  String get bestValue => 'BEST VALUE · SAVE 34%';
+  String get bestValue => 'BEST VALUE';
 
   @override
   String get proActive => 'Pro is active';
@@ -880,6 +880,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorSubscriptionUnavailable =>
       'Subscription options are unavailable right now.';
+
+  @override
+  String get errorSubscriptionSyncPending =>
+      'Your purchase is confirmed and Pro is still syncing. Keep VoiceBrief open and try again shortly.';
 
   @override
   String get errorPurchaseCanceled => 'The purchase was canceled.';

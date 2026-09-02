@@ -779,7 +779,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get monthly => 'شهري';
 
   @override
-  String get bestValue => 'أفضل قيمة · وفّر 34%';
+  String get bestValue => 'أفضل قيمة';
 
   @override
   String get proActive => 'اشتراك Pro مفعّل';
@@ -848,6 +848,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get errorSubscriptionUnavailable => 'خيارات الاشتراك غير متاحة الآن.';
+
+  @override
+  String get errorSubscriptionSyncPending =>
+      'تم تأكيد شرائك، وما زال تفعيل Pro قيد المزامنة. أبقِ VoiceBrief مفتوحًا وأعد المحاولة بعد قليل.';
 
   @override
   String get errorPurchaseCanceled => 'أُلغيت عملية الشراء.';

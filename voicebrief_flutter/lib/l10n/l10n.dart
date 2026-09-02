@@ -34,6 +34,8 @@ extension VoiceBriefLocalizations on BuildContext {
       l10n.errorQuotaExhausted,
     'Subscription options are unavailable right now.' =>
       l10n.errorSubscriptionUnavailable,
+    'Your purchase is confirmed and Pro is still syncing. Keep VoiceBrief open and try again shortly.' =>
+      l10n.errorSubscriptionSyncPending,
     'The purchase was canceled.' => l10n.errorPurchaseCanceled,
     'The purchase did not complete. You were not charged by VoiceBrief.' =>
       l10n.errorPurchaseFailed,

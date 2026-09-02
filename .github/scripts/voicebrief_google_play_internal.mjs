@@ -9,10 +9,14 @@ const UPLOAD_ROOT =
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const PACKAGE_NAME = "app.voicebrief.mobile";
 const TRACK = "internal";
-const EXPECTED_VERSION_CODE = "18";
+const EXPECTED_VERSION_CODE = "19";
 const EXPECTED_SHA256 =
-  "aec8b94aa105fa083372fc7b65419a602ac2a3452da8f98161ce59e53e262aad";
-const ALLOWED_PRIOR_VERSION_CODES = new Set(["7", EXPECTED_VERSION_CODE]);
+  "6999644e2d065eed9d74cbb0dd901480e0ec9cd2c3aa76457e7dc773781c7183";
+const ALLOWED_PRIOR_VERSION_CODES = new Set([
+  "7",
+  "18",
+  EXPECTED_VERSION_CODE,
+]);
 
 const aabPath = process.argv[2];
 const reportPath = process.argv[3];
@@ -190,7 +194,7 @@ async function main() {
 
     const priorCodes = new Set(
       (internalTrack?.releases || []).flatMap((release) =>
-        (release.versionCodes || []).map(String),
+        (release.versionCodes || []).map(String)
       ),
     );
     const unexpectedCodes = [...priorCodes].filter(
@@ -198,7 +202,9 @@ async function main() {
     );
     if (unexpectedCodes.length) {
       throw new Error(
-        `Refusing to replace unexpected internal version codes: ${unexpectedCodes.join(", ")}`,
+        `Refusing to replace unexpected internal version codes: ${
+          unexpectedCodes.join(", ")
+        }`,
       );
     }
 
@@ -216,12 +222,16 @@ async function main() {
     const returnedSha256 = String(bundle.sha256 || "").toLowerCase();
     if (returnedVersionCode !== EXPECTED_VERSION_CODE) {
       throw new Error(
-        `Google Play returned version code ${returnedVersionCode || "missing"}, expected ${EXPECTED_VERSION_CODE}`,
+        `Google Play returned version code ${
+          returnedVersionCode || "missing"
+        }, expected ${EXPECTED_VERSION_CODE}`,
       );
     }
     if (returnedSha256 !== EXPECTED_SHA256) {
       throw new Error(
-        `Google Play returned SHA-256 ${returnedSha256 || "missing"}, expected ${EXPECTED_SHA256}`,
+        `Google Play returned SHA-256 ${
+          returnedSha256 || "missing"
+        }, expected ${EXPECTED_SHA256}`,
       );
     }
     report.bundleVersionCode = returnedVersionCode;
@@ -236,17 +246,19 @@ async function main() {
           track: TRACK,
           releases: [
             {
-              name: "VoiceBrief 0.1.0 build 18",
+              name: "VoiceBrief 0.1.0 build 19",
               status: "completed",
               versionCodes: [EXPECTED_VERSION_CODE],
               releaseNotes: [
                 {
                   language: "ar",
-                  text: "تحسين المشاركة ومعالجة الصوت والمواعيد والمنبهات والثبات والأمان.",
+                  text:
+                    "تحسين المشاركة ومعالجة الصوت والمواعيد والمنبهات والثبات والأمان.",
                 },
                 {
                   language: "en-US",
-                  text: "Improved sharing, audio processing, dates, alarms, persistence, and security.",
+                  text:
+                    "Improved sharing, audio processing, dates, alarms, persistence, and security.",
                 },
               ],
             },
@@ -287,7 +299,7 @@ async function main() {
     );
     if (!verifiedRelease) {
       throw new Error(
-        "Google Play internal track did not expose completed build 18",
+        "Google Play internal track did not expose completed build 19",
       );
     }
     await discardEdit(token, editId);

@@ -7,7 +7,8 @@
 - Strict RLS read-only ownership policies; no client policy can mutate entitlement or quota.
 - Private `audio-temp` bucket with 25 MB limit, audio MIME allowlist, and user-scoped read/delete policies. Direct authenticated insertion is denied; `create-audio-upload` issues one exact signed upload after an atomic reservation. Retry issuance closes two hours after reservation creation, and a database constraint caps the reservation at four hours from creation so retries cannot slide cleanup indefinitely.
 - Atomic security-definer reserve/start/complete/fail RPCs and atomic RevenueCat event application. Usage mutation RPCs are callable only by `service_role`; the Edge Function first authenticates the bearer token and then supplies that verified user ID.
-- `create-audio-upload`, `process-audio`, `cleanup-expired-audio`, `revenuecat-webhook`, `delete-account`, and `legal` functions.
+- `sync-subscription` is guarded by a database-atomic, service-role-only limit of six claims per user per minute before any RevenueCat API call. It cannot grant a new Pro generation from client input; only the signed webhook/`TRANSFER` path can do so.
+- `create-audio-upload`, `process-audio`, `cleanup-expired-audio`, `revenuecat-webhook`, authenticated `sync-subscription`, `delete-account`, and `legal` functions.
 - Independent abandoned-audio cleanup through `pg_cron`/`pg_net`: an RPC atomically leases at most 100 reservations that expired at least 15 minutes earlier, and the Edge Function removes their exact paths through `storage.from('audio-temp').remove(...)`. The first successful removal retains a non-active tombstone; after at least another 15 minutes a second claim repeats removal, then retires only the matching rows. This preserves a verification pointer through a tested delayed-upload race instead of assuming one removal is final. A failed deletion releases the claim; a crashed invocation becomes retryable after 30 minutes.
 
 ## Apply and deploy
@@ -22,6 +23,7 @@ supabase functions deploy create-audio-upload --no-verify-jwt
 supabase functions deploy process-audio --no-verify-jwt
 supabase functions deploy delete-account --no-verify-jwt
 supabase functions deploy revenuecat-webhook --no-verify-jwt
+supabase functions deploy sync-subscription --no-verify-jwt
 supabase functions deploy legal --no-verify-jwt
 ```
 
@@ -42,7 +44,7 @@ Never delete from `storage.objects`: Supabase documents that SQL deletion remove
 
 ## RevenueCat account deletion
 
-Before deploying the build 18 `delete-account` function, create a private RevenueCat secret API key with the minimum subscriber-deletion access required and store it only as the Supabase Edge secret `REVENUECAT_SECRET_API_KEY`. The mobile public SDK keys are not valid for this operation. A `200` or `404` RevenueCat response is treated as idempotent success; any other failure stops before Supabase Auth, database, or Storage deletion begins. Deploy migration `20260830234000_revenuecat_account_deletion.sql` and the matching `revenuecat-webhook` together so late events are anonymized instead of recreating state for a deleted user.
+Before deploying the build 18 `delete-account` function, create a private, project-wide RevenueCat secret API key and store it only as the Supabase Edge secret `REVENUECAT_SECRET_API_KEY`. The backend uses it to read current Customer Info for sparse webhook events and to delete the RevenueCat customer during account deletion; the mobile public SDK keys are not valid for either operation, and the private key must never be bundled in Flutter. A `200` or `404` RevenueCat delete response is treated as idempotent success; any other failure stops before Supabase Auth, database, or Storage deletion begins. Deploy migration `20260830234000_revenuecat_account_deletion.sql` and the matching `revenuecat-webhook` together so late events are anonymized instead of recreating state for a deleted user.
 
 ## Seed strategy
 

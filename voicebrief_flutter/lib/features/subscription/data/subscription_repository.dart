@@ -14,6 +14,142 @@ abstract interface class SubscriptionRepository {
   Future<SubscriptionStatus> restore();
 }
 
+typedef SubscriptionStatusLoader =
+    Future<SubscriptionStatus> Function(SubscriptionStatus storeStatus);
+typedef SubscriptionSyncWait = Future<void> Function(Duration duration);
+typedef SubscriptionSyncRequest = Future<void> Function();
+
+const subscriptionSyncRetryDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 250),
+  Duration(milliseconds: 500),
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 3),
+  Duration(seconds: 4),
+  Duration(seconds: 5),
+];
+const subscriptionSyncRequestRetryDelays = <Duration>[
+  Duration.zero,
+  Duration(seconds: 1),
+  Duration(seconds: 3),
+];
+const maxSubscriptionSyncRequestAttempts = 3;
+
+Future<void> _waitForSubscriptionSync(Duration duration) =>
+    Future<void>.delayed(duration);
+
+/// Reconciles RevenueCat with the server-owned entitlement and usage quota.
+///
+/// RevenueCat can confirm a purchase before its webhook transaction reaches
+/// Supabase. A Pro result is therefore not exposed to the app until the server
+/// has created the matching Pro usage period. The retries are bounded so a
+/// delayed webhook cannot leave the purchase screen waiting indefinitely.
+Future<SubscriptionStatus> synchronizeSubscriptionStatus({
+  required SubscriptionStatus storeStatus,
+  required SubscriptionStatusLoader loadServerStatus,
+  List<Duration> retryDelays = subscriptionSyncRetryDelays,
+  List<Duration> requestRetryDelays = subscriptionSyncRequestRetryDelays,
+  SubscriptionSyncWait wait = _waitForSubscriptionSync,
+  SubscriptionSyncRequest? requestServerSync,
+}) async {
+  var serverSyncUnavailable = false;
+  if (requestServerSync != null) {
+    if (requestRetryDelays.isEmpty) {
+      throw const AppFailure(AppFailureCode.subscriptionSyncPending);
+    }
+    String? lastSyncDebugContext;
+    serverSyncUnavailable = true;
+    for (
+      var attempt = 0;
+      attempt < requestRetryDelays.length &&
+          attempt < maxSubscriptionSyncRequestAttempts;
+      attempt += 1
+    ) {
+      final delay = requestRetryDelays[attempt];
+      if (delay > Duration.zero) await wait(delay);
+      try {
+        await requestServerSync();
+        serverSyncUnavailable = false;
+        break;
+      } on AppFailure catch (failure) {
+        if (failure.code != AppFailureCode.subscriptionUnavailable) rethrow;
+        lastSyncDebugContext = failure.debugContext;
+        if (failure.debugContext == '429') break;
+      }
+    }
+    if (serverSyncUnavailable && storeStatus.tier == SubscriptionTier.pro) {
+      throw AppFailure(
+        AppFailureCode.subscriptionSyncPending,
+        debugContext: lastSyncDebugContext,
+      );
+    }
+  }
+
+  if (storeStatus.tier != SubscriptionTier.pro) {
+    final serverStatus = await loadServerStatus(storeStatus);
+    if (serverSyncUnavailable && serverStatus.tier == SubscriptionTier.pro) {
+      throw const AppFailure(AppFailureCode.subscriptionSyncPending);
+    }
+    return serverStatus;
+  }
+  if (retryDelays.isEmpty) {
+    throw const AppFailure(AppFailureCode.subscriptionSyncPending);
+  }
+
+  String? lastDebugContext;
+  for (final delay in retryDelays) {
+    if (delay > Duration.zero) await wait(delay);
+    try {
+      final serverStatus = await loadServerStatus(storeStatus);
+      if (serverStatus.tier == SubscriptionTier.pro) return serverStatus;
+    } on AppFailure catch (failure) {
+      if (failure.code != AppFailureCode.subscriptionUnavailable) rethrow;
+      lastDebugContext = failure.debugContext;
+    }
+  }
+
+  throw AppFailure(
+    AppFailureCode.subscriptionSyncPending,
+    debugContext: lastDebugContext,
+  );
+}
+
+SubscriptionStatus subscriptionStatusFromServerSnapshot(
+  SubscriptionStatus storeStatus,
+  Object? response,
+) {
+  if (response is! Map) {
+    throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+  }
+  final snapshot = Map<String, dynamic>.from(response);
+  final tier = switch (snapshot['tier']) {
+    'pro' => SubscriptionTier.pro,
+    'free' => SubscriptionTier.free,
+    _ => null,
+  };
+  final total = (snapshot['quotaMinutes'] as num?)?.toInt();
+  final used = (snapshot['usedMinutes'] as num?)?.toInt();
+  final reserved = (snapshot['reservedMinutes'] as num?)?.toInt();
+  final serverNow = DateTime.tryParse(snapshot['serverNow'] as String? ?? '');
+  if (tier == null ||
+      total == null ||
+      used == null ||
+      reserved == null ||
+      serverNow == null ||
+      total <= 0 ||
+      used < 0 ||
+      reserved < 0 ||
+      used + reserved > total) {
+    throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+  }
+  return storeStatus.copyWith(
+    tier: tier,
+    remainingMinutes: total - used - reserved,
+    totalMinutes: total,
+  );
+}
+
 class FakeSubscriptionRepository implements SubscriptionRepository {
   FakeSubscriptionRepository({this.pro = false});
 
@@ -99,8 +235,9 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
           ),
         );
       final customerInfo = await Purchases.getCustomerInfo();
-      return await _withServerUsage(
-        _mapStatus(customerInfo, offering.availablePackages),
+      return await synchronizeSubscriptionStatus(
+        storeStatus: _mapStatus(customerInfo, offering.availablePackages),
+        loadServerStatus: _withServerUsage,
       );
     } on PlatformException catch (error) {
       throw AppFailure(
@@ -123,8 +260,14 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
     }
     try {
       final result = await Purchases.purchase(PurchaseParams.package(package));
-      return await _withServerUsage(
-        _mapStatus(result.customerInfo, _packages.values.toList()),
+      return await synchronizeSubscriptionStatus(
+        storeStatus: _mapStatus(result.customerInfo, _packages.values.toList()),
+        loadServerStatus: _withServerUsage,
+        requestServerSync: () => _requestServerSubscriptionSync(
+          expectedPro: result.customerInfo.entitlements.active.containsKey(
+            ProductIds.entitlement,
+          ),
+        ),
       );
     } on PlatformException catch (error) {
       final code = PurchasesErrorHelper.getErrorCode(error);
@@ -144,8 +287,14 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
   Future<SubscriptionStatus> restore() async {
     try {
       final info = await Purchases.restorePurchases();
-      return await _withServerUsage(
-        _mapStatus(info, _packages.values.toList()),
+      return await synchronizeSubscriptionStatus(
+        storeStatus: _mapStatus(info, _packages.values.toList()),
+        loadServerStatus: _withServerUsage,
+        requestServerSync: () => _requestServerSubscriptionSync(
+          expectedPro: info.entitlements.active.containsKey(
+            ProductIds.entitlement,
+          ),
+        ),
       );
     } on PlatformException catch (error) {
       throw AppFailure(AppFailureCode.restoreFailed, debugContext: error.code);
@@ -196,49 +345,36 @@ class RevenueCatSubscriptionRepository implements SubscriptionRepository {
   ) async {
     final user = _client.auth.currentUser;
     if (user == null) throw const AppFailure(AppFailureCode.authentication);
-    final subscription = await _client
-        .from('subscription_state')
-        .select('entitlement')
-        .eq('user_id', user.id)
-        .maybeSingle();
-    if (subscription == null) {
-      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
+    try {
+      final response = await _client.rpc('get_voicebrief_subscription_status');
+      return subscriptionStatusFromServerSnapshot(storeStatus, response);
+    } on PostgrestException catch (error) {
+      throw AppFailure(
+        AppFailureCode.subscriptionUnavailable,
+        debugContext: error.code,
+      );
     }
-    final periods = await _client
-        .from('usage_periods')
-        .select(
-          'plan, starts_at, ends_at, quota_minutes, used_minutes, reserved_minutes',
-        )
-        .eq('user_id', user.id)
-        .order('starts_at', ascending: false);
-    final entitlement = subscription['entitlement'] == 'pro'
-        ? SubscriptionTier.pro
-        : SubscriptionTier.free;
-    final expectedPlan = entitlement == SubscriptionTier.pro ? 'pro' : 'free';
-    final now = DateTime.now().toUtc();
-    Map<String, dynamic>? activePeriod;
-    for (final period in periods) {
-      if (period['plan'] != expectedPlan) continue;
-      final startsAt = DateTime.tryParse(period['starts_at'] as String? ?? '');
-      final endsAt = DateTime.tryParse(period['ends_at'] as String? ?? '');
-      if (startsAt == null || startsAt.toUtc().isAfter(now)) continue;
-      if (endsAt != null && !endsAt.toUtc().isAfter(now)) continue;
-      activePeriod = period;
-      break;
+  }
+
+  Future<void> _requestServerSubscriptionSync({
+    required bool expectedPro,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'sync-subscription',
+        body: {'expectedPro': expectedPro},
+      );
+      if (response.status != 200) {
+        throw AppFailure(
+          AppFailureCode.subscriptionUnavailable,
+          debugContext: '${response.status}',
+        );
+      }
+    } on FunctionException catch (error) {
+      throw AppFailure(
+        AppFailureCode.subscriptionUnavailable,
+        debugContext: '${error.status}',
+      );
     }
-    if (activePeriod == null) {
-      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
-    }
-    final total = (activePeriod['quota_minutes'] as num?)?.toInt();
-    final used = (activePeriod['used_minutes'] as num?)?.toInt();
-    final reserved = (activePeriod['reserved_minutes'] as num?)?.toInt();
-    if (total == null || used == null || reserved == null || total <= 0) {
-      throw const AppFailure(AppFailureCode.subscriptionUnavailable);
-    }
-    return storeStatus.copyWith(
-      tier: entitlement,
-      remainingMinutes: (total - used - reserved).clamp(0, total).toInt(),
-      totalMinutes: total,
-    );
   }
 }

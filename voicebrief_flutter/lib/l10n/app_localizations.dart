@@ -1511,7 +1511,7 @@ abstract class AppLocalizations {
   /// No description provided for @bestValue.
   ///
   /// In en, this message translates to:
-  /// **'BEST VALUE · SAVE 34%'**
+  /// **'BEST VALUE'**
   String get bestValue;
 
   /// No description provided for @proActive.
@@ -1633,6 +1633,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Subscription options are unavailable right now.'**
   String get errorSubscriptionUnavailable;
+
+  /// No description provided for @errorSubscriptionSyncPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your purchase is confirmed and Pro is still syncing. Keep VoiceBrief open and try again shortly.'**
+  String get errorSubscriptionSyncPending;
 
   /// No description provided for @errorPurchaseCanceled.
   ///

@@ -292,7 +292,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Yearly'), findsOneWidget);
     expect(find.text('Monthly'), findsOneWidget);
-    expect(find.textContaining('SAVE 34%'), findsOneWidget);
+    expect(find.text('BEST VALUE'), findsOneWidget);
+    expect(find.textContaining('SAVE'), findsNothing);
     final selected = tester.widget<SubscriptionOptionTile>(
       find.widgetWithText(SubscriptionOptionTile, 'Yearly'),
     );

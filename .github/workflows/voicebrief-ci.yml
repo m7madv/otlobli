@@ -39,6 +39,12 @@ jobs:
         working-directory: voicebrief_flutter
       - run: deno test --config supabase/functions/delete-account/deno.json supabase/functions/delete-account/core_test.ts
         working-directory: voicebrief_flutter
+      - run: deno test --config supabase/functions/revenuecat-webhook/deno.json supabase/functions/revenuecat-webhook/core_test.ts
+        working-directory: voicebrief_flutter
+      - run: deno test --allow-read --config supabase/functions/revenuecat-webhook/deno.json supabase/functions/revenuecat-webhook/sql_contract_test.ts
+        working-directory: voicebrief_flutter
+      - run: deno test --config supabase/functions/sync-subscription/deno.json supabase/functions/sync-subscription/core_test.ts
+        working-directory: voicebrief_flutter
       - run: deno check --config supabase/functions/process-audio/deno.json supabase/functions/process-audio/index.ts
         working-directory: voicebrief_flutter
       - run: deno check --config supabase/functions/create-audio-upload/deno.json supabase/functions/create-audio-upload/index.ts
@@ -50,6 +56,10 @@ jobs:
       - run: deno check --config supabase/functions/delete-account/deno.json supabase/functions/delete-account/index.ts
         working-directory: voicebrief_flutter
       - run: deno check --config supabase/functions/revenuecat-webhook/deno.json supabase/functions/revenuecat-webhook/index.ts
+        working-directory: voicebrief_flutter
+      - run: deno check --config supabase/functions/sync-subscription/deno.json supabase/functions/sync-subscription/index.ts
+        working-directory: voicebrief_flutter
+      - run: node --test scripts/google_play_subscriptions_test.mjs
         working-directory: voicebrief_flutter
 
   android:
@@ -172,7 +182,7 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "18"
+          test "$app_build_version" = "19"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$app/Info.plist")" = "public.audio"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:1' "$app/Info.plist")" = "public.mp3"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:2' "$app/Info.plist")" = "public.mpeg-4-audio"
@@ -184,11 +194,11 @@ jobs:
           cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
           (
             cd build/ios/unsigned-ipa
-            zip -qry ../VoiceBrief-0.1.0-build18-live-unsigned.ipa Payload
+            zip -qry ../VoiceBrief-0.1.0-build19-live-unsigned.ipa Payload
           )
-          shasum -a 256 build/ios/VoiceBrief-0.1.0-build18-live-unsigned.ipa
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build19-live-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-ios-live-unsigned-${{ github.run_number }}
-          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build18-live-unsigned.ipa
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build19-live-unsigned.ipa
           if-no-files-found: error

@@ -15,6 +15,7 @@ enum AppFailureCode {
   invalidResponse,
   quotaExhausted,
   subscriptionUnavailable,
+  subscriptionSyncPending,
   purchaseCanceled,
   purchaseFailed,
   restoreFailed,
@@ -64,6 +65,8 @@ class AppFailure implements Exception {
       'You do not have enough processing minutes for this audio.',
     AppFailureCode.subscriptionUnavailable =>
       'Subscription options are unavailable right now.',
+    AppFailureCode.subscriptionSyncPending =>
+      'Your purchase is confirmed and Pro is still syncing. Keep VoiceBrief open and try again shortly.',
     AppFailureCode.purchaseCanceled => 'The purchase was canceled.',
     AppFailureCode.purchaseFailed =>
       'The purchase did not complete. You were not charged by VoiceBrief.',

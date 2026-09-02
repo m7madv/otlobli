@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type app.voicebrief.mobile:18:internal to publish build 18 internally
+        description: Type app.voicebrief.mobile:19:internal to publish build 19 internally
         required: true
         type: string
 permissions:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish-internal:
-    name: Publish verified VoiceBrief build 18 internally
+    name: Publish verified VoiceBrief build 19 internally
     if: >-
       github.repository == 'm7madv/otlobli' &&
       github.ref == 'refs/heads/codex/voicebrief-ios' &&
@@ -26,9 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      AAB_NAME: VoiceBrief-0.1.0-build18-production-signed.aab
-      EXPECTED_AAB_BYTES: "59195892"
-      EXPECTED_AAB_SHA256: AEC8B94AA105FA083372FC7B65419A602AC2A3452DA8F98161CE59E53E262AAD
+      AAB_NAME: VoiceBrief-0.1.0-build19-production-signed.aab
+      EXPECTED_AAB_BYTES: "59192552"
+      EXPECTED_AAB_SHA256: 6999644E2D065EED9D74CBB0DD901480E0EC9CD2C3AA76457E7DC773781C7183
       EXPECTED_UPLOAD_CERT_SHA256: 81:AA:4D:A6:E4:25:79:4E:88:0C:8D:DE:0A:75:68:F6:8C:EE:77:4A:3C:18:89:17:02:21:AD:04:46:EE:8F:D9
 
     steps:
@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$RELEASE_CONFIRMATION" = "app.voicebrief.mobile:18:internal"
+          test "$RELEASE_CONFIRMATION" = "app.voicebrief.mobile:19:internal"
 
       - name: Checkout the guarded publisher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -75,14 +75,14 @@ jobs:
           keytool -printcert -jarfile "$VOICEBRIEF_AAB_PATH" \
             | grep -F "$EXPECTED_UPLOAD_CERT_SHA256"
 
-      - name: Publish build 18 to the internal track
+      - name: Publish build 19 to the internal track
         env:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
-          report="$RUNNER_TEMP/voicebrief-google-play-build18.json"
+          report="$RUNNER_TEMP/voicebrief-google-play-build19.json"
           echo "VOICEBRIEF_PLAY_REPORT=$report" >> "$GITHUB_ENV"
           node .github/scripts/voicebrief_google_play_internal.mjs \
             "$VOICEBRIEF_AAB_PATH" "$report"
@@ -91,7 +91,7 @@ jobs:
         if: always() && env.VOICEBRIEF_PLAY_REPORT != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: voicebrief-google-play-build18-internal
+          name: voicebrief-google-play-build19-internal
           path: ${{ env.VOICEBRIEF_PLAY_REPORT }}
           if-no-files-found: error
           retention-days: 30

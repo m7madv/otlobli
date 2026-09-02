@@ -8,6 +8,12 @@
 - Localized product price strings come from RevenueCat in production; checked-in QAR strings exist only in the fake repository.
 - Purchase cancellation/failure, restore, login/logout, and store subscription management links are handled.
 - Webhook authorization, UUID validation, event replay protection, out-of-order event protection, and atomic server entitlement/quota update are implemented.
+- RevenueCat confirmation is reconciled with a rate-limited authenticated `sync-subscription` request followed by bounded retries. The request may confirm only a Pro generation already established by the signed webhook/`TRANSFER`; untrusted client input can never create a new 300-minute generation. A missing purchase/transfer webhook therefore remains pending and fails closed instead of exposing a refilled balance, while an authoritative Free snapshot can repair a missed expiration.
+- Pro always grants 300 minutes per anchored monthly window. A monthly purchase has one window, while an annual purchase normally has 12 independent windows; restore/replay keeps existing usage instead of refilling the current window.
+- Every subscription-state webhook uses a fresh server-side RevenueCat Customer Info snapshot. A lagging `TRANSFER` remains retryable while any source RevenueCat alias—including an anonymous alias—is still Pro; exactly one stored destination UUID must match before mutation. Transfer moves the quota high-water mark atomically and revokes source access only after reconciliation. Non-subscription webhook types are audited and ignored without changing access.
+- Billing grace extends the final paid quota window without creating another 300-minute refill.
+- Server quota generations prevent historical product windows from being selected after a product change. An App Store renewal received before its future billing-period start temporarily keeps the prior active quota, then switches automatically at the server timestamp without granting 300 minutes early. Flutter reads this as one atomic server RPC and never decides entitlement from the device clock.
+- Migrations `20260902010000_monthly_subscription_quota.sql` and `20260902011000_revenuecat_special_events.sql` plus the updated `revenuecat-webhook` and `sync-subscription` must be deployed together before a build containing this client reconciliation is released; source presence alone does not change the live quota.
 
 ## Store dashboard state — 2026-08-26
 
@@ -37,12 +43,14 @@
 
 The live webhook URL is `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook`, and the function is deployed. On 2026-08-26 both store connections, all four production product mappings, entitlement `pro`, offering `default`, and both public SDK build keys were completed. A 32-byte random secret was stored only as Supabase secret `REVENUECAT_WEBHOOK_SECRET` and the matching `Bearer` authorization value was saved in RevenueCat webhook `whintgr41c91a4676` (`VoiceBrief Supabase`) for production and sandbox events. The stored digest matched the generated value, and an unauthenticated request returned `401`; a RevenueCat test event has not been sent yet.
 
+The updated webhook and authenticated `sync-subscription` function require the backend-only project secret `REVENUECAT_SECRET_API_KEY` for `GET /v1/subscribers/{app_user_id}`; the same server secret is used by account deletion for `DELETE` and must never be bundled in Flutter. Confirm this Supabase secret exists before deploying the migration/functions together.
+
 ## Verification
 
 - New verified account gets 10 lifetime free minutes.
-- Monthly and annual sandbox purchases grant the same Pro features and a 300-minute subscription period.
+- Monthly and annual sandbox purchases grant the same Pro features and 300 minutes per month; the annual period is split into 12 anchored monthly quota windows.
 - Annual is selected by default but monthly remains selectable; prices/currency match the store locale.
 - Cancellation does not revoke access before expiration; renewal creates/updates the new quota period; older out-of-order events cannot roll back newer state.
-- Restore works after reinstall/device change, logout clears local customer state, and webhook replay reports `duplicate: true` without resetting quota.
+- Restore works after reinstall/device change, logout clears local customer state, and webhook replay reports `duplicate: true` without resetting the current month's quota.
 
 RevenueCat's production store connections, product-to-entitlement links, offering package mappings, public SDK build keys, and authorized Supabase webhook are configured. Google base plans, account email confirmation, a webhook test event, and sandbox purchases remain incomplete. No purchase was made.
