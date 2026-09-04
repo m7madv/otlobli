@@ -4,6 +4,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## متابعة حالية — 2026-09-05
 
+### أحدث نتيجة (تتجاوز النصوص السابقة أدناه)
+
+- Commit `25427c4` رفع 0.1.1+20. CI `33925529183` نجح؛ انتظر TestFlight `33925529191` وstatus `33925529206` ثم سجل IPA/hash/build ID. لا تعِد بناء نسخة أخرى. App Store Connect يحتاج دخول المالك قبل إنشاء/تقديم 0.1.1.
+- RevenueCat key أُنشئ وحُفظ في Supabase الصحيح. المهاجرات الأربع المعلقة نُشرت وتطابقت. جميع الدوال ACTIVE: process-audio16/delete-account11/revenuecat-webhook10/legal10/create-audio-upload4/cleanup-expired-audio1/sync-subscription1.
+- Vault والـcron جاهزان؛ اختبار cleanup request 4 نجح HTTP200 بأعداد صفر. انتبه: CLI يعيد المفتاح الجديد مقنعًا بعلامة middle dot `·`؛ لا تحفظ قيمته المقنعة في Vault. حُفظت القيمة الفعلية من لوحة المشروع ونجح الاختبار. لا تنشئ مفاتيح أخرى.
+- ما زال قبول purchase/restore/transfer الحقيقي مطلوبًا؛ لا تدعِ نجاحه من SQL أو CI. Google 20 جاهز محليًا بالبصمة المثبتة ولم يرفع بعد. لا تمس المحاكيات.
+
 - تأكيد إنشاء مفتاح RevenueCat ورد من المالك ونُفذ إنشاء `VoiceBrief Supabase server` V1. حُولت قيمته في ذاكرة المتصفح إلى نموذج REVENUECAT_SECRET_API_KEY في مشروع jyehqpdbayslhzebdycj وضُغط Save؛ تحقق من النتيجة قبل نشر الخادم. لا تعِد إنشاء مفتاح آخر.
 
 - التحقق المحلي build 20 اكتمل: analyze و55 non-golden و12 golden، وAndroid release الموقّعان. حجم AAB `59192566` وSHA256 `412427FDC17B741AC3BCD9C24BCC314B2207B49A6926DF508A3208C0D4F9F1E8`؛ APK `69446598` وSHA256 `811E82CEFE0649134879D4B7CCC0927FAAA7107C5CDFBB3566C8EB1EB184FBB3`. أُزيلت placeholders من ناشر Google. لا رفع بعد.

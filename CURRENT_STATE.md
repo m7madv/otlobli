@@ -4,6 +4,14 @@ Last updated: 2026-09-05
 
 ## آخر متابعة نشر VoiceBrief — 2026-09-05
 
+### الحالة الأحدث المعتمدة (تتجاوز ملاحظات الانتظار أدناه)
+
+- دُفع الإصدار `0.1.1+20` في `25427c4`. CI `33925529183` نجح كاملًا؛ TestFlight `33925529191` وApp Store status `33925529206` جاريان. لم يؤكد رفع البناء أو تقديمه للمراجعة بعد. جلسة App Store Connect منتهية وتنتظر دخول المالك.
+- أُنشئ مفتاح RevenueCat V1 باسم `VoiceBrief Supabase server` في مشروع `59213dad` وحُفظ بنجاح كـ`REVENUECAT_SECRET_API_KEY` في Supabase `jyehqpdbayslhzebdycj` فقط.
+- نُشرت migrations `20260830230000` و`20260830234000` و`20260902010000` و`20260902011000` وتطابق السجل المحلي والبعيد. الدوال ACTIVE: process-audio v16، delete-account v11، revenuecat-webhook v10، legal v10، create-audio-upload v4، cleanup-expired-audio v1، sync-subscription v1.
+- ضُبط Vault بالاسمين voicebrief_project_url وvoicebrief_secret_key، وcron كل 15 دقيقة. أخفق الاختبار الأول بسبب قيمة مفتاح غير صالحة، ثم حُفظ مفتاح المشروع الفعلي من لوحة Supabase. نجح طلب التنظيف رقم 4 بـHTTP 200 وclaimed/staged/deleted كلها 0؛ لم يحذف هذا الاختبار أي ملف. SQL أكد annual_windows=12 وmonthly_windows=1 وcron_active=true.
+- هذه فحوص تشغيل ونشر وليست قبول purchase/restore/transfer من جهاز فعلي؛ ذلك الاختبار ما زال مطلوبًا قبل النشر العام للتحديث. Google build 20 لم يُرفع. المحاكيات لم تُمس.
+
 - وافق المالك على إنشاء مفتاح RevenueCat الخاص وحفظه في Supabase. أُنشئ `VoiceBrief Supabase server` V1؛ حفظ السر قيد التحقق. الإصدار 20 جاهز للدفع إلى مسار بناء Apple؛ نشر الخادم والاختبار الحي ما زالا غير مكتملين.
 
 - نجح فحص build 20 المحلي: analyze بلا أخطاء، 55 اختبارًا و12 golden. اكتمل Android الموقّع: AAB `voicebrief_flutter/output/voicebrief/VoiceBrief-0.1.1-build20-production-signed.aab` حجمه `59192566` وSHA256 `412427FDC17B741AC3BCD9C24BCC314B2207B49A6926DF508A3208C0D4F9F1E8`؛ APK حجمه `69446598` وSHA256 `811E82CEFE0649134879D4B7CCC0927FAAA7107C5CDFBB3566C8EB1EB184FBB3`. ثُبتت بصمة AAB وحجمه في ناشر Google. لا رفع بعد.
