@@ -9,9 +9,9 @@ const UPLOAD_ROOT =
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const PACKAGE_NAME = "app.voicebrief.mobile";
 const TRACK = "internal";
-const EXPECTED_VERSION_CODE = "19";
+const EXPECTED_VERSION_CODE = "20";
 const EXPECTED_SHA256 =
-  "6999644e2d065eed9d74cbb0dd901480e0ec9cd2c3aa76457e7dc773781c7183";
+  "412427fdc17b741ac3bcd9c24bcc314b2207b49a6926df508a3208c0d4f9f1e8";
 const ALLOWED_PRIOR_VERSION_CODES = new Set([
   "7",
   "18",
@@ -246,19 +246,19 @@ async function main() {
           track: TRACK,
           releases: [
             {
-              name: "VoiceBrief 0.1.0 build 19",
+              name: "VoiceBrief 0.1.1 build 20",
               status: "completed",
               versionCodes: [EXPECTED_VERSION_CODE],
               releaseNotes: [
                 {
                   language: "ar",
                   text:
-                    "تحسين المشاركة ومعالجة الصوت والمواعيد والمنبهات والثبات والأمان.",
+                    "تحسين ثبات رصيد الاشتراك بعد الاستعادة ومزامنة الحصة الشهرية.",
                 },
                 {
                   language: "en-US",
                   text:
-                    "Improved sharing, audio processing, dates, alarms, persistence, and security.",
+                    "Improved subscription balance persistence after restore and monthly quota synchronization.",
                 },
               ],
             },
@@ -299,7 +299,7 @@ async function main() {
     );
     if (!verifiedRelease) {
       throw new Error(
-        "Google Play internal track did not expose completed build 19",
+        "Google Play internal track did not expose completed build 20",
       );
     }
     await discardEdit(token, editId);

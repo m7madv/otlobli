@@ -153,6 +153,13 @@
 - [ ] Before distributing build 19, authenticate the owner account that can access Supabase project `jyehqpdbayslhzebdycj`, set the private `REVENUECAT_SECRET_API_KEY` without exposing it, then deploy migrations `20260902010000_monthly_subscription_quota.sql` and `20260902011000_revenuecat_special_events.sql` with the matching `revenuecat-webhook` and authenticated `sync-subscription`. Do not deploy to Damanak or Talabieh, and do not release the client against the old quota backend.
 - [ ] After backend deployment and a live purchase/restore smoke test, upload build 19 to the intended Google internal/Alpha tracks, activate the exact monthly/annual base plans with France excluded and future regions enabled, run CI/TestFlight, replace build 18 in the Apple review submission with the validated build 19, and update the annual review text to state 300 minutes each month. None of these external actions is implied by this local readiness record.
 
+## Build 20 App Store update candidate — 2026-09-02
+
+- Apple approved and released public version `0.1.0` from the build 18 review submission. Build 19 remains a TestFlight build in the already released `0.1.0` train, so the same subscription-quota fix must be rebuilt as the new store version `0.1.1+20` rather than attached to the released version.
+- Source version declarations and iOS/CI/TestFlight/status artifact names are prepared for `0.1.1 (20)`. The App Store update still requires a signed upload, processing as `VALID`, creation of App Store version `0.1.1`, selection of build 20, release notes, and a new review submission.
+- Google Play publisher guards target version code `20` and release name `VoiceBrief 0.1.1 build 20`, but its byte count and SHA-256 remain explicit fail-closed placeholders until the signed build 20 AAB is created and measured. Do not dispatch the Google workflow or replace those placeholders with inferred values.
+- Backend deployment and live purchase/restore verification remain prerequisites before distributing build 20. This version bump alone does not prove the subscription fix is live.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.

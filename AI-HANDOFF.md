@@ -2,6 +2,18 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## متابعة حالية — 2026-09-05
+
+- تأكيد إنشاء مفتاح RevenueCat ورد من المالك ونُفذ إنشاء `VoiceBrief Supabase server` V1. حُولت قيمته في ذاكرة المتصفح إلى نموذج REVENUECAT_SECRET_API_KEY في مشروع jyehqpdbayslhzebdycj وضُغط Save؛ تحقق من النتيجة قبل نشر الخادم. لا تعِد إنشاء مفتاح آخر.
+
+- التحقق المحلي build 20 اكتمل: analyze و55 non-golden و12 golden، وAndroid release الموقّعان. حجم AAB `59192566` وSHA256 `412427FDC17B741AC3BCD9C24BCC314B2207B49A6926DF508A3208C0D4F9F1E8`؛ APK `69446598` وSHA256 `811E82CEFE0649134879D4B7CCC0927FAAA7107C5CDFBB3566C8EB1EB184FBB3`. أُزيلت placeholders من ناشر Google. لا رفع بعد.
+- RevenueCat أصبح مسجلاً في VoiceBrief `59213dad`. نموذج مفتاح `VoiceBrief Supabase server` V1 جاهز ولم يولد المفتاح؛ مطلوب تأكيد لحظي لأنه صلاحية دائمة جديدة. لا تعرض المفتاح في المحادثة أو الملفات؛ وجهته الوحيدة سر REVENUECAT_SECRET_API_KEY بمشروع Supabase jyehqpdbayslhzebdycj.
+
+- Apple 0.1.0 build 18 أصبح منشورًا حسب التحقق السابق في 2 سبتمبر، وbuild 19 موجود في TestFlight. تجاهل حالات Waiting for Review التاريخية أدناه.
+- التحديث الحالي 0.1.1+20 قيد التجهيز؛ يتطلب نسخة تسويقية جديدة بعد نشر 0.1.0. تغييرات الإصدار والـworkflows مملوكة لهذه المهمة. فحوص البناء قيد التنفيذ.
+- Supabase CLI الصحيح سُجل في المتابعة السابقة بملف `voicebrief`، والرابط المؤكد jyehqpdbayslhzebdycj فقط. لا تستخدم أي مشروع آخر. dry-run السابق حدد أربع migrations معلقة؛ لم تُنشر بعد. RevenueCat يحتاج تسجيل دخول المالك ثم المفتاح الخادمي وVault واختبار حي قبل توزيع التحديث.
+- ملفات ناشر Google المعدلة تحتوي مؤقتًا PENDING_BUILD20؛ يجب استبدالها بالحجم والبصمة الحقيقيين قبل تشغيله. لا تشغل المحاكيات، ولا تمس الملفات غير المتتبعة.
+
 ## مشروع مستقل (2026-09-02) — VoiceBrief 0.1.0 build 19
 
 - اعمل فقط داخل `voicebrief_flutter/` وملفات workflow الخاصة به على الفرع `codex/voicebrief-ios`. مشروع Supabase الصحيح حصراً `jyehqpdbayslhzebdycj`؛ لا تستخدم Damanak `exxayzlklvgeyqhvtzgi` أو `talabieh`.
