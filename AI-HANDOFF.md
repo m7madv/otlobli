@@ -6,6 +6,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ### أحدث نتيجة (تتجاوز النصوص السابقة أدناه)
 
+- Apple login نجح. أُنشئت مسودة 0.1.1 وحُفظ الوصف وWhat's New وملاحظات المراجع بتوضيح الحصة الشهرية. TestFlight run33925529191 نجح في الرفع؛ أبل تعرض Processing للبناء20 c0961f25-d087-45df-8f67-b8276d2690c7. انتظر معالجته ثم اربطه بالمسودة؛ لم يُرسل للمراجعة.
+- IPA SHA256 1090cd876a89f288d3ca8b3ed4621621e8b943b40f92d27387aa34dde5a2ad8d؛ artifact9957016751 حجمه34388628 وZIP SHA256 6c040654779cb852fca92c0fb49665a5db705dfb85b49d17908e311d30615970.
+
 - Commit `25427c4` رفع 0.1.1+20. CI `33925529183` نجح؛ انتظر TestFlight `33925529191` وstatus `33925529206` ثم سجل IPA/hash/build ID. لا تعِد بناء نسخة أخرى. App Store Connect يحتاج دخول المالك قبل إنشاء/تقديم 0.1.1.
 - RevenueCat key أُنشئ وحُفظ في Supabase الصحيح. المهاجرات الأربع المعلقة نُشرت وتطابقت. جميع الدوال ACTIVE: process-audio16/delete-account11/revenuecat-webhook10/legal10/create-audio-upload4/cleanup-expired-audio1/sync-subscription1.
 - Vault والـcron جاهزان؛ اختبار cleanup request 4 نجح HTTP200 بأعداد صفر. انتبه: CLI يعيد المفتاح الجديد مقنعًا بعلامة middle dot `·`؛ لا تحفظ قيمته المقنعة في Vault. حُفظت القيمة الفعلية من لوحة المشروع ونجح الاختبار. لا تنشئ مفاتيح أخرى.

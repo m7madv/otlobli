@@ -6,6 +6,9 @@ Last updated: 2026-09-05
 
 ### الحالة الأحدث المعتمدة (تتجاوز ملاحظات الانتظار أدناه)
 
+- نجح TestFlight run `33925529191` في رفع 0.1.1(20)؛ Delivery/build ID `c0961f25-d087-45df-8f67-b8276d2690c7`. IPA SHA256 `1090cd876a89f288d3ca8b3ed4621621e8b943b40f92d27387aa34dde5a2ad8d`. artifact `9957016751` حجمه المضغوط `34388628` وبصمته `6c040654779cb852fca92c0fb49665a5db705dfb85b49d17908e311d30615970`. أبل تعرض Processing؛ لم يصبح جاهزًا للاختيار بعد.
+- تم دخول أبل وإنشاء مسودة 0.1.1 بحالة Prepare for Submission وحفظ What's New وتصحيح الوصف وملاحظات المراجع إلى 300 دقيقة كل شهر و12 حصة للسنوي. لم يربط build20 بعد ولم يرسل للمراجعة. أكد المتجر أن 0.1.0(18) Ready for Distribution.
+
 - دُفع الإصدار `0.1.1+20` في `25427c4`. CI `33925529183` نجح كاملًا؛ TestFlight `33925529191` وApp Store status `33925529206` جاريان. لم يؤكد رفع البناء أو تقديمه للمراجعة بعد. جلسة App Store Connect منتهية وتنتظر دخول المالك.
 - أُنشئ مفتاح RevenueCat V1 باسم `VoiceBrief Supabase server` في مشروع `59213dad` وحُفظ بنجاح كـ`REVENUECAT_SECRET_API_KEY` في Supabase `jyehqpdbayslhzebdycj` فقط.
 - نُشرت migrations `20260830230000` و`20260830234000` و`20260902010000` و`20260902011000` وتطابق السجل المحلي والبعيد. الدوال ACTIVE: process-audio v16، delete-account v11، revenuecat-webhook v10، legal v10، create-audio-upload v4، cleanup-expired-audio v1، sync-subscription v1.
