@@ -6,6 +6,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ### أحدث نتيجة (تتجاوز النصوص السابقة أدناه)
 
+- أُرسل 0.1.1(20) للمراجعة في2026-09-05 بطلب المالك الصريح؛ أبل أكدت 1 Item Submitted. رقم الإرسال a5d94fa0-6a28-4e3f-b049-d151a2108cc8، والنشر التلقائي مفعّل. لا تعِد الإرسال أو البناء. اختبار الاستعادة الفعلي غير منفّذ وقد أُبلغ المالك قبل طلب النشر. صفحة المتابعة: https://appstoreconnect.apple.com/apps/6805194629/distribution/reviewsubmissions/details/a5d94fa0-6a28-4e3f-b049-d151a2108cc8 .
+- build20 Complete وموجود في VoiceBrief Internal؛ فشل status run33925529206 كان مهلة انتظار قبل توفر البناء وليس رفضًا. Google20 ما زال غير مرفوع.
+
 - Apple login نجح. أُنشئت مسودة 0.1.1 وحُفظ الوصف وWhat's New وملاحظات المراجع بتوضيح الحصة الشهرية. TestFlight run33925529191 نجح في الرفع؛ أبل تعرض Processing للبناء20 c0961f25-d087-45df-8f67-b8276d2690c7. انتظر معالجته ثم اربطه بالمسودة؛ لم يُرسل للمراجعة.
 - IPA SHA256 1090cd876a89f288d3ca8b3ed4621621e8b943b40f92d27387aa34dde5a2ad8d؛ artifact9957016751 حجمه34388628 وZIP SHA256 6c040654779cb852fca92c0fb49665a5db705dfb85b49d17908e311d30615970.
 
