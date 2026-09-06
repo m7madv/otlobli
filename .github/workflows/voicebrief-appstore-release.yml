@@ -12,6 +12,10 @@ on:
         description: For submission type 6805194629:0.1.2:21:submit
         type: string
         default: ''
+      wait_for_build:
+        description: Wait up to 11 minutes for Apple build processing
+        type: boolean
+        default: false
   push:
     branches: [codex/voicebrief-ios]
     paths: [.github/workflows/voicebrief-appstore-release.yml]
@@ -37,6 +41,7 @@ jobs:
         env:
           VOICEBRIEF_RELEASE_MODE: ${{ inputs.mode || 'inspect' }}
           VOICEBRIEF_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          VOICEBRIEF_WAIT_FOR_BUILD: ${{ inputs.wait_for_build || false }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

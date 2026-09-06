@@ -4,6 +4,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 The build21 App Store release workflow has a read-only push registration trigger; submit still requires explicit workflow_dispatch confirmation. The first dispatch before registration returned404 and made no store change.
 
+Use wait_for_build=true for bounded Apple processing follow-up (up to11minutes, once/minute); no re-upload. Inspection34041050805 still found no build21 at15:02UTC despite the successful14:58UTC delivery.
+
 ## أحدث متابعة — اللغات وصور VoiceBrief، 2026-09-06
 
 - اكتملت الأسماء11 والصور88 في34040271022 وكلهاCOMPLETE؛ فحص مستقل34040542895 و34040895845 يطابق البيانات والصور وبيانات المراجع محفوظة وفرنسا مستثناة. التقارير output/voicebrief-localization-34040271022 وoutput/voicebrief-release-{run}/. لا تعِد رفع الصور أو الأسماء؛ السكربت يعالج إنشاء أبل التلقائي للغات دون تكرار.

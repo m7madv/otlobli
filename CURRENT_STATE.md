@@ -4,6 +4,8 @@ Last updated: 2026-09-06
 
 Release automation note: the new App Store release workflow runs read-only inspection on its own file pushes so GitHub registers it on this release branch; review submission remains explicit workflow_dispatch only.
 
+Apple processing follow-up: inspect34041050805 still found no build21 after successful delivery. The release workflow now optionally waits up to11minutes (60-second API intervals) before its full preflight; default remains immediate/read-only and no re-upload occurs.
+
 ## VoiceBrief — اللغات وصور المتجر، 2026-09-06
 
 - اكتمل رفع الأسماء11 والصور88 والوصف/ملاحظات التحديث للغات11 في تشغيل34040271022؛ كل الصور COMPLETE. التقرير والنسخ السابقة محليًا `output/voicebrief-localization-34040271022/`، artifact9991595455 (9173 بايت، ZIP SHA256 `16a00a4a527521177fc4ec25cb6330b7744b467b515261bc2e0be31335aa03ce`). نجح فحص مستقل34040542895 ثم34040895845 لكل البيانات والأسماء ووجود بيانات المراجع واستثناء فرنسا؛ البناء لم يظهر بعد وقت الفحص.

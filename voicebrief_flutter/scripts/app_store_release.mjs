@@ -55,7 +55,17 @@ try{
   const version=versions.find(v=>v.id===VERSION_ID && v.attributes.versionString===VERSION);
   if(!version)throw new Error('Expected draft version missing');
   report.state=version.attributes.appStoreState;
-  const builds=await list(`/v1/builds?filter[app]=${APP}&filter[version]=${BUILD}&include=preReleaseVersion&limit=200`);
+  let builds=[];
+  const attempts=process.env.VOICEBRIEF_WAIT_FOR_BUILD==='true'?12:1;
+  for(let attempt=0;attempt<attempts;attempt++){
+    builds=await list(`/v1/builds?filter[app]=${APP}&filter[version]=${BUILD}&limit=200`);
+    if(builds.some(b=>b.attributes.processingState==='VALID'))break;
+    if(builds.some(b=>['FAILED','INVALID'].includes(b.attributes.processingState)))break;
+    if(attempt+1<attempts){
+      console.log('Apple has not finished processing build 21; checking again in 60 seconds.');
+      await new Promise(r=>setTimeout(r,60000));
+    }
+  }
   report.builds=[];
   for(const b of builds){
     const train=(await api(`/v1/builds/${b.id}/preReleaseVersion`)).data;
