@@ -51,12 +51,14 @@ async function main() {
   const editableInfos=infos.filter(info=>editable.has(info.attributes.appStoreState));
   if(apply && editableInfos.length!==1) throw new Error('Expected exactly one editable App Info; no live App Info will be changed.');
   const info=editableInfos.length===1?editableInfos[0]:null;
-  const infoLocalizations=info?await listAll(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`):[];
   for(const [locale,copy] of Object.entries(metadata)) {
     const attributes={locale,description:`${copy.description}\n\n${eula}`,keywords:copy.keywords,whatsNew:copy.whatsNew,supportUrl};
     const localized=await upsert('appStoreVersionLocalizations',localizations.find(l=>l.attributes.locale===locale),attributes,{
       appStoreVersion:{data:{type:'appStoreVersions',id:version.id}},
     });
+    // Creating a version localization may also create its App Info locale.
+    // Refresh after that mutation instead of using a stale pre-loop snapshot.
+    const infoLocalizations=info?await listAll(`/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`):[];
     const infoResult=info?await upsert('appInfoLocalizations',infoLocalizations.find(l=>l.attributes.locale===locale),{
       locale,name:copy.name,subtitle:copy.subtitle,privacyPolicyUrl:`${supportUrl}/privacy`,
     },{appInfo:{data:{type:'appInfos',id:info.id}}}):{action:'no-editable-app-info'};

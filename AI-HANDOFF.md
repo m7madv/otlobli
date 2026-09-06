@@ -2,6 +2,8 @@
 
 ## ضمانك — استئناف اللغات 2026-09-06
 
+حالة Apple أحدث: مسودة4.6.0 موجودة `af5f3581-d237-476d-b8c4-a42c73f7cc19` PREPARE_FOR_SUBMISSION. metadata run34039292196 توقف بعد العربية وعند App Info en-US المولدة تلقائياً. أُصلح cache القراءة داخل الحلقة لإعادة تحميل App Info بعد upsert لغة الإصدار؛ أعد apply للمسودة نفسها، لا تنشئ غيرها ولا تحذف المحلية. iOS الجديد34039342937 جارٍ من24e6f9b.
+
 آخر iOS run `34039168233` فشل في تحليل أدوات `tools/localization/bin` لأن CI لم يثبت حزمة analyzer المستقلة. الرقعة تضيف `(cd tools/localization && dart pub get && dart analyze)` قبل فحص التطبيق، دون إضافة تبعيات التطبيق. أعد dispatch من أحدث HEAD؛ لا تعِد run القديم لأنه يستخدم المصدر القديم. metadata run `34039292196` جارٍ؛ افحص النتيجة قبل الصور.
 
 تصحيح: سير الصور أيضاً يرد 404. استخدم `damanak-apple-setup.yml` المسجّل برقم `341412875` مع `asset_kind=metadata` أو `screenshots`، `version=4.6.0` وlocale مناسب وmode صريح. الفروع الجديدة تتجاوز كل خطوات setup القديمة وترفض الجمع مع flags الأسعار/المراجعة. لا تستخدم `asset_kind=setup` للنشر اللغوي. لم تنجح كتابة Apple بعد.
