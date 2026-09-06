@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum StockMovementType {
   opening,
   purchase,
@@ -10,13 +12,13 @@ enum StockMovementType {
 
 extension StockMovementTypeText on StockMovementType {
   String get label => switch (this) {
-    StockMovementType.opening => 'رصيد افتتاحي',
-    StockMovementType.purchase => 'استلام مشتريات',
-    StockMovementType.sale => 'بيع',
-    StockMovementType.returnIn => 'مرتجع عميل',
-    StockMovementType.transferOut => 'تحويل صادر',
-    StockMovementType.transferIn => 'تحويل وارد',
-    StockMovementType.adjustment => 'تسوية مخزون',
+    StockMovementType.opening => L10n.current.msg998a0190311c,
+    StockMovementType.purchase => L10n.current.msgf081df1ea3f0,
+    StockMovementType.sale => L10n.current.msg3f938fa02d78,
+    StockMovementType.returnIn => L10n.current.msg2070711a2cdb,
+    StockMovementType.transferOut => L10n.current.msgbd783117c924,
+    StockMovementType.transferIn => L10n.current.msgb1e632423040,
+    StockMovementType.adjustment => L10n.current.msg84a79451a197,
   };
 
   String get databaseValue => switch (this) {

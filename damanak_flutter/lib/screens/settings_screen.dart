@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -93,12 +94,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final colors = context.colors;
     final canEdit = controller.membership!.role.canManageTeam;
     final canBrand = controller.subscription!.plan.customBranding;
     return Scaffold(
-      appBar: AppBar(title: const Text('بيانات المتجر')),
+      appBar: AppBar(title: Text(L10n.current.msg97432797c672)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -120,12 +122,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: colors.surfaceContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'تعديل إعدادات المتجر متاح للمالك والمدير فقط.',
-                        ),
+                        child: Text(L10n.current.msg5b7c86ff0822),
                       ),
                     _SettingsSection(
-                      title: 'هوية المتجر',
+                      title: L10n.current.msg6070d0810577,
                       icon: Icons.storefront_outlined,
                       child: Column(
                         children: [
@@ -133,8 +133,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             controller: _name,
                             enabled: canEdit,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'اسم المتجر',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msga9ac0e475f40,
                               prefixIcon: Icon(Icons.storefront_outlined),
                             ),
                             validator: _required,
@@ -143,15 +143,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           DropdownButtonFormField<String>(
                             initialValue: _country,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'الدولة',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgc431df1c0011,
                               prefixIcon: Icon(Icons.public_outlined),
                             ),
                             items: _countries.entries
                                 .map(
                                   (entry) => DropdownMenuItem(
                                     value: entry.key,
-                                    child: Text(entry.value),
+                                    child: Text(L10n.knownLabel(entry.value)),
                                   ),
                                 )
                                 .toList(),
@@ -172,8 +172,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             controller: _city,
                             enabled: canEdit,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'المدينة',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg23ee0d351c7b,
                               prefixIcon: Icon(Icons.location_city_outlined),
                             ),
                             validator: _required,
@@ -185,8 +185,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             minLines: 2,
                             maxLines: 3,
                             textInputAction: TextInputAction.newline,
-                            decoration: const InputDecoration(
-                              labelText: 'العنوان التفصيلي',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg491712d63cd1,
                               prefixIcon: Icon(Icons.location_on_outlined),
                               alignLabelWithHint: true,
                             ),
@@ -198,13 +198,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             keyboardType: TextInputType.phone,
                             textDirection: TextDirection.ltr,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'رقم التواصل',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgb6dc7e167c03,
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
                             validator: (value) =>
                                 (value?.trim().length ?? 0) < 7
-                                ? 'أدخل رقم تواصل صحيحاً'
+                                ? L10n.current.msgbe10c77a7a79
                                 : null,
                           ),
                         ],
@@ -212,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
-                      title: 'هوية بطاقة العميل',
+                      title: L10n.current.msg166c2ffa66b6,
                       icon: Icons.verified_outlined,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,7 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Text(
-                                'الهوية المخصصة مشمولة في باقتي نمو وتوسع. ستبقى هوية ضمانك الافتراضية في الباقة الحالية.',
+                                L10n.current.msg54c0a3ec665a,
                                 style: TextStyle(
                                   color: colors.onSurfaceVariant,
                                 ),
@@ -231,15 +231,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             controller: _customerPortalTitle,
                             enabled: canEdit && canBrand,
                             maxLength: 80,
-                            decoration: const InputDecoration(
-                              labelText: 'عنوان بطاقة الضمان',
-                              hintText: 'بطاقة ضمان موثّقة',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgc0bf39194a34,
+                              hintText: L10n.current.msge7139553cc0c,
                               prefixIcon: Icon(Icons.title_rounded),
                             ),
                             validator: (value) {
                               if (!canBrand) return null;
                               final length = value?.trim().length ?? 0;
-                              return length < 3 ? 'اكتب عنواناً واضحاً' : null;
+                              return length < 3
+                                  ? L10n.current.msgcb479a339dcd
+                                  : null;
                             },
                           ),
                           const SizedBox(height: 12),
@@ -248,11 +250,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             enabled: canEdit && canBrand,
                             textDirection: TextDirection.ltr,
                             keyboardType: TextInputType.url,
-                            decoration: const InputDecoration(
-                              labelText: 'رابط شعار HTTPS (اختياري)',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg2436efa6ba23,
                               prefixIcon: Icon(Icons.image_outlined),
-                              helperText:
-                                  'استخدم رابط صورة ثابتاً ومشفراً. لن يظهر الرابط نفسه للعميل.',
+                              helperText: L10n.current.msg8c55f5ec55e5,
                             ),
                             validator: (value) {
                               final url = value?.trim() ?? '';
@@ -261,12 +262,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               return parsed?.scheme == 'https' &&
                                       parsed!.host.isNotEmpty
                                   ? null
-                                  : 'استخدم رابطاً يبدأ بـ https://';
+                                  : L10n.current.msg36c629f2a1bb;
                             },
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'لون واحد للهوية',
+                            L10n.current.msg283f640cdd9a,
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 8),
@@ -289,15 +290,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
-                      title: 'العملة والسجل',
+                      title: L10n.current.msg4dcfe919a879,
                       icon: Icons.payments_outlined,
                       child: Column(
                         children: [
                           DropdownButtonFormField<String>(
                             initialValue: _currency,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'عملة المتجر الأساسية',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgaf4cf170eb41,
                               prefixIcon: Icon(Icons.payments_outlined),
                             ),
                             items: supportedCurrencies
@@ -305,7 +306,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   (currency) => DropdownMenuItem(
                                     value: currency.code,
                                     child: Text(
-                                      '${currency.name} (${currency.symbol})',
+                                      '${currency.localizedName} (${currency.symbol})',
                                     ),
                                   ),
                                 )
@@ -321,8 +322,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             controller: _commercialRegistration,
                             enabled: canEdit,
                             textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'السجل التجاري (اختياري)',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg810d79d7b286,
                               prefixIcon: Icon(Icons.badge_outlined),
                             ),
                           ),
@@ -331,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
-                      title: 'الإيصالات والضمان',
+                      title: L10n.current.msge5f551c71c20,
                       icon: Icons.receipt_outlined,
                       child: Column(
                         children: [
@@ -340,11 +341,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             enabled: canEdit,
                             textCapitalization: TextCapitalization.characters,
                             textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'بادئة رقم الإيصال',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgad638a0ea91c,
                               hintText: 'INV',
                               prefixIcon: Icon(Icons.numbers_rounded),
-                              helperText: 'من 2 إلى 8 أحرف أو أرقام لاتينية.',
+                              helperText: L10n.current.msg21fa5d68e184,
                             ),
                             validator: (value) {
                               final prefix = value?.trim() ?? '';
@@ -352,22 +353,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     r'^[A-Za-z0-9]{2,8}$',
                                   ).hasMatch(prefix)
                                   ? null
-                                  : 'استخدم 2–8 أحرف أو أرقام لاتينية';
+                                  : L10n.current.msgda983896ba06;
                             },
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
                             initialValue: _defaultWarrantyMonths,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'مدة الضمان الافتراضية',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg8b208f6650c6,
                               prefixIcon: Icon(Icons.event_repeat_outlined),
                             ),
                             items: const [3, 6, 12, 18, 24, 36, 60]
                                 .map(
                                   (months) => DropdownMenuItem(
                                     value: months,
-                                    child: Text('$months شهراً'),
+                                    child: Text(
+                                      L10n.current.msg5ec8afa2a31e(months),
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -385,10 +388,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             minLines: 3,
                             maxLines: 7,
                             maxLength: 4000,
-                            decoration: const InputDecoration(
-                              labelText: 'ما الذي يغطيه الضمان؟',
-                              hintText:
-                                  'مثال: عيوب الصناعة والأعطال الداخلية خلال مدة الضمان.',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgdcfacfb8d15b,
+                              hintText: L10n.current.msg70a3b2113590,
                               alignLabelWithHint: true,
                               prefixIcon: Icon(Icons.policy_outlined),
                             ),
@@ -400,10 +402,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             minLines: 3,
                             maxLines: 7,
                             maxLength: 4000,
-                            decoration: const InputDecoration(
-                              labelText: 'الاستثناءات',
-                              hintText:
-                                  'مثال: الكسر، السوائل، وسوء الاستخدام ما لم يُذكر غير ذلك.',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg4eafb03d32c3,
+                              hintText: L10n.current.msg456150a31b87,
                               alignLabelWithHint: true,
                               prefixIcon: Icon(Icons.gpp_bad_outlined),
                             ),
@@ -420,8 +421,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: const Icon(Icons.save_outlined),
                           label: Text(
                             controller.busy
-                                ? 'جارٍ الحفظ…'
-                                : 'حفظ إعدادات المتجر',
+                                ? L10n.current.msg47d263ad0ba4
+                                : L10n.current.msge3d20512e7c5,
                           ),
                         ),
                       ),
@@ -436,8 +437,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? L10n.current.msgd5a02f880a17
+      : null;
 }
 
 const _countries = <String, String>{
@@ -474,11 +476,14 @@ class _BrandColorButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final color = Color(int.parse(value.substring(1), radix: 16) + 0xFF000000);
     return Semantics(
       button: true,
       selected: selected,
-      label: selected ? 'لون الهوية المحدد' : 'اختيار لون الهوية',
+      label: selected
+          ? L10n.current.msgbbc5a156723d
+          : L10n.current.msg048375d837b9,
       child: InkWell(
         onTap: enabled ? onSelected : null,
         customBorder: const CircleBorder(),
@@ -516,6 +521,7 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(

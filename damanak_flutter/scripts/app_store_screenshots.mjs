@@ -9,11 +9,20 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const API_ROOT = 'https://api.appstoreconnect.apple.com';
 const BUNDLE_ID = 'com.damanak.damanak';
-const RELEASE_VERSION = '4.5.0';
-const PRIMARY_LOCALE = 'ar-SA';
+// Explicitly target one editable release/localization; never fall back to a
+// different language or silently mutate the live Arabic listing.
+const RELEASE_VERSION = process.env.DAMANAK_STORE_VERSION || '4.5.0';
+const PRIMARY_LOCALE = process.env.DAMANAK_STORE_LOCALE || 'ar-SA';
+const LOCALIZED_ROOT = process.env.DAMANAK_STORE_LOCALE
+  ? `app_store_assets/ios/localized/${PRIMARY_LOCALE}`
+  : 'app_store_assets/ios';
+if (!['ar-SA','en-US','es-ES','fr-FR','de-DE','pt-BR','zh-Hans','hi','ja','ru'].includes(PRIMARY_LOCALE)) {
+  throw new Error('Unsupported explicit App Store locale');
+}
 
 const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
 const outputIndex = process.argv.indexOf('--output');
@@ -27,14 +36,14 @@ const screenshotDefinitions = [
   {
     displayType: 'APP_IPHONE_65',
     label: 'iPhone 6.5-inch',
-    directory: resolve('app_store_assets/ios/iphone-1284x2778'),
+    directory: resolve(`${LOCALIZED_ROOT}/iphone-1284x2778`),
     width: 1284,
     height: 2778,
   },
   {
     displayType: 'APP_IPAD_PRO_3GEN_129',
     label: 'iPad 13-inch',
-    directory: resolve('app_store_assets/ios/ipad-2048x2732'),
+    directory: resolve(`${LOCALIZED_ROOT}/ipad-2048x2732`),
     width: 2048,
     height: 2732,
   },
@@ -97,8 +106,14 @@ function summarizeApiError(body, status) {
 }
 
 let token;
+export function initializeAppStoreApi() {
+  for (const variable of requiredEnvironment) {
+    if (!process.env[variable]) throw new Error(`Missing required environment variable: ${variable}`);
+  }
+  token = createToken();
+}
 
-async function request(pathOrUrl, { method = 'GET', body } = {}) {
+export async function request(pathOrUrl, { method = 'GET', body } = {}) {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const url = pathOrUrl.startsWith('http')
       ? pathOrUrl
@@ -146,7 +161,7 @@ async function request(pathOrUrl, { method = 'GET', body } = {}) {
   throw new Error('App Store Connect request retries were exhausted');
 }
 
-async function listAll(path) {
+export async function listAll(path) {
   const rows = [];
   let next = path;
   while (next) {
@@ -303,15 +318,19 @@ async function findAppAndLocalization(report) {
   if (!version) {
     throw new Error(`iOS App Store version ${RELEASE_VERSION} was not found`);
   }
+  if (mode === 'apply' && ![
+    'PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED',
+  ].includes(version.attributes?.appStoreState)) {
+    throw new Error(`Screenshot updates require an editable version, not ${version.attributes?.appStoreState}`);
+  }
 
   const localizations = await listAll(
     `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=200`,
   );
   const localization =
-    localizations.find((row) => row.attributes?.locale === PRIMARY_LOCALE) ||
-    localizations.find((row) => row.attributes?.locale?.startsWith('ar'));
+    localizations.find((row) => row.attributes?.locale === PRIMARY_LOCALE);
   if (!localization) {
-    throw new Error(`Arabic localization ${PRIMARY_LOCALE} was not found`);
+    throw new Error(`Localization ${PRIMARY_LOCALE} was not found`);
   }
 
   report.app = {
@@ -461,7 +480,7 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 }
 
-main().catch((error) => {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((error) => {
   const failure = {
     generatedAt: new Date().toISOString(),
     mode,

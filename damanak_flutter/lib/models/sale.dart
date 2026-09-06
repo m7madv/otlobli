@@ -1,13 +1,14 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'warranty.dart';
 
 enum SaleStatus { completed, partiallyReturned, returned, voided }
 
 extension SaleStatusText on SaleStatus {
   String get label => switch (this) {
-    SaleStatus.completed => 'مكتملة',
-    SaleStatus.partiallyReturned => 'مرتجع جزئي',
-    SaleStatus.returned => 'مرتجعة',
-    SaleStatus.voided => 'ملغاة',
+    SaleStatus.completed => L10n.current.msgf1d6d15f76da,
+    SaleStatus.partiallyReturned => L10n.current.msgd020893b6854,
+    SaleStatus.returned => L10n.current.msg16dafdc77d49,
+    SaleStatus.voided => L10n.current.msgd87ae61bedd8,
   };
 
   String get databaseValue => switch (this) {

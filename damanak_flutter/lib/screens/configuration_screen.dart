@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -9,6 +10,7 @@ class ConfigurationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final colors = context.colors;
     return Scaffold(
@@ -44,7 +46,7 @@ class ConfigurationScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            'نسخة المطوّر',
+                            L10n.current.msgd084c77a02d5,
                             style: TextStyle(
                               color: colors.onPrimaryContainer,
                               fontSize: 12,
@@ -54,7 +56,7 @@ class ConfigurationScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'النظام الكامل جاهز للربط.',
+                          L10n.current.msg9bd21e3a06f6,
                           style: TextStyle(
                             color: colors.onSurface,
                             fontSize: 25,
@@ -64,7 +66,7 @@ class ConfigurationScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 9),
                         Text(
-                          'يلزم مشروع Supabase مستقل ومفاتيح البناء لتفعيل الحسابات والمزامنة. يمكنك فتح العرض الآن لتجربة كل مسارات المتجر.',
+                          L10n.current.msga9237f88c75a,
                           style: TextStyle(
                             color: colors.onSurfaceVariant,
                             height: 1.6,
@@ -85,30 +87,27 @@ class ConfigurationScreen extends StatelessWidget {
                                     ),
                                   )
                                 : const Icon(Icons.play_arrow_rounded),
-                            label: const Text('فتح العرض التشغيلي'),
+                            label: Text(L10n.current.msg2aecff1d1217),
                           ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const _ConfigStep(
+                  _ConfigStep(
                     number: '1',
-                    title: 'قاعدة مستقلة',
-                    text:
-                        'أنشئ مشروع Supabase جديداً خاصاً بضمانك؛ لا تستخدم قاعدة أي تطبيق آخر.',
+                    title: L10n.current.msg618c1cacc7b3,
+                    text: L10n.current.msg2804b819a0c6,
                   ),
-                  const _ConfigStep(
+                  _ConfigStep(
                     number: '2',
-                    title: 'طبّق ملف قاعدة البيانات',
-                    text:
-                        'نفّذ migration الموجود داخل مجلد damanak_flutter/supabase.',
+                    title: L10n.current.msg70634a0adefd,
+                    text: L10n.current.msg036aa2e653b5,
                   ),
-                  const _ConfigStep(
+                  _ConfigStep(
                     number: '3',
-                    title: 'ابنِ بالمفاتيح',
-                    text:
-                        'مرّر DAMANAK_SUPABASE_URL وDAMANAK_SUPABASE_PUBLISHABLE_KEY عند البناء.',
+                    title: L10n.current.msgef29ee9c1331,
+                    text: L10n.current.msg9078669d3cad,
                   ),
                 ],
               ),
@@ -133,6 +132,7 @@ class _ConfigStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),

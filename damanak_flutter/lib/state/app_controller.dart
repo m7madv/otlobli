@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:async';
 import 'dart:collection';
 
@@ -29,10 +30,13 @@ import '../services/store_billing_service.dart';
 
 class AppController extends ChangeNotifier {
   static const int _warrantyPageSize = 100;
-  static const String _billingVerificationInProgressMessage =
-      'جارٍ التحقق من إيصال متجر سابق. انتظر اكتمال التحقق قبل بدء شراء أو استعادة أخرى.';
-  static const String _billingStateChangedDuringPreflightMessage =
-      'تغيّرت حالة الاشتراك أثناء الفحص. لم نفتح الدفع؛ أعد المحاولة لتأكيد الحالة الجديدة أولاً.';
+  static String get _billingVerificationInProgressMessage => L10n.knownLabel(
+    'جارٍ التحقق من إيصال متجر سابق. انتظر اكتمال التحقق قبل بدء شراء أو استعادة أخرى.',
+  );
+  static String
+  get _billingStateChangedDuringPreflightMessage => L10n.knownLabel(
+    'تغيّرت حالة الاشتراك أثناء الفحص. لم نفتح الدفع؛ أعد المحاولة لتأكيد الحالة الجديدة أولاً.',
+  );
 
   AppController.withRepository(
     DamanakRepository repository, {
@@ -222,7 +226,7 @@ class AppController extends ChangeNotifier {
   UnmodifiableListView<StoreProductOffer> get storeOffers =>
       UnmodifiableListView(_subscriptionFlow.state.catalog.offers);
   StoreProfile get profile => StoreProfile(
-    name: _store?.name ?? 'متجر ضمانك',
+    name: _store?.name ?? L10n.current.msg2a01836e5452,
     phone: _store?.phone ?? '',
     city: _store?.city ?? '',
     address: _store?.address ?? '',
@@ -397,7 +401,7 @@ class AppController extends ChangeNotifier {
   Future<void> signInWithSocial(SocialAuthProvider provider) async {
     await _guard(() async {
       await _repository!.signInWithSocial(provider);
-      _noticeMessage = 'تم تسجيل الدخول باستخدام ${provider.label}.';
+      _noticeMessage = L10n.current.msgb292c8e659da(provider.label);
     });
   }
 
@@ -450,8 +454,7 @@ class AppController extends ChangeNotifier {
       _applySnapshot(snapshot);
       await _loadWorkspaceData();
       if (snapshot.subscription.isAwaitingSubscription) {
-        _noticeMessage =
-            'الخطة المجانية مستخدمة لهذا الحساب أو التثبيت. يمكنك الاشتراك في باقة مدفوعة للبدء.';
+        _noticeMessage = L10n.current.msg05d07a095802;
       }
       _stage = AppStage.ready;
       unawaited(_drainQueuedStorePurchaseEvents());
@@ -481,7 +484,7 @@ class AppController extends ChangeNotifier {
         !RegExp(
           r'^DMN-(?:[A-F0-9]{10}|[A-F0-9]{16}|[A-F0-9]{32})$',
         ).hasMatch(code)) {
-      _errorMessage = 'رابط الدعوة غير مكتمل. اطلب من المدير إرسال دعوة جديدة.';
+      _errorMessage = L10n.current.msg64c63e0a83c9;
       notifyListeners();
       return true;
     }
@@ -543,7 +546,7 @@ class AppController extends ChangeNotifier {
         warrantyPolicy: warrantyPolicy ?? _store!.warrantyPolicy,
         warrantyExclusions: warrantyExclusions ?? _store!.warrantyExclusions,
       );
-      _noticeMessage = 'تم حفظ بيانات المتجر.';
+      _noticeMessage = L10n.current.msge730654afa6b;
     });
   }
 
@@ -590,7 +593,7 @@ class AppController extends ChangeNotifier {
         storeId: _store!.id,
         preferences: preferences,
       );
-      _noticeMessage = 'تم حفظ تفضيلات الإشعارات.';
+      _noticeMessage = L10n.current.msg8af71b2d3596;
     });
   }
 
@@ -646,7 +649,7 @@ class AppController extends ChangeNotifier {
     await _guard(() async {
       await _repository!.revokeApiKey(keyId);
       await _loadIntegrationsWithoutGuard();
-      _noticeMessage = 'تم إلغاء المفتاح فوراً.';
+      _noticeMessage = L10n.current.msg47919334a5ec;
     });
   }
 
@@ -840,7 +843,9 @@ class AppController extends ChangeNotifier {
       } else if (index >= 0) {
         _products[index] = updated!;
       }
-      _noticeMessage = isActive ? 'تم تحديث المنتج.' : 'تمت أرشفة المنتج.';
+      _noticeMessage = isActive
+          ? L10n.current.msg3e13facbc99c
+          : L10n.current.msg40b2aeae01b8;
     });
     return updated;
   }
@@ -1166,7 +1171,7 @@ class AppController extends ChangeNotifier {
         _inventory.add(level);
       }
       await _reloadMovements();
-      _noticeMessage = 'تمت تسوية المخزون وتسجيل الحركة.';
+      _noticeMessage = L10n.current.msgaf28a10c5f13;
     });
   }
 
@@ -1187,7 +1192,7 @@ class AppController extends ChangeNotifier {
         note: note,
       );
       await _reloadInventory();
-      _noticeMessage = 'اكتمل تحويل المخزون بين الفرعين.';
+      _noticeMessage = L10n.current.msg95adf91cf79b;
     });
   }
 
@@ -1224,7 +1229,7 @@ class AppController extends ChangeNotifier {
       _registerSessions
         ..clear()
         ..addAll(await _repository!.loadRegisterSessions(_store!.id));
-      _noticeMessage = 'تم حفظ البيع وتحديث المخزون والضمان.';
+      _noticeMessage = L10n.current.msgaf6ab5c993fd;
     });
     return sale;
   }
@@ -1246,7 +1251,7 @@ class AppController extends ChangeNotifier {
       final index = _sales.indexWhere((item) => item.id == saleId);
       if (index >= 0) _sales[index] = updated;
       await _reloadInventory();
-      _noticeMessage = 'تم تسجيل المرتجع وإعادة الكمية إلى المخزون.';
+      _noticeMessage = L10n.current.msg49acf39c5af1;
     });
   }
 
@@ -1263,7 +1268,7 @@ class AppController extends ChangeNotifier {
         notes: notes,
       );
       _registerSessions.insert(0, session);
-      _noticeMessage = 'تم فتح جلسة الصندوق.';
+      _noticeMessage = L10n.current.msgaea2d07966b2;
     });
   }
 
@@ -1282,7 +1287,7 @@ class AppController extends ChangeNotifier {
         (item) => item.id == sessionId,
       );
       if (index >= 0) _registerSessions[index] = session;
-      _noticeMessage = 'تم إغلاق الصندوق وتثبيت العجز أو الزيادة.';
+      _noticeMessage = L10n.current.msgf2cc84b21c82;
     });
   }
 
@@ -1349,7 +1354,7 @@ class AppController extends ChangeNotifier {
       );
       if (index >= 0) _purchaseOrders[index] = updated;
       await _reloadInventory();
-      _noticeMessage = 'تم استلام أمر الشراء وتحديث تكلفة المخزون.';
+      _noticeMessage = L10n.current.msg13940e12cc32;
     });
   }
 
@@ -1425,8 +1430,7 @@ class AppController extends ChangeNotifier {
         (final String error, final String missing) => '$error $missing',
         (final String error, null) => error,
         (null, final String missing) => missing,
-        (null, null) when result.offers.isEmpty =>
-          'لم يُرجع المتجر خططاً متاحة لهذا الحساب.',
+        (null, null) when result.offers.isEmpty => L10n.current.msg75e8a8465597,
         _ => null,
       };
       final completed = _subscriptionFlow.completeCatalog(
@@ -1455,8 +1459,7 @@ class AppController extends ChangeNotifier {
         scope: scope,
         requestId: requestId,
         platform: previousPlatform,
-        message:
-            'استغرق متجر التطبيقات وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
+        message: L10n.current.msg488c9aa85534,
       );
     } catch (error) {
       if (refreshSerial != _storeProductRefreshSerial ||
@@ -1481,35 +1484,33 @@ class AppController extends ChangeNotifier {
         .map((productId) {
           final planId = DamanakStoreCatalog.planIdFromProduct(productId);
           final planName = switch (planId) {
-            'starter' => 'بداية',
-            'growth' => 'نمو',
-            'scale' => 'توسع',
-            _ => 'منتج اشتراك',
+            'starter' => L10n.current.msg50b1963dda2e,
+            'growth' => L10n.current.msg5e7dc4940fc1,
+            'scale' => L10n.current.msg0e1039754754,
+            _ => L10n.current.msg48d0e64e87d1,
           };
           final cycle = switch (platform) {
             StoreBillingPlatform.appStore when productId.endsWith('.monthly') =>
-              'شهري',
+              L10n.current.msg9c677bb93912,
             StoreBillingPlatform.appStore when productId.endsWith('.yearly') =>
-              'سنوي',
-            StoreBillingPlatform.googlePlay => 'شهري وسنوي',
-            _ => 'دورة غير معروفة',
+              L10n.current.msg1beeff0b0fec,
+            StoreBillingPlatform.googlePlay => L10n.current.msg1cbc05c85bbb,
+            _ => L10n.current.msgdf24a7d5dad2,
           };
           return '$planName — $cycle';
         })
-        .join('، ');
-    return 'لم يُرجع ${platform.label} المنتجات التالية: $labels. يمكنك اختيار المنتجات الظاهرة أو إعادة المحاولة.';
+        .join(L10n.current.msg11735aabd336);
+    return L10n.current.msgcf06455e54f0(platform.label, labels);
   }
 
   Future<void> purchaseSubscription(StoreProductOffer offer) async {
     if (_membership?.role.canManageSubscription != true) {
-      _setStoreBillingError('إدارة الاشتراك متاحة لمالك المتجر فقط.');
+      _setStoreBillingError(L10n.current.msgf84fb8e924b8);
       notifyListeners();
       return;
     }
     if (isDemo || _repository == null || _account == null || _store == null) {
-      _setStoreBillingError(
-        'الشراء الحقيقي يحتاج نسخة مرتبطة بقاعدة ضمانك ومنشورة من المتجر.',
-      );
+      _setStoreBillingError(L10n.current.msg65a26bf092ae);
       notifyListeners();
       return;
     }
@@ -1526,7 +1527,7 @@ class AppController extends ChangeNotifier {
               item.productId == offer.productId &&
               item.basePlanId == offer.basePlanId,
         )) {
-      _setStoreBillingError('حدّث أسعار متجر التطبيقات قبل متابعة الاشتراك.');
+      _setStoreBillingError(L10n.current.msgce385dc19ba7);
       notifyListeners();
       return;
     }
@@ -1554,7 +1555,7 @@ class AppController extends ChangeNotifier {
     _subscriptionFlow.setMessage(
       scope: scope,
       operationId: operationId,
-      message: 'جارٍ تأكيد حالة الاشتراك قبل فتح الدفع…',
+      message: L10n.current.msg4524f31e1fde,
     );
     SubscriptionInfo? subscription;
     notifyListeners();
@@ -1636,8 +1637,8 @@ class AppController extends ChangeNotifier {
         );
         final friendly = _friendlyError(error);
         _setStoreBillingError(
-          friendly == 'تعذّر إكمال العملية. تحقق من الاتصال وحاول مرة أخرى.'
-              ? 'تعذر تأكيد حالة الاشتراك الحالية قبل فتح الدفع. لم يبدأ أي اشتراك جديد؛ حاول الاستعادة أو أعد المحاولة لاحقاً.'
+          friendly == L10n.current.msgc09adaa77529
+              ? L10n.current.msg77b31f3e6e99
               : friendly,
         );
         notifyListeners();
@@ -1670,14 +1671,17 @@ class AppController extends ChangeNotifier {
     if (!decision.allowed) {
       _subscriptionFlow.finishOperation(scope: scope, operationId: operationId);
       _setStoreBillingError(switch (decision.blockedReason) {
-        SubscriptionBlockReason.alreadyActive =>
-          'هذه الخطة ودورة الفوترة فعّالتان بالفعل.',
-        SubscriptionBlockReason.downgrade =>
-          'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.',
+        SubscriptionBlockReason.alreadyActive => L10n.current.msgd1225fc4dedf,
+        SubscriptionBlockReason.downgrade => L10n.current.msge957d23a6cf8,
         SubscriptionBlockReason.providerConflict =>
-          'اشتراك المتجر ما زال سارياً عبر ${StoreBillingPlatformText.fromValue(subscription.billingProvider)?.label ?? 'متجر آخر'}. أدره هناك أولاً لتجنب اشتراكين مدفوعين.',
-        SubscriptionBlockReason.stateUnknown || null =>
-          'حالة الاشتراك الحالية غير مكتملة. لم نفتح الدفع؛ استخدم استعادة المشتريات أو أعد المحاولة.',
+          L10n.current.msg82feabeb713a(
+            StoreBillingPlatformText.fromValue(
+                  subscription.billingProvider,
+                )?.label ??
+                L10n.current.msgdcc6ecc738c5,
+          ),
+        SubscriptionBlockReason.stateUnknown ||
+        null => L10n.current.msg22824c7dacc9,
       });
       notifyListeners();
       return;
@@ -1726,7 +1730,7 @@ class AppController extends ChangeNotifier {
     _subscriptionFlow.setMessage(
       scope: scope,
       operationId: operationId,
-      message: 'أكمل العملية في نافذة المتجر الآمنة.',
+      message: L10n.current.msg7b2bf94248e1,
     );
     _startPurchaseWatchdog(intent);
     notifyListeners();
@@ -1757,14 +1761,12 @@ class AppController extends ChangeNotifier {
 
   Future<void> restoreStorePurchases() async {
     if (_membership?.role.canManageSubscription != true) {
-      _setStoreBillingError('استعادة المشتريات متاحة لمالك المتجر فقط.');
+      _setStoreBillingError(L10n.current.msg3beb20a2aab2);
       notifyListeners();
       return;
     }
     if (isDemo || _repository == null || _account == null || _store == null) {
-      _setStoreBillingError(
-        'الاستعادة تحتاج نسخة مرتبطة بقاعدة ضمانك ومنشورة من المتجر.',
-      );
+      _setStoreBillingError(L10n.current.msgd60a5e850be2);
       notifyListeners();
       return;
     }
@@ -1776,7 +1778,7 @@ class AppController extends ChangeNotifier {
         storeBillingPlatform != StoreBillingPlatform.unavailable &&
         currentProvider != storeBillingPlatform) {
       _setStoreBillingError(
-        'الاشتراك الحالي مرتبط بـ${currentProvider.label}. نفّذ الاستعادة من جهاز يستخدم المتجر نفسه.',
+        L10n.current.msg06029de7758e(currentProvider.label),
       );
       notifyListeners();
       return;
@@ -1815,7 +1817,7 @@ class AppController extends ChangeNotifier {
     _subscriptionFlow.setMessage(
       scope: scope,
       operationId: operationId,
-      message: 'جارٍ طلب مشترياتك السابقة من المتجر…',
+      message: L10n.current.msg3b7aa14dfab6,
     );
     _errorMessage = null;
     _noticeMessage = null;
@@ -1840,7 +1842,7 @@ class AppController extends ChangeNotifier {
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: operationId,
-          message: 'استغرق طلب App Store وقتاً أطول. ننتظر وصول الإيصال بأمان…',
+          message: L10n.current.msg686b03375ce5,
         );
         session.restoreResultUnknown = true;
         notifyListeners();
@@ -1872,8 +1874,7 @@ class AppController extends ChangeNotifier {
         _subscriptionFlow.markPending(
           scope: scope,
           operationId: operationId,
-          message:
-              'وجد المتجر دفعة معلّقة. لن تتفعّل الخطة قبل أن يؤكدها المتجر.',
+          message: L10n.current.msga7a34ecc5e0d,
         );
         return;
       }
@@ -1928,7 +1929,7 @@ class AppController extends ChangeNotifier {
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: operationId,
-          message: 'تعذر التحقق من المشتريات السابقة على حساب المتجر الحالي.',
+          message: L10n.current.msg11e7947d7e44,
         );
       }
     } finally {
@@ -1973,62 +1974,56 @@ class AppController extends ChangeNotifier {
     switch (outcome) {
       case _RestoreVerificationOutcome.active:
         if (session.remainingStorePurchases > 0) {
-          _noticeMessage =
-              'تمت معالجة دفعة من معاملات App Store القديمة بأمان. اضغط استعادة المشتريات مرة أخرى لإكمال الباقي قبل اختيار الباقة.';
+          _noticeMessage = L10n.current.msg49a5f01c7d29;
         } else if (session.officialRestoreFailed) {
-          _noticeMessage =
-              'تمت معالجة معاملات App Store القديمة، لكن تعذرت الاستعادة الرسمية الحالية. أعد الاستعادة قبل اختيار الباقة.';
+          _noticeMessage = L10n.current.msgd3a212b2e1e4;
         } else if (session.restoreResultUnknown) {
-          _noticeMessage =
-              'تم التحقق من دفعة وصلت من App Store، لكن نتيجة طلب الاستعادة لم تكتمل. أعد الاستعادة قبل اختيار الباقة.';
+          _noticeMessage = L10n.current.msg7878cbe97a6c;
         } else if (session.unfinishedLookupFailed) {
-          _noticeMessage =
-              'تمت استعادة الاشتراك الحالي، لكن تعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل إعادة الشراء.';
+          _noticeMessage = L10n.current.msgdc759962638c;
         } else {
-          _noticeMessage = 'تمت استعادة الاشتراك والتحقق منه بأمان.';
+          _noticeMessage = L10n.current.msgbdd50efeabd2;
         }
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: session.operationId,
           message: session.remainingStorePurchases > 0
-              ? 'بقيت ${session.remainingStorePurchases} معاملة قديمة. أكملها باستعادة إضافية قبل الشراء.'
+              ? L10n.current.msg55d8286c677d(session.remainingStorePurchases)
               : session.officialRestoreFailed
-              ? 'تعذرت الاستعادة الرسمية الحالية بعد معالجة المعاملات القديمة. أعد الاستعادة قبل الشراء.'
+              ? L10n.current.msg5909d8aeb31c
               : session.restoreResultUnknown
-              ? 'لم تكتمل نتيجة طلب الاستعادة. أعد الاستعادة قبل الشراء.'
+              ? L10n.current.msgec4187fedcc8
               : session.unfinishedLookupFailed
-              ? 'تعذر فحص معاملات App Store القديمة؛ أعد الاستعادة لاحقاً قبل الشراء.'
+              ? L10n.current.msg7ec2fa7dc47f
               : null,
         );
       case _RestoreVerificationOutcome.inactive:
         if (session.remainingStorePurchases > 0) {
-          _noticeMessage =
-              'تمت معالجة دفعة قديمة غير فعالة، وبقيت ${session.remainingStorePurchases} معاملة. أعد استعادة المشتريات قبل اختيار باقة.';
-        }
-        _subscriptionFlow.setMessage(
-          scope: scope,
-          operationId: session.operationId,
-          message: session.remainingStorePurchases > 0
-              ? 'وجد المتجر اشتراكاً سابقاً غير فعال، وبقيت ${session.remainingStorePurchases} معاملة قديمة. أعد الاستعادة قبل الشراء.'
-              : session.officialRestoreFailed
-              ? 'عولجت المعاملات القديمة غير الفعالة، لكن تعذرت الاستعادة الرسمية الحالية. أعد الاستعادة قبل الشراء.'
-              : session.restoreResultUnknown
-              ? 'تحققت دفعة قديمة غير فعالة، لكن نتيجة الاستعادة لم تكتمل. أعد الاستعادة قبل الشراء.'
-              : session.unfinishedLookupFailed
-              ? 'وجد المتجر اشتراكاً سابقاً غير فعال، وتعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل الشراء.'
-              : 'وجد المتجر اشتراكاً سابقاً، لكنه لا يمنح فترة فعّالة الآن.',
-        );
-      case _RestoreVerificationOutcome.failed:
-        if (_errorMessageValue == null) {
-          _setStoreBillingError(
-            'لم تكتمل معالجة كل معاملات المتجر بأمان. لا تدفع مرة أخرى؛ أعد استعادة المشتريات بعد قليل.',
+          _noticeMessage = L10n.current.msg62f8ee3e1520(
+            session.remainingStorePurchases,
           );
         }
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: session.operationId,
-          message:
-              'لم تكتمل معالجة معاملات المتجر. لا تدفع مرة أخرى؛ أعد الاستعادة بعد قليل.',
+          message: session.remainingStorePurchases > 0
+              ? L10n.current.msgc893a5f5f751(session.remainingStorePurchases)
+              : session.officialRestoreFailed
+              ? L10n.current.msgc3fdc99d17b7
+              : session.restoreResultUnknown
+              ? L10n.current.msgec14d7981624
+              : session.unfinishedLookupFailed
+              ? L10n.current.msg5a84584a73b6
+              : L10n.current.msg25c534abcf44,
+        );
+      case _RestoreVerificationOutcome.failed:
+        if (_errorMessageValue == null) {
+          _setStoreBillingError(L10n.current.msgf0a1f0e3d840);
+        }
+        _subscriptionFlow.setMessage(
+          scope: scope,
+          operationId: session.operationId,
+          message: L10n.current.msgcb7d7694ee99,
         );
       case _RestoreVerificationOutcome.notFound:
         await _finishRestoreWithoutStoreEvents(session);
@@ -2118,18 +2113,14 @@ class AppController extends ChangeNotifier {
               intent.operationId) {
         return;
       }
-      _finishPurchaseIntent(
-        intent,
-        message:
-            'لم يصل تأكيد من المتجر، ولم تُفعّل أي خطة. استخدم استعادة المشتريات قبل إعادة المحاولة.',
-      );
+      _finishPurchaseIntent(intent, message: L10n.current.msg1f1daa8ab5ef);
       notifyListeners();
     });
   }
 
   Future<void> openStoreSubscriptionManagement() async {
     if (_membership?.role.canManageSubscription != true) {
-      _setStoreBillingError('إدارة الاشتراك متاحة لمالك المتجر فقط.');
+      _setStoreBillingError(L10n.current.msgf84fb8e924b8);
       notifyListeners();
       return;
     }
@@ -2138,7 +2129,7 @@ class AppController extends ChangeNotifier {
       subscription?.billingProvider,
     );
     if (subscription == null || provider == null) {
-      _setStoreBillingError('لا يوجد اشتراك متجري يمكن إدارته حالياً.');
+      _setStoreBillingError(L10n.current.msg260338c6a854);
       notifyListeners();
       return;
     }
@@ -2148,9 +2139,7 @@ class AppController extends ChangeNotifier {
         productId: subscription.storeProductId,
       );
       if (!opened) {
-        _setStoreBillingError(
-          'تعذر فتح صفحة إدارة الاشتراك في ${provider.label}.',
-        );
+        _setStoreBillingError(L10n.current.msg405bdbb0bf5b(provider.label));
       } else {
         _reconcileAfterSubscriptionManagement = true;
       }
@@ -2206,9 +2195,7 @@ class AppController extends ChangeNotifier {
           !matchesIntent;
       if (conflictsWithActiveAppleIntent) {
         _finishPurchaseIntent(intent);
-        _setStoreBillingError(
-          'وجد App Store اشتراكاً أو معاملة سابقة لا تطابق اختيارك الحالي. لم يبدأ ضمانك دفعة أخرى؛ استخدم استعادة المشتريات أولاً.',
-        );
+        _setStoreBillingError(L10n.current.msga72d4f8ba807);
         continue;
       }
       final matchesBillingOperation =
@@ -2268,31 +2255,28 @@ class AppController extends ChangeNotifier {
               _subscriptionFlow.markPending(
                 scope: scope,
                 operationId: operationId,
-                message:
-                    'الدفعة معلّقة لدى المتجر. لن تتفعّل الخطة قبل تأكيدها.',
+                message: L10n.current.msgb676bccff47a,
               );
             }
           }
         case StorePurchaseStatus.canceled:
           if (matchesIntent && intent != null) {
             _finishPurchaseIntent(intent);
-            _noticeMessage = 'أُغلقت عملية الشراء من دون تأكيد اشتراك.';
+            _noticeMessage = L10n.current.msgaf27525243d9;
           }
           if (matchesRestore) {
             restoreSession.markFailure(event.key);
             if (!restoreSession.silent) {
-              _setStoreBillingError(
-                'أُغلقت استعادة المشتريات من المتجر من دون تأكيد اشتراك.',
-              );
+              _setStoreBillingError(L10n.current.msge0e0a6454162);
             }
           }
           if (matchesPendingExplicitRestore && pendingOperation != null) {
             _subscriptionFlow.finishOperation(
               scope: currentScope,
               operationId: pendingOperation.operationId,
-              message: 'أُغلقت الاستعادة من دون تأكيد اشتراك.',
+              message: L10n.current.msg2cb4affe6200,
             );
-            _noticeMessage = 'أُغلقت الاستعادة من دون تأكيد اشتراك.';
+            _noticeMessage = L10n.current.msg2cb4affe6200;
           }
         case StorePurchaseStatus.error:
           if (matchesIntent && intent != null) {
@@ -2359,15 +2343,13 @@ class AppController extends ChangeNotifier {
               _restoreSessionMatches(restoreSession)) {
             restoreSession.markFailure(event.key);
           }
-          _setStoreBillingError(
-            'سبق التحقق من الاشتراك، لكن تعذر إغلاق معاملة المتجر. لا تدفع مرة أخرى؛ استخدم الاستعادة لإكمالها.',
-          );
+          _setStoreBillingError(L10n.current.msgcd07540fdae2);
           return;
         }
       }
       if (intent != null && identical(_activePurchaseIntent, intent)) {
         _finishPurchaseIntent(intent);
-        _noticeMessage = 'سبق التحقق من هذه العملية بأمان.';
+        _noticeMessage = L10n.current.msg459484d8d148;
       }
       if (restoreSession != null && _restoreSessionMatches(restoreSession)) {
         restoreSession.markVerified(
@@ -2429,7 +2411,7 @@ class AppController extends ChangeNotifier {
           _subscriptionFlow.setMessage(
             scope: currentScope,
             operationId: operationId,
-            message: 'جارٍ التحقق من إيصال المتجر بأمان…',
+            message: L10n.current.msg42a28f3b8385,
           );
         }
         notifyListeners();
@@ -2524,9 +2506,7 @@ class AppController extends ChangeNotifier {
                 operationId: operationId,
               );
             }
-            _setStoreBillingError(
-              'تم التحقق من الاشتراك، لكن تعذر إغلاق معاملة المتجر. لا تدفع مرة أخرى؛ استخدم الاستعادة لإكمالها.',
-            );
+            _setStoreBillingError(L10n.current.msgf3a434589baf);
           }
           return;
         }
@@ -2601,7 +2581,7 @@ class AppController extends ChangeNotifier {
           operationId: operationId,
           message: verifiedSubscription.isUsable
               ? null
-              : 'تحققنا من العملية، لكنها لا تمنح فترة اشتراك فعّالة الآن.',
+              : L10n.current.msg1ab79ae4f675,
         );
       }
       if (operationMatches && intent != null) {
@@ -2609,13 +2589,13 @@ class AppController extends ChangeNotifier {
             verifiedSubscription.plan.id != intent.planId ||
             verifiedSubscription.billingCycle != intent.cycle.value;
         _noticeMessage = changeDeferred
-            ? 'قبل المتجر طلب التغيير. ستظهر الخطة الجديدة عند موعد تطبيقها الذي حدده المتجر.'
-            : 'تم التحقق من الاشتراك وتحديث حالته من ${event.platform.label}.';
+            ? L10n.current.msg5dec52b61b7c
+            : L10n.current.msg202afabc8bf8(event.platform.label);
       } else if (_activePurchaseIntent == null &&
           _activeRestoreSession == null &&
           event.status == StorePurchaseStatus.restored &&
           verifiedSubscription.isUsable) {
-        _noticeMessage = 'وصلت الاستعادة وتحققنا من الاشتراك بأمان.';
+        _noticeMessage = L10n.current.msg963d8df0548d;
       }
     } catch (error) {
       final contextMatches =
@@ -2691,7 +2671,7 @@ class AppController extends ChangeNotifier {
     _subscriptionFlow.setMessage(
       scope: scope,
       operationId: operationId,
-      message: 'تم التحقق من الاشتراك. جارٍ تهيئة المتجر…',
+      message: L10n.current.msgd01fd47cf961,
     );
     notifyListeners();
     try {
@@ -2721,9 +2701,7 @@ class AppController extends ChangeNotifier {
             operationId: operationId,
           );
         }
-        _setStoreBillingError(
-          'تم التحقق من الاشتراك، لكن تعذّر تهيئة بيانات المتجر. أغلق التطبيق وافتحه مجدداً؛ لا تدف مرة أخرى.',
-        );
+        _setStoreBillingError(L10n.current.msg2bd0abc799bc);
         notifyListeners();
       }
       return false;
@@ -2979,13 +2957,13 @@ class AppController extends ChangeNotifier {
           if (!workspaceReady || !_restoreSessionMatches(session)) return;
           _updateSubscription(refreshed, operationId: session.operationId);
           _noticeMessage = session.unfinishedLookupFailed
-              ? 'تم تحديث الاشتراك الحالي من الخادم، لكن تعذر فحص معاملات App Store القديمة. أعد الاستعادة لاحقاً قبل الشراء.'
-              : 'لم يرسل المتجر عملية جديدة، وتم تحديث حالة الاشتراك الحالي من الخادم.';
+              ? L10n.current.msg74cdf2255a3e
+              : L10n.current.msg1c7cbb126c11;
           _subscriptionFlow.setMessage(
             scope: scope,
             operationId: session.operationId,
             message: session.unfinishedLookupFailed
-                ? 'تعذر فحص معاملات App Store القديمة؛ أعد الاستعادة لاحقاً قبل الشراء.'
+                ? L10n.current.msg7ec2fa7dc47f
                 : null,
           );
           return;
@@ -3005,8 +2983,8 @@ class AppController extends ChangeNotifier {
       scope: scope,
       operationId: session.operationId,
       message: session.unfinishedLookupFailed
-          ? 'لم نجد اشتراكاً حالياً، وتعذر فحص معاملات App Store القديمة. تحقق من الاتصال ثم أعد الاستعادة.'
-          : 'لم نجد مشتريات قابلة للاستعادة على حساب المتجر الحالي.',
+          ? L10n.current.msgaf9570554fa1
+          : L10n.current.msg552fac577cdc,
     );
   }
 
@@ -3097,8 +3075,7 @@ class AppController extends ChangeNotifier {
         _subscriptionFlow.setMessage(
           scope: scope,
           operationId: operation.operationId,
-          message:
-              'وصل تنبيه من متجر التطبيقات، وما زال التحقق من الإيصال جارياً…',
+          message: L10n.current.msg36ea706de06a,
         );
       }
       return;
@@ -3402,154 +3379,154 @@ class AppController extends ChangeNotifier {
   String _friendlyError(Object error) {
     final value = error.toString().toLowerCase();
     if (value.contains('auth_provider_unavailable')) {
-      return 'تسجيل الدخول هذا غير متاح على الجهاز حالياً. تحقق من إعداد الحساب ثم حاول مجدداً.';
+      return L10n.current.msg51ad7026a9a0;
     }
     if (value.contains('auth_token_missing')) {
-      return 'لم يرسل مزوّد الحساب بيانات الدخول المطلوبة. حاول مجدداً.';
+      return L10n.current.msg89206bbb6154;
     }
     if (value.contains('auth_window_not_opened')) {
-      return 'تعذّر فتح تسجيل الدخول. تحقق من وجود متصفح آمن وحاول مجدداً.';
+      return L10n.current.msg21ee318da5ba;
     }
     if (value.contains('oauth') || value.contains('auth_failed')) {
-      return 'لم يكتمل تسجيل الدخول. حاول مجدداً باستخدام Apple أو Google.';
+      return L10n.current.msg534beca405ec;
     }
     if (value.contains('invite_rate_limited')) {
-      return 'أُوقفت محاولات الدعوة مؤقتاً للحماية. انتظر 15 دقيقة ثم أعد المحاولة.';
+      return L10n.current.msgc0bdce351eb5;
     }
     if (value.contains('invite_invalid')) {
-      return 'رمز الدعوة غير صحيح أو انتهت صلاحيته.';
+      return L10n.current.msg1c20a393ae3b;
     }
     if (value.contains('trial_already_used_by_account') ||
         value.contains('trial_already_used_on_device')) {
-      return 'استُخدمت الخطة المجانية سابقاً على هذا الحساب أو التثبيت. يمكنك الانضمام إلى متجر بدعوة أو اختيار اشتراك مدفوع.';
+      return L10n.current.msg4176a6b5c118;
     }
     if (value.contains('app_update_required_for_trial')) {
-      return 'حدّث ضمانك إلى آخر نسخة لحماية الخطة المجانية ثم حاول مجدداً.';
+      return L10n.current.msgf6f2d997401d;
     }
     if (value.contains('trial_device') || value.contains('free_device')) {
-      return 'تعذّر ربط الخطة المجانية بهذا التثبيت. حدّث التطبيق ثم حاول مجدداً.';
+      return L10n.current.msg8ff168a7a7f7;
     }
     if (value.contains('free_session_required')) {
-      return 'انتهت جلسة حماية الخطة المجانية. سجّل الدخول مجدداً ثم حاول.';
+      return L10n.current.msg732363b4f27b;
     }
     if (value.contains('seat_limit_reached')) {
-      return 'وصل المتجر إلى الحد الأقصى لأعضاء الخطة الحالية.';
+      return L10n.current.msgd70b837f0aa4;
     }
     if (value.contains('branch_limit_reached')) {
-      return 'وصل المتجر إلى حد الفروع في الباقة الحالية.';
+      return L10n.current.msg82042cc010a1;
     }
     if (value.contains('plan_api_required') ||
         value.contains('plan_webhook_required')) {
-      return 'هذه الميزة متاحة في باقة توسع فقط.';
+      return L10n.current.msg2201421b5114;
     }
     if (value.contains('plan_branding_required')) {
-      return 'الهوية المخصصة متاحة في باقتي نمو وتوسع.';
+      return L10n.current.msg5b6ea0a549ef;
     }
     if (value.contains('api_key_limit_reached')) {
-      return 'وصل المتجر إلى حد 5 مفاتيح فعالة. ألغِ مفتاحاً قديماً أولاً.';
+      return L10n.current.msgb1c20fcf5708;
     }
     if (value.contains('webhook_limit_reached')) {
-      return 'وصل المتجر إلى حد 5 روابط فعالة.';
+      return L10n.current.msgafabf1c1b3cc;
     }
     if (value.contains('claim_ai_monthly_limit')) {
-      return 'استهلك المتجر مراجعات المطالبات الذكية لهذا الشهر.';
+      return L10n.current.msg55b20e5b92bf;
     }
     if (value.contains('claim_ai_not_included')) {
-      return 'مراجعة المطالبات الذكية غير مشمولة في الباقة الحالية.';
+      return L10n.current.msg56356812bafc;
     }
     if (value.contains('claim_ai_provider_not_configured')) {
-      return 'مساعد المطالبات غير مهيأ على الخادم بعد.';
+      return L10n.current.msg5a7e9f81576b;
     }
     if (value.contains('claim_ai_cooldown')) {
-      return 'تم تحليل هذه المطالبة قبل قليل. راجع النتيجة الحالية أولاً.';
+      return L10n.current.msgd41b12ba7ca2;
     }
     if (value.contains('claim_review_manager_required')) {
-      return 'مساعد فرز المطالبة متاح للمالك والمدير فقط.';
+      return L10n.current.msg89bd3c6d33b3;
     }
     if (value.contains('subscription_inactive')) {
-      return 'الاشتراك غير فعّال. افتح صفحة الاشتراك لتجديده.';
+      return L10n.current.msg8e74b1d415c8;
     }
     if (value.contains('store_product_unavailable')) {
-      return 'هذه الخطة غير متاحة في المتجر حالياً.';
+      return L10n.current.msg133e8106acc5;
     }
     if (value.contains('store_purchase_not_launched')) {
-      return 'لم يفتح المتجر نافذة الشراء. تحقق من حساب المتجر وحاول مجدداً.';
+      return L10n.current.msgb8196f18dc4b;
     }
     if (value.contains('store_purchase_in_progress')) {
-      return 'توجد عملية شراء مفتوحة بالفعل. أكملها أو أغلق نافذة المتجر أولاً.';
+      return L10n.current.msg88b5abd43d62;
     }
     if (value.contains('google_subscription_lookup_timeout') ||
         value.contains('google_subscription_lookup_failed')) {
-      return 'تعذر تأكيد اشتراك Google Play الحالي. لم يبدأ ضمانك اشتراكاً جديداً؛ تحقق من الاتصال ثم حاول مجدداً.';
+      return L10n.current.msg3f2b09693f65;
     }
     if (value.contains('apple_existing_subscription_restore_required')) {
-      return 'وجد App Store اشتراك ضمانك فعالاً، بينما لا توجد حالة مرتبطة بهذا المتجر. لم نفتح الدفع؛ استخدم استعادة المشتريات لربطه بأمان.';
+      return L10n.current.msg8740c31b1085;
     }
     if (value.contains('apple_subscription_account_mismatch')) {
-      return 'اشتراك هذا المتجر مرتبط بحساب App Store آخر. لم نفتح الدفع لتجنب اشتراكين؛ سجّل الدخول إلى حساب الوسائط والمشتريات الذي اشتركت منه ثم أعد المحاولة.';
+      return L10n.current.msg497506966234;
     }
     if (value.contains('apple_subscription_state_changed') ||
         value.contains('apple_subscription_state_invalid')) {
-      return 'تغيّرت حالة اشتراك App Store أو تعذر مطابقتها بأمان. لم نفتح الدفع؛ حدّث الحالة ثم أعد المحاولة.';
+      return L10n.current.msg23134a1f6e0a;
     }
     if (value.contains('apple_subscription_lookup_timeout') ||
         value.contains('apple_subscription_lookup_failed')) {
-      return 'تعذر التأكد من اشتراكات App Store الحالية. لم نفتح الدفع لتجنب عملية مكررة؛ تحقق من الاتصال ثم استخدم الاستعادة أو أعد المحاولة.';
+      return L10n.current.msg08998bec9ea2;
     }
     if (value.contains('google_subscription_account_conflict')) {
-      return 'وجد Google Play اشتراك ضمانك لحساب آخر. استخدم حساب ضمانك الأصلي أو غيّر حساب Google Play.';
+      return L10n.current.msg18e3de3a4379;
     }
     if (value.contains('google_subscription_store_conflict')) {
-      return 'هذا اشتراك Google Play مرتبط بمتجر ضمانك آخر، ولا يمكن نقله تلقائياً.';
+      return L10n.current.msgb7c7f12d04bc;
     }
     if (value.contains('google_subscription_pending')) {
-      return 'توجد دفعة Google Play معلّقة. انتظر قرار المتجر قبل بدء تغيير آخر.';
+      return L10n.current.msg57a9ffe13772;
     }
     if (value.contains('store_purchase_pending_canceled')) {
-      return 'ألغى Google Play العملية المعلّقة ولم تتغير خطتك. استخدم استعادة المشتريات لتحديث الاشتراك الحالي.';
+      return L10n.current.msg1b35d7318262;
     }
     if (value.contains('store_purchase_pending')) {
-      return 'ما زالت العملية معلّقة لدى المتجر. لم تتغير خطتك؛ انتظر تأكيد المتجر ثم استخدم الاستعادة.';
+      return L10n.current.msga3a36c0c8905;
     }
     if (value.contains('google_multiple_subscriptions')) {
-      return 'وجد Google Play أكثر من اشتراك ضمانك على الحساب نفسه. أوقف الاشتراك الزائد من Google Play ثم استخدم الاستعادة.';
+      return L10n.current.msg5c071f19eceb;
     }
     if (value.contains('google_existing_subscription_not_found')) {
-      return 'لم يعثر Google Play على الاشتراك الحالي المطلوب تغييره. تأكد من حساب المتجر ثم استخدم الاستعادة.';
+      return L10n.current.msg485453a5253d;
     }
     if (value.contains('google_existing_subscription_restore_required')) {
-      return 'وجد Google Play اشتراكاً لهذا المتجر لم يكتمل ربطه بعد. لم يبدأ شراء جديد؛ استخدم استعادة المشتريات أولاً.';
+      return L10n.current.msg0abd4d138642;
     }
     if (value.contains('google_existing_cycle_unknown') ||
         value.contains('google_subscription_transition_invalid')) {
-      return 'تعذر تحديد انتقال الاشتراك بأمان. حدّث حالة الاشتراك ثم حاول مجدداً.';
+      return L10n.current.msg0f9159687399;
     }
     if (value.contains('google_subscription_already_active')) {
-      return 'هذه الخطة ودورة الفوترة فعّالتان بالفعل.';
+      return L10n.current.msgd1225fc4dedf;
     }
     if (value.contains('store_subscription_downgrade_not_allowed') ||
         value.contains('google_subscription_downgrade_not_allowed')) {
-      return 'لا يمكن الانتقال إلى باقة أقل ما دام اشتراكك الحالي سارياً. يمكنك الترقية أو تغيير دورة الفوترة فقط.';
+      return L10n.current.msge957d23a6cf8;
     }
     if (value.contains('store_account_mismatch') ||
         value.contains('apple_account_mismatch') ||
         value.contains('google_account_mismatch') ||
         value.contains('subscription_account_mismatch')) {
-      return 'هذه المشتريات مرتبطة بحساب ضمانك آخر. سجّل الدخول إلى الحساب الأصلي ثم استخدم الاستعادة.';
+      return L10n.current.msgb22088a4f341;
     }
     if (value.contains('store_purchase_already_linked') ||
         value.contains('receipt_already_linked')) {
-      return 'هذا الاشتراك مرتبط بمتجر ضمانك آخر، ولا يمكن نقله تلقائياً لحماية الفوترة.';
+      return L10n.current.msg9621dac148dd;
     }
     if (value.contains('store_provider_conflict') ||
         value.contains('billing_provider_conflict')) {
-      return 'يوجد اشتراك سارٍ عبر متجر آخر. أوقف تجديده هناك أولاً لتجنب فوترة مزدوجة.';
+      return L10n.current.msg4bc0d4bf4340;
     }
     if (value.contains('store_existing_subscription_required') ||
         value.contains('store_subscription_lookup_failed') ||
         value.contains('store_subscription_history_unavailable') ||
         value.contains('store_subscription_state_invalid')) {
-      return 'تعذر تأكيد الاشتراك الحالي قبل تغييره. لم يبدأ ضمانك اشتراكاً جديداً؛ تحقق من حساب المتجر ثم حاول مجدداً.';
+      return L10n.current.msg1717fee372a8;
     }
     if (value.contains('item_already_owned') ||
         value.contains('itemalreadyowned') ||
@@ -3559,113 +3536,111 @@ class AppController extends ChangeNotifier {
         value.contains('storekitduplicateproductobject') ||
         value.contains('unfinished_transaction') ||
         value.contains('unfinished transaction')) {
-      return 'وجد App Store معاملة سابقة غير منتهية لهذه الباقة. لا تدفع مرة أخرى؛ اضغط استعادة المشتريات، وانتظر نتيجتها، ثم أعد اختيار الباقة.';
+      return L10n.current.msg14edf63d327d;
     }
     if (value.contains('store_rate_limited') ||
         value.contains('store_verification_rate_limited') ||
         value.contains('status: 429')) {
-      return 'تكررت محاولات التحقق خلال وقت قصير. انتظر قليلاً ثم استخدم الاستعادة مرة واحدة.';
+      return L10n.current.msg8de88db9ee80;
     }
     if (value.contains('purchase_conflict')) {
-      return 'هذه المشتريات مرتبطة مسبقاً بحساب أو متجر ضمانك آخر، ولا يمكن نقلها تلقائياً.';
+      return L10n.current.msgfd5b75e28928;
     }
     if (value.contains('purchase_recovery_not_allowed')) {
-      return 'الاشتراك ما زال مرتبطاً بحساب أو متجر ضمانك قائم، لذلك لا يمكن نقله إلى هذا المتجر.';
+      return L10n.current.msg79ac2967b27b;
     }
     if (value.contains('purchase_recovery_proof_invalid')) {
-      return 'تعذر إثبات أن عملية المتجر تخص الاشتراك القديم لهذا الحساب. تحقق من حساب المتجر ثم حاول الاستعادة مجدداً.';
+      return L10n.current.msgc3408e58256d;
     }
     if (value.contains('purchase_not_valid')) {
-      return 'لم يؤكد المتجر صلاحية هذه العملية. راجع حساب المتجر ثم استخدم الاستعادة.';
+      return L10n.current.msg3561a3bc9f40;
     }
-    if (value.contains('sandbox_not_available')) {
-      return 'تعذر التحقق من عملية نسخة الاختبار. لا تدفع مرة أخرى، وحاول الاستعادة بعد قليل.';
+    if (value.contains('sandbox_not_available') ||
+        value.contains('sandbox_tester_not_allowed')) {
+      return L10n.current.msg8bd189e789ce;
     }
     if (value.contains('purchase_provider_unavailable') ||
         value.contains('purchase_verification_unavailable')) {
-      return 'خدمة التحقق لدى المتجر غير متاحة مؤقتاً. الدفع محفوظ؛ لا تكرر الشراء واستخدم الاستعادة لاحقاً.';
-    }
-    if (value.contains('sandbox_tester_not_allowed')) {
-      return 'تعذر تفعيل شراء نسخة الاختبار. لا تدفع مرة أخرى، وأرسل تفاصيل المحاولة إلى دعم ضمانك.';
+      return L10n.current.msge29791144d8a;
     }
     if (value.contains('billing_unavailable') ||
         value.contains('service_unavailable') ||
         value.contains('network_error')) {
-      return 'تعذر الاتصال بمتجر التطبيقات. تحقق من الاتصال وحساب المتجر ثم حاول مجدداً.';
+      return L10n.current.msg72f40922290e;
     }
     if (value.contains('store_unavailable')) {
-      return 'متجر التطبيقات غير متاح على هذا الجهاز حالياً.';
+      return L10n.current.msgc5492f0f3103;
     }
     if (value.contains('store_verification')) {
-      return 'الدفع محفوظ لدى المتجر، لكن التحقق لم يكتمل بعد. لا تدفع مرة أخرى؛ استخدم استعادة المشتريات لإكمال التفعيل.';
+      return L10n.current.msg5f9d802288f7;
     }
     if (value.contains('store_owner_required')) {
-      return 'لا يمكن ربط الاشتراك إلا من حساب مالك المتجر.';
+      return L10n.current.msg84f3c094233d;
     }
     if (value.contains('warranty_limit_reached')) {
-      return 'استهلك المتجر حد الضمانات الشهري للخطة.';
+      return L10n.current.msgc83736e914ba;
     }
     if (value.contains('warranty_share_link')) {
-      return 'تعذّر تجهيز رابط التحقق من الضمان. حاول مرة أخرى بعد لحظات.';
+      return L10n.current.msg95729322e879;
     }
     if (value.contains('claim_version_conflict')) {
-      return 'حدّث موظف آخر هذه المطالبة. أعد تحميلها قبل حفظ تعديلك.';
+      return L10n.current.msgbc157e056e42;
     }
     if (value.contains('claim_manager_required')) {
-      return 'هذا القرار يحتاج إلى حساب المالك أو المدير.';
+      return L10n.current.msg3604d6a031c5;
     }
     if (value.contains('claim_decision_reason_required')) {
-      return 'اكتب سبب القرار قبل رفض المطالبة.';
+      return L10n.current.msge4a5d764af5c;
     }
     if (value.contains('claim_status_transition_invalid')) {
-      return 'لا يمكن نقل المطالبة مباشرةً إلى هذه الحالة.';
+      return L10n.current.msgcbc7e8cc2112;
     }
     if (value.contains('claim_assignee_invalid')) {
-      return 'اختر موظفاً نشطاً من فريق المتجر.';
+      return L10n.current.msg18c3c1406e45;
     }
     if (value.contains('ai_import_monthly_limit')) {
-      return 'استهلك المتجر تحليلات ملفات المنتجات لهذا الشهر.';
+      return L10n.current.msg992db24ae82c;
     }
     if (value.contains('ai_import_daily_safety_limit')) {
-      return 'تم إيقاف تحليل الملفات مؤقتاً لحماية الحساب من الاستخدام غير المعتاد.';
+      return L10n.current.msga6474afe3344;
     }
     if (value.contains('ai_import_not_included')) {
-      return 'تحليل ملفات المنتجات غير مشمول في الباقة الحالية؛ استخدم CSV.';
+      return L10n.current.msg13af577f5d75;
     }
     if (value.contains('ai_provider_not_configured')) {
-      return 'خدمة تحليل ملفات المنتجات غير مهيأة على الخادم بعد.';
+      return L10n.current.msg77e9970c6a52;
     }
     if (value.contains('import_manager_required')) {
-      return 'استيراد المستندات متاح للمالك أو المدير فقط.';
+      return L10n.current.msgc7c75d16290c;
     }
     if (value.contains('ai_import_failed')) {
-      return 'تعذر تحليل المستند. جرّب ملفاً أوضح أو استخدم CSV.';
+      return L10n.current.msgfe4f54cd50b0;
     }
     if (value.contains('claim_ai_failed')) {
-      return 'تعذر تحليل المطالبة الآن. راجعها يدوياً أو حاول لاحقاً.';
+      return L10n.current.msg2f16f149311d;
     }
     if (value.contains('claim_attachment')) {
-      return 'تعذر فتح ملف المطالبة. تحقق من الاتصال وحاول مرة أخرى.';
+      return L10n.current.msg1886b45876c2;
     }
     if (value.contains('insufficient_stock')) {
-      return 'الكمية المطلوبة أكبر من الرصيد المتاح في هذا الفرع.';
+      return L10n.current.msg53505472310f;
     }
     if (value.contains('serial_numbers_required')) {
-      return 'أدخل رقماً تسلسلياً مستقلاً لكل قطعة.';
+      return L10n.current.msg0690a9995083;
     }
     if (value.contains('payment_total_mismatch')) {
-      return 'مجموع الدفعات لا يساوي إجمالي الإيصال.';
+      return L10n.current.msgf498d14b8f23;
     }
     if (value.contains('register_already_open')) {
-      return 'يوجد صندوق مفتوح لهذا الفرع بالفعل.';
+      return L10n.current.msg74b570f53944;
     }
     if (value.contains('invalid_return_quantity')) {
-      return 'كمية المرتجع غير صحيحة أو سبق إرجاعها.';
+      return L10n.current.msg2d62a9f077b2;
     }
     if (value.contains('duplicate key') || value.contains('23505')) {
-      return 'هذه القيمة مسجلة مسبقاً؛ تحقق من الباركود أو الرمز.';
+      return L10n.current.msg850bb718dd93;
     }
-    return 'تعذّر إكمال العملية. تحقق من الاتصال وحاول مرة أخرى.';
+    return L10n.current.msgc09adaa77529;
   }
 
   void _invalidateBillingSession({bool clearQueuedEvents = false}) {

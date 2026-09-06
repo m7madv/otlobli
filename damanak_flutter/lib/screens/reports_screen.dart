@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -17,6 +18,7 @@ class ReportsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final store = controller.store!;
     final warranties = controller.warranties;
@@ -35,10 +37,10 @@ class ReportsScreen extends StatelessWidget {
     final decidedClaims = approvedClaims.length + rejectedClaims;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('أداء الضمان'),
+        title: Text(L10n.current.msg038317a4bdae),
         actions: [
           IconButton(
-            tooltip: 'تصدير المطالبات CSV',
+            tooltip: L10n.current.msg4413206fb3ff,
             onPressed: () => _exportClaimsCsv(context),
             icon: const Icon(Icons.file_download_outlined),
           ),
@@ -53,12 +55,12 @@ class ReportsScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
               children: [
                 Text(
-                  'صحة خدمة ما بعد البيع',
+                  L10n.current.msg3f718fc08a19,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'أرقام تشغيلية تساعدك على تقليل التأخير وتحسين قرار الضمان.',
+                  L10n.current.msgb7166f8ebf05,
                   style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
@@ -77,20 +79,20 @@ class ReportsScreen extends StatelessWidget {
                       children: [
                         _ReportMetric(
                           width: width,
-                          label: 'مطالبات مفتوحة',
+                          label: L10n.current.msg3e965378aea3,
                           value: '$openClaims',
                           icon: Icons.inbox_outlined,
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'مطالبات متأخرة',
+                          label: L10n.current.msgee61d382e5a9,
                           value: '$overdueClaims',
                           icon: Icons.warning_amber_rounded,
                           warning: overdueClaims > 0,
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'نسبة القبول',
+                          label: L10n.current.msgf05f2eb8e683,
                           value: decidedClaims == 0
                               ? '—'
                               : '${(approvedClaims.length / decidedClaims * 100).round()}%',
@@ -98,7 +100,7 @@ class ReportsScreen extends StatelessWidget {
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'متوسط وقت القبول',
+                          label: L10n.current.msg4274413816a7,
                           value: _averageDuration(
                             approvedClaims.map(
                               (item) =>
@@ -109,7 +111,7 @@ class ReportsScreen extends StatelessWidget {
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'متوسط وقت الإغلاق',
+                          label: L10n.current.msgb4908cd47786,
                           value: _averageDuration(
                             completedClaims.map(
                               (item) =>
@@ -120,7 +122,7 @@ class ReportsScreen extends StatelessWidget {
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'ضمانات سارية',
+                          label: L10n.current.msge643c6cc697c,
                           value:
                               '${warranties.where((item) => item.statusAt() == WarrantyStatus.active).length}',
                           icon: Icons.verified_user_outlined,
@@ -131,8 +133,8 @@ class ReportsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 _ClaimBreakdownCard(
-                  title: 'أسباب المطالبات',
-                  emptyLabel: 'لا توجد مطالبات مصنفة بعد.',
+                  title: L10n.current.msga5438e52bca2,
+                  emptyLabel: L10n.current.msgbc67fe11a8c6,
                   values: {
                     for (final category in ClaimCategory.values)
                       category.label: requests
@@ -142,8 +144,8 @@ class ReportsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _ClaimBreakdownCard(
-                  title: 'قرارات المعالجة',
-                  emptyLabel: 'تظهر القرارات بعد إغلاق أول مطالبة.',
+                  title: L10n.current.msga6c21ee652c9,
+                  emptyLabel: L10n.current.msg2a61a562f417,
                   values: {
                     for (final resolution in ClaimResolution.values)
                       if (resolution != ClaimResolution.none)
@@ -171,13 +173,11 @@ class ReportsScreen extends StatelessWidget {
                         color: context.colors.primary,
                       ),
                     ),
-                    title: const Text(
-                      'تصدير سجل المطالبات CSV',
+                    title: Text(
+                      L10n.current.msg458477c1157c,
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: const Text(
-                      'يشمل الحالة والأولوية والمسؤول والقرار وأوقات المعالجة.',
-                    ),
+                    subtitle: Text(L10n.current.msgeadba8bd2e70),
                     trailing: const Icon(Icons.ios_share_outlined),
                     onTap: () => _exportClaimsCsv(context),
                   ),
@@ -190,12 +190,15 @@ class ReportsScreen extends StatelessWidget {
                       vertical: 10,
                     ),
                     leading: const Icon(Icons.receipt_long_outlined),
-                    title: const Text(
-                      'تصدير سجل الضمانات CSV',
+                    title: Text(
+                      L10n.current.msgd0a5192998cd,
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      '${warranties.length} ضمان • العملة ${store.currencyCode}',
+                      L10n.current.msg2c600aad6d9f(
+                        warranties.length,
+                        store.currencyCode,
+                      ),
                     ),
                     trailing: const Icon(Icons.ios_share_outlined),
                     onTap: () => _exportWarrantiesCsv(context),
@@ -203,7 +206,7 @@ class ReportsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'آخر النشاطات',
+                  L10n.current.msg623bfa279466,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 10),
@@ -242,29 +245,33 @@ class ReportsScreen extends StatelessWidget {
     if (safe.isEmpty) return '—';
     final minutes =
         safe.fold<int>(0, (sum, value) => sum + value.inMinutes) ~/ safe.length;
-    if (minutes < 60) return '$minutes د';
+    if (minutes < 60) return L10n.current.msg3f2e0dfb89ae(minutes);
     final hours = minutes / 60;
-    if (hours < 24) return '${hours.toStringAsFixed(hours < 10 ? 1 : 0)} س';
-    return '${(hours / 24).toStringAsFixed(1)} يوم';
+    if (hours < 24) {
+      return L10n.current.msg0ad7d321ec09(
+        hours.toStringAsFixed(hours < 10 ? 1 : 0),
+      );
+    }
+    return L10n.current.msg435e31311dfe((hours / 24).toStringAsFixed(1));
   }
 
   Future<void> _exportClaimsCsv(BuildContext context) async {
     final controller = AppScope.of(context);
     final rows = <List<String>>[
       [
-        'رقم المطالبة',
-        'رقم الضمان',
-        'المنتج',
-        'العميل',
-        'المشكلة',
-        'الفئة',
-        'الأولوية',
-        'الحالة',
-        'القرار',
-        'المسؤول',
-        'تاريخ الإنشاء',
-        'آخر تحديث',
-        'موعد الخدمة',
+        L10n.current.msg9352b360a76f,
+        L10n.current.msga97505f65ec3,
+        L10n.current.msga79e304d96a1,
+        L10n.current.msga042411e90be,
+        L10n.current.msg9099527b2932,
+        L10n.current.msgff61fb213ffc,
+        L10n.current.msg4c3e5a87f1e4,
+        L10n.current.msgc3a4749caed4,
+        L10n.current.msga881a87897ba,
+        L10n.current.msg5087bf126a06,
+        L10n.current.msgdc08056fa4f2,
+        L10n.current.msg78a3ea160681,
+        L10n.current.msg3807bc689d6e,
       ],
       ...controller.requests.map((item) {
         final warranty = controller.warrantyById(item.warrantyId);
@@ -290,7 +297,7 @@ class ReportsScreen extends StatelessWidget {
       context,
       rows,
       'damanak-claims',
-      'تقرير مطالبات ${controller.store!.name}',
+      L10n.current.msg321eecc7260a(controller.store!.name),
     );
   }
 
@@ -298,17 +305,17 @@ class ReportsScreen extends StatelessWidget {
     final controller = AppScope.of(context);
     final rows = <List<String>>[
       [
-        'رقم الإيصال',
-        'رقم الضمان',
-        'التاريخ',
-        'العميل',
-        'الجوال',
-        'المنتج',
-        'السعر',
-        'الخصم',
-        'الإجمالي',
-        'العملة',
-        'طريقة الدفع',
+        L10n.current.msg239cb47cd98d,
+        L10n.current.msga97505f65ec3,
+        L10n.current.msgd90c384199ac,
+        L10n.current.msga042411e90be,
+        L10n.current.msg0b6aa9453dfb,
+        L10n.current.msga79e304d96a1,
+        L10n.current.msg259862e8b313,
+        L10n.current.msgb593a6457673,
+        L10n.current.msgbaed6e999960,
+        L10n.current.msg30ce3a1dae2c,
+        L10n.current.msgae2d60052976,
       ],
       ...controller.warranties.map(
         (item) => [
@@ -330,7 +337,7 @@ class ReportsScreen extends StatelessWidget {
       context,
       rows,
       'damanak-warranties',
-      'تقرير ضمانات ${controller.store!.name}',
+      L10n.current.msg1db2d1d6ed62(controller.store!.name),
       numericColumnIndexes: const {6, 7, 8},
     );
   }
@@ -392,6 +399,7 @@ class _ReportMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return SizedBox(
       width: width,
@@ -434,6 +442,7 @@ class _ClaimBreakdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final visible = values.entries.where((entry) => entry.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = visible.fold<int>(0, (sum, entry) => sum + entry.value);
@@ -478,10 +487,11 @@ class _ActivityEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    L10n.watch(context);
+    return Card(
       child: Padding(
         padding: EdgeInsets.all(18),
-        child: Text('سيظهر هنا سجل تغييرات المنتجات والضمانات والفروع.'),
+        child: Text(L10n.current.msg883b8347d313),
       ),
     );
   }
@@ -492,10 +502,11 @@ class _ActivityUnavailable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    L10n.watch(context);
+    return Card(
       child: Padding(
         padding: EdgeInsets.all(18),
-        child: Text('سجل النشاط متاح للمالك والمدير فقط.'),
+        child: Text(L10n.current.msgd5be13d93eee),
       ),
     );
   }

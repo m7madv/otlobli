@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum StoreBillingPlatform { appStore, googlePlay, unavailable }
 
 extension StoreBillingPlatformText on StoreBillingPlatform {
@@ -10,7 +12,7 @@ extension StoreBillingPlatformText on StoreBillingPlatform {
   String get label => switch (this) {
     StoreBillingPlatform.appStore => 'App Store',
     StoreBillingPlatform.googlePlay => 'Google Play',
-    StoreBillingPlatform.unavailable => 'متجر التطبيقات',
+    StoreBillingPlatform.unavailable => L10n.current.msg91e7da5d592b,
   };
 
   static StoreBillingPlatform? fromValue(String? value) => switch (value) {
@@ -24,7 +26,9 @@ enum BillingCycle { monthly, yearly }
 
 extension BillingCycleText on BillingCycle {
   String get value => name;
-  String get label => this == BillingCycle.monthly ? 'شهري' : 'سنوي';
+  String get label => this == BillingCycle.monthly
+      ? L10n.current.msg9c677bb93912
+      : L10n.current.msg1beeff0b0fec;
 }
 
 enum StoreBillingState {

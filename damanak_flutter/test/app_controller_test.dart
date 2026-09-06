@@ -148,7 +148,7 @@ void main() {
       expect(invite, isNotNull);
       expect(invite!.role, MemberRole.staff);
       expect(invite.maxUses, 3);
-      expect(invite.code, startsWith('DMN-'));
+      expect(invite.code, matches(RegExp(r'^DMN-[0-9A-F]{10}$')));
     });
 
     test('يحمّل الضمانات على صفحات من 100 من دون تكرار', () async {

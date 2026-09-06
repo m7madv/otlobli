@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:typed_data';
 
 class ProductDocumentInput {
@@ -83,7 +84,7 @@ class AiImportUsage {
   String get providerLabel => switch (provider) {
     'gemini' => 'Gemini',
     'openai' => 'OpenAI',
-    _ => 'الذكاء الاصطناعي',
+    _ => L10n.current.msg17b5d91632ee,
   };
 
   factory AiImportUsage.fromJson(Map<String, dynamic> json) => AiImportUsage(

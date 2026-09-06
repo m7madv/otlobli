@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum MaintenanceStatus {
   newRequest,
   needsReview,
@@ -12,15 +14,15 @@ enum MaintenanceStatus {
 
 extension MaintenanceStatusText on MaintenanceStatus {
   String get label => switch (this) {
-    MaintenanceStatus.newRequest => 'جديد',
-    MaintenanceStatus.needsReview => 'قيد المراجعة',
-    MaintenanceStatus.approved => 'مقبول',
-    MaintenanceStatus.inProgress => 'قيد المعالجة',
-    MaintenanceStatus.waitingForCustomer => 'بانتظار العميل',
-    MaintenanceStatus.readyForPickup => 'جاهز للاستلام',
-    MaintenanceStatus.completed => 'مكتمل',
-    MaintenanceStatus.rejected => 'مرفوض',
-    MaintenanceStatus.cancelled => 'ملغي',
+    MaintenanceStatus.newRequest => L10n.current.msgd51f9d8dbcc0,
+    MaintenanceStatus.needsReview => L10n.current.msg8aac5fac1498,
+    MaintenanceStatus.approved => L10n.current.msgf5fde9cba1be,
+    MaintenanceStatus.inProgress => L10n.current.msg0cc6a7db6080,
+    MaintenanceStatus.waitingForCustomer => L10n.current.msg7c4b128da66a,
+    MaintenanceStatus.readyForPickup => L10n.current.msge11898841984,
+    MaintenanceStatus.completed => L10n.current.msgc2da5684d63b,
+    MaintenanceStatus.rejected => L10n.current.msg5d969a71dad3,
+    MaintenanceStatus.cancelled => L10n.current.msg616d302cb016,
   };
 
   String get databaseValue => switch (this) {
@@ -57,10 +59,10 @@ enum ClaimPriority { low, normal, high, urgent }
 
 extension ClaimPriorityText on ClaimPriority {
   String get label => switch (this) {
-    ClaimPriority.low => 'منخفضة',
-    ClaimPriority.normal => 'عادية',
-    ClaimPriority.high => 'مرتفعة',
-    ClaimPriority.urgent => 'عاجلة',
+    ClaimPriority.low => L10n.current.msg23f05e2b7f33,
+    ClaimPriority.normal => L10n.current.msgb0c8f17185cf,
+    ClaimPriority.high => L10n.current.msg6002b017f319,
+    ClaimPriority.urgent => L10n.current.msgb96597e44c34,
   };
 
   static ClaimPriority fromValue(Object? value) =>
@@ -81,12 +83,12 @@ enum ClaimCategory {
 
 extension ClaimCategoryText on ClaimCategory {
   String get label => switch (this) {
-    ClaimCategory.malfunction => 'عطل في التشغيل',
-    ClaimCategory.battery => 'البطارية أو الطاقة',
-    ClaimCategory.software => 'البرمجيات',
-    ClaimCategory.physicalDamage => 'ضرر مادي',
-    ClaimCategory.missingParts => 'قطعة أو ملحق مفقود',
-    ClaimCategory.other => 'أخرى',
+    ClaimCategory.malfunction => L10n.current.msge0f77b8a8a28,
+    ClaimCategory.battery => L10n.current.msga440316f8a4f,
+    ClaimCategory.software => L10n.current.msg34e3823a32f8,
+    ClaimCategory.physicalDamage => L10n.current.msgc88f0463f4aa,
+    ClaimCategory.missingParts => L10n.current.msg31a68ce37588,
+    ClaimCategory.other => L10n.current.msg17a9f38e22b6,
   };
 
   String get databaseValue => switch (this) {
@@ -112,10 +114,10 @@ enum ClaimChannel { staff, customerPortal, import, api }
 
 extension ClaimChannelText on ClaimChannel {
   String get label => switch (this) {
-    ClaimChannel.staff => 'المحل',
-    ClaimChannel.customerPortal => 'بوابة العميل',
-    ClaimChannel.import => 'استيراد',
-    ClaimChannel.api => 'تكامل',
+    ClaimChannel.staff => L10n.current.msg36bf7c3274ae,
+    ClaimChannel.customerPortal => L10n.current.msg98fa26e87837,
+    ClaimChannel.import => L10n.current.msge8c12678c3b4,
+    ClaimChannel.api => L10n.current.msg520149c1fa17,
   };
 
   String get databaseValue => switch (this) {
@@ -144,12 +146,12 @@ enum ClaimResolution {
 
 extension ClaimResolutionText on ClaimResolution {
   String get label => switch (this) {
-    ClaimResolution.none => 'لم يحدد بعد',
-    ClaimResolution.repair => 'إصلاح',
-    ClaimResolution.replacement => 'استبدال',
-    ClaimResolution.refund => 'استرداد',
-    ClaimResolution.externalService => 'مركز خدمة خارجي',
-    ClaimResolution.rejected => 'رفض المطالبة',
+    ClaimResolution.none => L10n.current.msgcc737e08116b,
+    ClaimResolution.repair => L10n.current.msg9c92b58e8fd9,
+    ClaimResolution.replacement => L10n.current.msg374cdcc38839,
+    ClaimResolution.refund => L10n.current.msg11d5e72c1924,
+    ClaimResolution.externalService => L10n.current.msg3d2cd595b1ab,
+    ClaimResolution.rejected => L10n.current.msgbfd935693039,
   };
 
   String get databaseValue => switch (this) {

@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -11,6 +12,7 @@ class StartupScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final hasError = errorMessage != null;
     return Scaffold(
       backgroundColor: AppColors.accent,
@@ -44,11 +46,11 @@ class StartupScreen extends StatelessWidget {
                       foregroundColor: AppColors.accentPressed,
                     ),
                     icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('إعادة المحاولة'),
+                    label: Text(L10n.current.msg14d5786f2e64),
                   ),
                 ] else
                   Semantics(
-                    label: 'جاري تجهيز ضمانك',
+                    label: L10n.current.msg40e87bea67b7,
                     child: const SizedBox.square(
                       dimension: 24,
                       child: CircularProgressIndicator(

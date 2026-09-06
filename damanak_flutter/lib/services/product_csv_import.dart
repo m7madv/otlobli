@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -96,24 +97,28 @@ ProductCsvPreview parseProductCsv(
         : int.tryParse(monthsText) ?? -1;
     final salePrice = _optionalNumber(cell('salePrice'));
     final costPrice = _optionalNumber(cell('costPrice'));
-    if (name.isEmpty) errors.add('اسم المنتج مطلوب');
-    if (name.length > 140) errors.add('اسم المنتج أطول من 140 حرفاً');
+    if (name.isEmpty) errors.add(L10n.current.msge88e67ff95f7);
+    if (name.length > 140) errors.add(L10n.current.msg9f9208e398ce);
     if (warrantyMonths < 1 || warrantyMonths > 120) {
-      errors.add('مدة الضمان يجب أن تكون بين 1 و120 شهراً');
+      errors.add(L10n.current.msg01c3eee9c8fe);
     }
     if (_invalidNumber(cell('salePrice'), salePrice)) {
-      errors.add('سعر البيع غير صحيح');
+      errors.add(L10n.current.msg2544f3725f52);
     }
     if (_invalidNumber(cell('costPrice'), costPrice)) {
-      errors.add('سعر التكلفة غير صحيح');
+      errors.add(L10n.current.msgbe9c2cb8f873);
     }
-    if (salePrice != null && salePrice < 0) errors.add('سعر البيع سالب');
-    if (costPrice != null && costPrice < 0) errors.add('سعر التكلفة سالب');
+    if (salePrice != null && salePrice < 0) {
+      errors.add(L10n.current.msg9f13bc06c709);
+    }
+    if (costPrice != null && costPrice < 0) {
+      errors.add(L10n.current.msgceea9cb81b41);
+    }
     if (normalizedBarcode.isNotEmpty) {
       if (existing.contains(normalizedBarcode)) {
-        errors.add('الباركود موجود في الكتالوج');
+        errors.add(L10n.current.msg05ffcc50bae0);
       } else if (!seen.add(normalizedBarcode)) {
-        errors.add('الباركود مكرر داخل الملف');
+        errors.add(L10n.current.msg30d74a964ec1);
       }
     }
 

@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -26,6 +27,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final query = _search.text.trim().toLowerCase();
     final sales = controller.sales
@@ -38,7 +40,7 @@ class _SalesScreenState extends State<SalesScreen> {
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('المبيعات والمرتجعات')),
+      appBar: AppBar(title: Text(L10n.current.msgc3fdd6caa7c1)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -51,17 +53,17 @@ class _SalesScreenState extends State<SalesScreen> {
                 TextField(
                   controller: _search,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الإيصال أو العميل أو الهاتف',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg90d9032ae2c0,
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
                 ),
                 const SizedBox(height: 14),
                 if (sales.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
                       padding: EdgeInsets.all(28),
-                      child: Center(child: Text('لا توجد مبيعات مطابقة.')),
+                      child: Center(child: Text(L10n.current.msgb82c479b5fdf)),
                     ),
                   )
                 else
@@ -152,15 +154,15 @@ class _SaleDetailsState extends State<_SaleDetails> {
       _returns.entries.where((entry) => entry.value > 0),
     );
     if (selected.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اختر كمية واحدة على الأقل للإرجاع.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg0a43f9baef5e)));
       return;
     }
     if (_reason.text.trim().length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اذكر سبب المرتجع لحفظ سجل واضح.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg8f529bdf8ab2)));
       return;
     }
     await AppScope.of(context).returnSale(
@@ -176,6 +178,7 @@ class _SaleDetailsState extends State<_SaleDetails> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final sale = widget.sale;
     final canReturn =
         sale.status != SaleStatus.returned && sale.status != SaleStatus.voided;
@@ -226,7 +229,10 @@ class _SaleDetailsState extends State<_SaleDetails> {
                                 ),
                               ),
                               Text(
-                                'مباع ${line.quantity} • مرتجع ${line.returnedQuantity}',
+                                L10n.current.msg0f8cc326104a(
+                                  line.quantity,
+                                  line.returnedQuantity,
+                                ),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: context.colors.onSurfaceVariant,
@@ -245,7 +251,7 @@ class _SaleDetailsState extends State<_SaleDetails> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Text('كمية المرتجع'),
+                          Text(L10n.current.msg635859257026),
                           const Spacer(),
                           IconButton(
                             onPressed: (_returns[line.id] ?? 0) <= 0
@@ -287,16 +293,16 @@ class _SaleDetailsState extends State<_SaleDetails> {
               child: Column(
                 children: [
                   _SummaryRow(
-                    label: 'قبل الخصم',
+                    label: L10n.current.msgdba2339eb860,
                     value: formatMoney(sale.subtotal, sale.currencyCode),
                   ),
                   _SummaryRow(
-                    label: 'الخصم',
+                    label: L10n.current.msgb593a6457673,
                     value: formatMoney(sale.discountAmount, sale.currencyCode),
                   ),
                   if (sale.refundedAmount > 0)
                     _SummaryRow(
-                      label: 'المرتجع',
+                      label: L10n.current.msga52fb2cb00c6,
                       value: formatMoney(
                         sale.refundedAmount,
                         sale.currencyCode,
@@ -304,7 +310,7 @@ class _SaleDetailsState extends State<_SaleDetails> {
                     ),
                   const Divider(),
                   _SummaryRow(
-                    label: 'الصافي',
+                    label: L10n.current.msg14561ea1df5d,
                     value: formatMoney(sale.netTotal, sale.currencyCode),
                     strong: true,
                   ),
@@ -314,11 +320,16 @@ class _SaleDetailsState extends State<_SaleDetails> {
           ),
           if (canReturn) ...[
             const SizedBox(height: 16),
-            Text('تسجيل مرتجع', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              L10n.current.msg1aeab420bcd7,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 10),
             DropdownButtonFormField<PaymentMethod>(
               initialValue: _method,
-              decoration: const InputDecoration(labelText: 'طريقة رد المبلغ'),
+              decoration: InputDecoration(
+                labelText: L10n.current.msg4b2b715b01b7,
+              ),
               items: PaymentMethod.values
                   .map(
                     (item) =>
@@ -332,7 +343,9 @@ class _SaleDetailsState extends State<_SaleDetails> {
               controller: _reason,
               minLines: 2,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: 'سبب المرتجع'),
+              decoration: InputDecoration(
+                labelText: L10n.current.msg7f620d885e69,
+              ),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
@@ -341,7 +354,7 @@ class _SaleDetailsState extends State<_SaleDetails> {
                 backgroundColor: context.colors.error,
               ),
               icon: const Icon(Icons.keyboard_return_rounded),
-              label: const Text('تأكيد المرتجع'),
+              label: Text(L10n.current.msge07345d716bc),
             ),
           ],
         ],

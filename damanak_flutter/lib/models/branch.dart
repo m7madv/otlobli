@@ -1,11 +1,13 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum BranchType { retail, warehouse, serviceCenter, hybrid }
 
 extension BranchTypeText on BranchType {
   String get label => switch (this) {
-    BranchType.retail => 'متجر بيع',
-    BranchType.warehouse => 'مستودع',
-    BranchType.serviceCenter => 'مركز صيانة',
-    BranchType.hybrid => 'بيع وصيانة',
+    BranchType.retail => L10n.current.msg05843a56127a,
+    BranchType.warehouse => L10n.current.msg1bd322ed1fa0,
+    BranchType.serviceCenter => L10n.current.msg697b008c8bfc,
+    BranchType.hybrid => L10n.current.msg9297ad88d679,
   };
 
   String get databaseValue => switch (this) {

@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -11,14 +12,15 @@ class NotificationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final items = controller.notifications;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('الإشعارات'),
+        title: Text(L10n.current.msg8ce3e0cc0601),
         actions: [
           IconButton(
-            tooltip: 'تفضيلات الإشعارات',
+            tooltip: L10n.current.msg27c534b023e0,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const NotificationPreferencesScreen(),
@@ -95,9 +97,10 @@ class _NotificationPreferencesScreenState
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('تفضيلات الإشعارات')),
+      appBar: AppBar(title: Text(L10n.current.msg27c534b023e0)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -106,12 +109,12 @@ class _NotificationPreferencesScreenState
             children: [
               const MessageBanner(),
               Text(
-                'تنبيهات العمل فقط',
+                L10n.current.msgd70c3b9d0a2f,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 6),
               Text(
-                'هذه التفضيلات تخص مركز الإشعارات داخل ضمانك. لن نرسل عروضاً تسويقية، ولن نطلب إذن إشعارات النظام قبل تهيئة الإرسال الآمن.',
+                L10n.current.msgc6ff0d2513b0,
                 style: TextStyle(color: context.colors.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
@@ -119,32 +122,32 @@ class _NotificationPreferencesScreenState
                 child: Column(
                   children: [
                     _PreferenceSwitch(
-                      title: 'مطالبة جديدة',
-                      subtitle: 'عندما يرسل عميل مطالبة أو يسجلها الموظف.',
+                      title: L10n.current.msg946f0256003d,
+                      subtitle: L10n.current.msg2319f6847e1c,
                       value: _claimCreated,
                       onChanged: (value) =>
                           setState(() => _claimCreated = value),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     _PreferenceSwitch(
-                      title: 'إسناد مطالبة إليّ',
-                      subtitle: 'عندما يحدد المدير أنك المسؤول عنها.',
+                      title: L10n.current.msgdd5d2366cc2d,
+                      subtitle: L10n.current.msg13696aed920d,
                       value: _claimAssigned,
                       onChanged: (value) =>
                           setState(() => _claimAssigned = value),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     _PreferenceSwitch(
-                      title: 'تجاوز وقت الخدمة',
-                      subtitle: 'للمطالبات المفتوحة التي تجاوزت موعد المتابعة.',
+                      title: L10n.current.msg09974a56b691,
+                      subtitle: L10n.current.msgd4fbaa3fea6c,
                       value: _claimOverdue,
                       onChanged: (value) =>
                           setState(() => _claimOverdue = value),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     _PreferenceSwitch(
-                      title: 'جاهزة للاستلام',
-                      subtitle: 'لتذكير الفريق بالتواصل مع العميل.',
+                      title: L10n.current.msg72028eceaa98,
+                      subtitle: L10n.current.msg2a4e74c35861,
                       value: _readyForPickup,
                       onChanged: (value) =>
                           setState(() => _readyForPickup = value),
@@ -156,7 +159,11 @@ class _NotificationPreferencesScreenState
               FilledButton.icon(
                 onPressed: controller.busy ? null : _save,
                 icon: const Icon(Icons.check_rounded),
-                label: Text(controller.busy ? 'جارٍ الحفظ…' : 'حفظ التفضيلات'),
+                label: Text(
+                  controller.busy
+                      ? L10n.current.msg47d263ad0ba4
+                      : L10n.current.msgdd485ffd9e55,
+                ),
               ),
             ],
           ),
@@ -185,6 +192,7 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       color: item.isUnread ? colors.primaryContainer : colors.surface,
@@ -260,12 +268,12 @@ class _EmptyNotifications extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'لا توجد تنبيهات الآن',
+          L10n.current.msgd4621798c532,
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 6),
         Text(
-          'ستظهر هنا المطالبات الجديدة وما أُسند إليك وما أصبح جاهزاً للاستلام.',
+          L10n.current.msg980aceff5ec4,
           textAlign: TextAlign.center,
           style: TextStyle(color: context.colors.onSurfaceVariant),
         ),
@@ -284,9 +292,15 @@ IconData _eventIcon(NotificationEventType type) => switch (type) {
 
 String _relativeTime(DateTime value) {
   final difference = DateTime.now().difference(value.toLocal());
-  if (difference.inMinutes < 1) return 'الآن';
-  if (difference.inHours < 1) return 'منذ ${difference.inMinutes} دقيقة';
-  if (difference.inDays < 1) return 'منذ ${difference.inHours} ساعة';
-  if (difference.inDays < 7) return 'منذ ${difference.inDays} يوم';
+  if (difference.inMinutes < 1) return L10n.current.msgbaef96cba5de;
+  if (difference.inHours < 1) {
+    return L10n.current.msg0e5eb0eeb216(difference.inMinutes);
+  }
+  if (difference.inDays < 1) {
+    return L10n.current.msg7c3659ded239(difference.inHours);
+  }
+  if (difference.inDays < 7) {
+    return L10n.current.msg292c8f51e571(difference.inDays);
+  }
   return '${value.toLocal().day}/${value.toLocal().month}/${value.toLocal().year}';
 }

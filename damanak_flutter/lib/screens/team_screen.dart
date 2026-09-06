@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -33,27 +34,30 @@ class TeamScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'دعوة عضو جديد',
+                L10n.current.msg397e16a0e4a3,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 6),
               Text(
-                'اختر الصلاحية مرة واحدة، ثم أرسل الرابط للموظف. سيدخل بحسابه ويؤكد الانضمام.',
+                L10n.current.msg114968fff0a7,
                 style: TextStyle(color: context.colors.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<MemberRole>(
+                isExpanded: true,
                 initialValue: role,
-                decoration: const InputDecoration(labelText: 'الصلاحية'),
+                decoration: InputDecoration(
+                  labelText: L10n.current.msg9f9b2c7c5fa3,
+                ),
                 items: [
-                  const DropdownMenuItem(
+                  DropdownMenuItem(
                     value: MemberRole.staff,
-                    child: Text('موظف — البيع والضمان والصيانة'),
+                    child: Text(L10n.current.msg47b852791fc9),
                   ),
                   if (canInviteManager)
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: MemberRole.manager,
-                      child: Text('مدير — إدارة المنتجات والفريق'),
+                      child: Text(L10n.current.msg37c0e9cb95c1),
                     ),
                 ],
                 onChanged: (value) {
@@ -68,15 +72,11 @@ class TeamScreen extends StatelessWidget {
                   color: context.colors.surfaceContainer,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.lock_clock_outlined, size: 21),
                     SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        'الرابط لشخص واحد وينتهي تلقائياً بعد 48 ساعة.',
-                      ),
-                    ),
+                    Expanded(child: Text(L10n.current.msg97ca981f65f9)),
                   ],
                 ),
               ),
@@ -86,7 +86,7 @@ class TeamScreen extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).pop(role),
                   icon: const Icon(Icons.link_rounded),
-                  label: const Text('إنشاء رابط الدعوة'),
+                  label: Text(L10n.current.msgc6c9f3a75162),
                 ),
               ),
             ],
@@ -114,18 +114,22 @@ class TeamScreen extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             Text(
-              'رابط الدعوة جاهز',
+              L10n.current.msgfd86392b6012,
               style: Theme.of(sheetContext).textTheme.titleLarge,
             ),
             const SizedBox(height: 5),
             Text(
-              'الصلاحية: ${invite.role.label} • صالح لشخص واحد حتى ${invite.expiresAt.day}/${invite.expiresAt.month}',
+              L10n.current.msg7b625955c3da(
+                invite.role.label,
+                invite.expiresAt.day,
+                invite.expiresAt.month,
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(color: sheetContext.colors.onSurfaceVariant),
             ),
             const SizedBox(height: 14),
             Semantics(
-              label: 'رمز QR لفتح دعوة ضمانك',
+              label: L10n.current.msg0f200a06edcd,
               image: true,
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -138,13 +142,13 @@ class TeamScreen extends StatelessWidget {
                   data: invite.deepLink.toString(),
                   size: 146,
                   padding: EdgeInsets.zero,
-                  semanticsLabel: 'دعوة فريق ضمانك',
+                  semanticsLabel: L10n.current.msgabd2c43949e3,
                 ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'يفتح الرمز صفحة ضمانك الآمنة التي تعرض رمز الانضمام، ثم يدخله الموظف داخل التطبيق.',
+              L10n.current.msgd082aef30638,
               textAlign: TextAlign.center,
               style: Theme.of(sheetContext).textTheme.bodySmall,
             ),
@@ -159,7 +163,7 @@ class TeamScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    'الرمز الاحتياطي',
+                    L10n.current.msg9d11c18a6282,
                     style: Theme.of(sheetContext).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 3),
@@ -186,7 +190,7 @@ class TeamScreen extends StatelessWidget {
                   invite: invite,
                 ),
                 icon: const Icon(Icons.share_outlined),
-                label: const Text('إرسال الدعوة للموظف'),
+                label: Text(L10n.current.msg350cf974d4f7),
               ),
             ),
             const SizedBox(height: 6),
@@ -197,11 +201,11 @@ class TeamScreen extends StatelessWidget {
                   await Clipboard.setData(ClipboardData(text: invite.code));
                   if (!sheetContext.mounted) return;
                   ScaffoldMessenger.of(sheetContext).showSnackBar(
-                    const SnackBar(content: Text('نُسخ رمز الدعوة.')),
+                    SnackBar(content: Text(L10n.current.msgd3890a3cd356)),
                   );
                 },
                 icon: const Icon(Icons.copy_rounded),
-                label: const Text('نسخ الرمز فقط'),
+                label: Text(L10n.current.msg317f0d073ab6),
               ),
             ),
           ],
@@ -216,17 +220,16 @@ class TeamScreen extends StatelessWidget {
     required StoreInvite invite,
   }) async {
     final box = context.findRenderObject() as RenderBox?;
-    final text =
-        'دعوة للعمل في متجر $storeName عبر تطبيق ضمانك.\n'
-        'الصلاحية: ${invite.role.label}.\n'
-        'افتح صفحة الدعوة الآمنة، ثم سجّل الدخول إلى ضمانك باستخدام Apple أو Google وأدخل الرمز الظاهر:\n'
-        '${invite.deepLink}\n\n'
-        'أو افتح ضمانك مباشرة واختر «الانضمام لمتجر» وأدخل الرمز: ${invite.code}\n'
-        'الدعوة صالحة لشخص واحد ولمدة 48 ساعة.';
+    final text = L10n.current.msgc9fd72650eae(
+      storeName,
+      invite.role.label,
+      invite.deepLink,
+      invite.code,
+    );
     await SharePlus.instance.share(
       ShareParams(
         text: text,
-        subject: 'دعوة فريق ضمانك',
+        subject: L10n.current.msgabd2c43949e3,
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
@@ -236,16 +239,17 @@ class TeamScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final canManage = controller.membership!.role.canManageTeam;
     final maxMembers = controller.subscription!.plan.maxMembers;
     return Scaffold(
-      appBar: AppBar(title: const Text('الفريق والصلاحيات')),
+      appBar: AppBar(title: Text(L10n.current.msgfae07b10b96b)),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: controller.busy ? null : () => _createInvite(context),
               icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text('دعوة عضو'),
+              label: Text(L10n.current.msgb15038674e73),
             )
           : null,
       body: SafeArea(
@@ -265,7 +269,7 @@ class TeamScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'أعضاء المتجر',
+                  L10n.current.msg23da27ce8a42,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 10),
@@ -296,6 +300,7 @@ class _SeatSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(17),
@@ -313,7 +318,7 @@ class _SeatSummary extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$used من $limit مقاعد مستخدمة',
+                  L10n.current.msgc81afcb062a9(used, limit),
                   style: TextStyle(
                     color: colors.onSurface,
                     fontWeight: FontWeight.w700,
@@ -321,7 +326,7 @@ class _SeatSummary extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'كل شخص يدخل بحسابه؛ يمكن إيقافه دون تغيير كلمة مرور الآخرين.',
+                  L10n.current.msg29752ccea5d0,
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 12,
@@ -369,15 +374,17 @@ class _MemberCard extends StatelessWidget {
               const SizedBox(height: 14),
               DropdownButtonFormField<MemberRole>(
                 initialValue: role,
-                decoration: const InputDecoration(labelText: 'الصلاحية'),
-                items: const [
+                decoration: InputDecoration(
+                  labelText: L10n.current.msg9f9b2c7c5fa3,
+                ),
+                items: [
                   DropdownMenuItem(
                     value: MemberRole.staff,
-                    child: Text('موظف'),
+                    child: Text(L10n.current.msg45372718dd18),
                   ),
                   DropdownMenuItem(
                     value: MemberRole.manager,
-                    child: Text('مدير'),
+                    child: Text(L10n.current.msg6a05608678d2),
                   ),
                 ],
                 onChanged: member.role == MemberRole.owner
@@ -390,10 +397,8 @@ class _MemberCard extends StatelessWidget {
               SwitchListTile(
                 value: active,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('الحساب فعّال'),
-                subtitle: const Text(
-                  'عند الإيقاف يفقد العضو الوصول إلى المتجر.',
-                ),
+                title: Text(L10n.current.msg200cab4b56b2),
+                subtitle: Text(L10n.current.msg749800948e90),
                 onChanged: member.role == MemberRole.owner
                     ? null
                     : (value) => setModalState(() => active = value),
@@ -403,7 +408,7 @@ class _MemberCard extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop((role, active)),
-                  child: const Text('حفظ الصلاحيات'),
+                  child: Text(L10n.current.msgae3c6021608f),
                 ),
               ),
             ],
@@ -420,6 +425,7 @@ class _MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final active = member.status == 'active';
     final colors = context.colors;
     return Card(
@@ -431,7 +437,9 @@ class _MemberCard extends StatelessWidget {
               : colors.surfaceContainerHighest,
           foregroundColor: active ? colors.primary : colors.onSurfaceVariant,
           child: Text(
-            member.fullName.trim().isEmpty ? '؟' : member.fullName.trim()[0],
+            member.fullName.trim().isEmpty
+                ? L10n.current.msg7d06b69aad65
+                : member.fullName.trim()[0],
           ),
         ),
         title: Row(
@@ -445,7 +453,7 @@ class _MemberCard extends StatelessWidget {
             if (isCurrentUser) ...[
               const SizedBox(width: 6),
               Text(
-                'أنت',
+                L10n.current.msg85742d892694,
                 style: TextStyle(
                   color: colors.primary,
                   fontSize: 11,
@@ -456,12 +464,12 @@ class _MemberCard extends StatelessWidget {
           ],
         ),
         subtitle: Text(
-          '${member.email}\n${member.role.label} • ${active ? 'فعّال' : 'موقوف'}',
+          '${member.email}\n${member.role.label} • ${L10n.knownLabel(active ? 'فعّال' : 'موقوف')}',
         ),
         isThreeLine: true,
         trailing: canManage && !isCurrentUser
             ? IconButton(
-                tooltip: 'تعديل الصلاحيات',
+                tooltip: L10n.current.msg914ac743e9ca,
                 onPressed: () => _edit(context),
                 icon: const Icon(Icons.manage_accounts_outlined),
               )

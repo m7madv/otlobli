@@ -1,0 +1,7 @@
+name: damanak_localization_tools
+publish_to: none
+environment:
+  sdk: ^3.11.4
+dependencies:
+  analyzer: ^10.0.0
+  crypto: ^3.0.7

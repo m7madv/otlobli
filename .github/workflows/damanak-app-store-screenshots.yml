@@ -11,6 +11,27 @@ on:
         options:
           - inspect
           - apply
+      version:
+        description: Exact editable App Store version
+        required: true
+        type: string
+        default: "4.6.0"
+      locale:
+        description: Exact localization to inspect or upload
+        required: true
+        type: choice
+        default: en-US
+        options:
+          - ar-SA
+          - en-US
+          - es-ES
+          - fr-FR
+          - de-DE
+          - pt-BR
+          - zh-Hans
+          - hi
+          - ja
+          - ru
 
 jobs:
   app-store-screenshots:
@@ -31,10 +52,14 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          DAMANAK_STORE_VERSION: ${{ inputs.version }}
+          DAMANAK_STORE_LOCALE: ${{ inputs.locale }}
         shell: bash
         run: |
           MODE_FLAG=""
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
+            node scripts/verify_localizations.mjs
+            node scripts/verify_store_localizations.mjs
             MODE_FLAG="--apply"
           fi
           node scripts/app_store_screenshots.mjs \

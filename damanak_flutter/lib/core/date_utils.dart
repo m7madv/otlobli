@@ -1,8 +1,8 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:intl/intl.dart';
 
-final DateFormat _displayDate = DateFormat('yyyy/MM/dd', 'ar');
-
-String formatDate(DateTime date) => _displayDate.format(date);
+String formatDate(DateTime date) =>
+    DateFormat.yMd(L10n.instance.locale.languageCode).format(date);
 
 DateTime dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
@@ -22,9 +22,9 @@ String warrantyRemainingLabel(DateTime expiryDate, {DateTime? now}) {
   final expiry = dateOnly(expiryDate);
   final days = expiry.difference(today).inDays;
 
-  if (days < 0) return 'منتهي منذ ${days.abs()} يوم';
-  if (days == 0) return 'ينتهي اليوم';
-  if (days == 1) return 'متبقٍ يوم واحد';
-  if (days <= 10) return 'متبقي $days أيام';
-  return 'متبقي $days يوماً';
+  if (days < 0) return L10n.current.msg529b4943dc94(days.abs());
+  if (days == 0) return L10n.current.msge708fda7a521;
+  if (days == 1) return L10n.current.msgf3bf57cfc04a;
+  if (days <= 10) return L10n.current.msgf1aaf0762596(days);
+  return L10n.current.msg4a4ac1d2f9bb(days);
 }

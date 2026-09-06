@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -16,6 +17,7 @@ class BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final markBackground = onDark
         ? Colors.white.withValues(alpha: 0.12)
@@ -30,7 +32,7 @@ class BrandMark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Semantics(
-          label: 'شعار ضمانك',
+          label: L10n.current.msg9006a6624319,
           image: true,
           child: Container(
             width: compact ? 40 : 48,
@@ -55,31 +57,33 @@ class BrandMark extends StatelessWidget {
         ),
         if (!iconOnly) ...[
           const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ضمانك',
-                style: TextStyle(
-                  color: titleColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: compact ? 19 : 23,
-                  height: 1,
-                ),
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 4),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'ثقة موثّقة، خدمة أسهل',
+                  L10n.current.msg407efcb53149,
                   style: TextStyle(
-                    color: subtitleColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    color: titleColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: compact ? 19 : 23,
+                    height: 1,
                   ),
                 ),
+                if (!compact) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    L10n.current.msg8161e244246e,
+                    style: TextStyle(
+                      color: subtitleColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ],

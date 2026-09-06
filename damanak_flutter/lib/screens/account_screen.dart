@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -24,6 +25,7 @@ class AccountScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final account = controller.account!;
     final store = controller.store!;
@@ -40,7 +42,17 @@ class AccountScreen extends StatelessWidget {
               const SizedBox(height: 18),
             ],
             const MessageBanner(),
-            Text('الإدارة', style: Theme.of(context).textTheme.headlineSmall),
+            const Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Material(
+                color: Colors.transparent,
+                child: LanguagePicker(),
+              ),
+            ),
+            Text(
+              L10n.current.msga3b53d11ac20,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
@@ -57,7 +69,7 @@ class AccountScreen extends StatelessWidget {
                     foregroundColor: colors.onPrimaryContainer,
                     child: Text(
                       account.fullName.trim().isEmpty
-                          ? '؟'
+                          ? L10n.current.msg7d06b69aad65
                           : account.fullName.trim()[0],
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
@@ -89,107 +101,123 @@ class AccountScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _HubSection(
-              title: 'خدمة الضمان',
+              title: L10n.current.msgaf4d9ff5b4d2,
               children: [
                 _HubTile(
                   icon: Icons.inventory_2_outlined,
-                  title: 'المنتجات',
-                  subtitle: '${controller.products.length} منتج في الكتالوج',
+                  title: L10n.current.msgc8775206b252,
+                  subtitle: L10n.current.msg8be6cfd47c1b(
+                    controller.products.length,
+                  ),
                   onTap: () => _open(context, const ProductsScreen()),
                 ),
                 _HubTile(
                   icon: Icons.people_outline_rounded,
-                  title: 'العملاء',
-                  subtitle: '${controller.customers.length} عميل',
+                  title: L10n.current.msg813d9a8a1065,
+                  subtitle: L10n.current.msg4bd610b4702a(
+                    controller.customers.length,
+                  ),
                   onTap: () => _open(context, const CustomersScreen()),
                 ),
                 _HubTile(
                   icon: Icons.analytics_outlined,
-                  title: 'أداء الضمان',
-                  subtitle: 'التأخير والقبول والإغلاق وأسباب الأعطال',
+                  title: L10n.current.msg038317a4bdae,
+                  subtitle: L10n.current.msgd742d0ba9eb1,
                   onTap: () => _open(context, const ReportsScreen()),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _HubSection(
-              title: 'إدارة المتجر',
+              title: L10n.current.msgb332e76753b0,
               children: [
                 _HubTile(
                   icon: Icons.store_mall_directory_outlined,
-                  title: 'الفروع',
-                  subtitle: '${controller.branches.length} فرع',
+                  title: L10n.current.msg717d385ed755,
+                  subtitle: L10n.current.msg44c9bd4c003e(
+                    controller.branches.length,
+                  ),
                   onTap: () => _open(context, const BranchesScreen()),
                 ),
                 _HubTile(
                   icon: Icons.groups_2_outlined,
-                  title: 'الفريق والصلاحيات',
-                  subtitle: '${controller.team.length} أعضاء',
+                  title: L10n.current.msgfae07b10b96b,
+                  subtitle: L10n.current.msg8b885d3f2a38(
+                    controller.team.length,
+                  ),
                   onTap: () => _open(context, const TeamScreen()),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _HubSection(
-              title: 'أدوات بيع اختيارية',
+              title: L10n.current.msg73a2f189121f,
               children: [
                 _HubTile(
                   icon: Icons.point_of_sale_outlined,
-                  title: 'نقطة البيع',
-                  subtitle: 'إصدار بيع وضمان في خطوة واحدة',
+                  title: L10n.current.msg019fbfd1d736,
+                  subtitle: L10n.current.msgf9e6b8346033,
                   onTap: () => _open(context, const PointOfSaleScreen()),
                 ),
                 _HubTile(
                   icon: Icons.receipt_long_outlined,
-                  title: 'المبيعات والمرتجعات',
-                  subtitle: '${controller.sales.length} عملية',
+                  title: L10n.current.msgc3fdd6caa7c1,
+                  subtitle: L10n.current.msgb2a0b8ca5be1(
+                    controller.sales.length,
+                  ),
                   onTap: () => _open(context, const SalesScreen()),
                 ),
                 _HubTile(
                   icon: Icons.point_of_sale_outlined,
-                  title: 'الصندوق والورديات',
-                  subtitle: 'فتح وإغلاق وجرد النقد',
+                  title: L10n.current.msg76218d4ae22b,
+                  subtitle: L10n.current.msg6b5d92b9084b,
                   onTap: () => _open(context, const RegisterScreen()),
                 ),
                 _HubTile(
                   icon: Icons.local_shipping_outlined,
-                  title: 'الموردون والمشتريات',
-                  subtitle: '${controller.suppliers.length} مورد',
+                  title: L10n.current.msgb303479250b4,
+                  subtitle: L10n.current.msg53b2c0902636(
+                    controller.suppliers.length,
+                  ),
                   onTap: () => _open(context, const ProcurementScreen()),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _HubSection(
-              title: 'الحساب',
+              title: L10n.current.msg66dcee1f4616,
               children: [
                 _HubTile(
                   icon: Icons.notifications_none_rounded,
-                  title: 'الإشعارات',
+                  title: L10n.current.msg8ce3e0cc0601,
                   subtitle: controller.unreadNotificationCount == 0
-                      ? 'لا توجد تنبيهات غير مقروءة'
-                      : '${controller.unreadNotificationCount} تنبيهات غير مقروءة',
+                      ? L10n.current.msg04cc60c136b6
+                      : L10n.current.msgbfbe54647329(
+                          controller.unreadNotificationCount,
+                        ),
                   onTap: () => _open(context, const NotificationsScreen()),
                 ),
                 _HubTile(
                   icon: Icons.storefront_outlined,
-                  title: 'بيانات المتجر',
+                  title: L10n.current.msg97432797c672,
                   subtitle: '${store.city} • ${store.phone}',
                   onTap: () => _open(context, const SettingsScreen()),
                 ),
                 _HubTile(
                   icon: Icons.workspace_premium_outlined,
-                  title: 'الاشتراك',
-                  subtitle: 'خطة ${controller.subscription!.plan.name}',
+                  title: L10n.current.msg103acd5c93ee,
+                  subtitle: L10n.current.msgb83c63d8ca1b(
+                    controller.subscription!.plan.displayName,
+                  ),
                   onTap: () => _open(context, const SubscriptionScreen()),
                 ),
                 if (controller.membership!.role.canManageSubscription)
                   _HubTile(
                     icon: Icons.hub_outlined,
-                    title: 'التكاملات',
+                    title: L10n.current.msgc82e99cb1b8b,
                     subtitle: controller.subscription!.plan.apiAccess
-                        ? 'API وWebhooks'
-                        : 'متاحة في باقة توسع',
+                        ? L10n.current.msgc255231e3d75
+                        : L10n.current.msgd28cd531b9d1,
                     onTap: () => _open(context, const IntegrationsScreen()),
                   ),
               ],
@@ -200,7 +228,9 @@ class AccountScreen extends StatelessWidget {
               style: OutlinedButton.styleFrom(foregroundColor: colors.error),
               icon: const Icon(Icons.logout_rounded),
               label: Text(
-                controller.isDemo ? 'إغلاق العرض التشغيلي' : 'تسجيل الخروج',
+                controller.isDemo
+                    ? L10n.current.msge2bd051450c6
+                    : L10n.current.msg21f474427638,
               ),
             ),
             if (!controller.isDemo) ...[
@@ -211,13 +241,13 @@ class AccountScreen extends StatelessWidget {
                     : () => _confirmDelete(context),
                 style: TextButton.styleFrom(foregroundColor: colors.error),
                 icon: const Icon(Icons.delete_forever_outlined),
-                label: const Text('حذف الحساب نهائياً'),
+                label: Text(L10n.current.msg0e37703ffce0),
               ),
             ],
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 4.5.1',
+                L10n.current.msge9a85ff0e478,
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),
@@ -237,25 +267,22 @@ class AccountScreen extends StatelessWidget {
     final billingStore = switch (controller.subscription?.billingProvider) {
       'app_store' => 'App Store',
       'google_play' => 'Google Play',
-      _ => 'متجر التطبيقات',
+      _ => L10n.current.msg91e7da5d592b,
     };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         scrollable: true,
-        title: const Text('حذف الحساب نهائياً؟'),
+        title: Text(L10n.current.msg938d8775ee84),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
-            ),
+            Text(L10n.current.msg932dd1b45205),
             if (hasStoreSubscription) ...[
               const SizedBox(height: 12),
               Text(
-                'تنبيه: حذف حساب ضمانك لا يلغي الاشتراك أو يوقف الفوترة لدى $billingStore. '
-                'ألغِ التجديد من المتجر لتجنب رسوم لاحقة. يمكنك إدارة الاشتراك أولاً أو المتابعة بالحذف الآن.',
+                L10n.current.msgc40bf1a4b038(billingStore),
                 style: TextStyle(
                   color: Theme.of(dialogContext).colorScheme.error,
                   fontWeight: FontWeight.w700,
@@ -268,7 +295,7 @@ class AccountScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           if (hasStoreSubscription)
             TextButton(
@@ -276,14 +303,14 @@ class AccountScreen extends StatelessWidget {
                 Navigator.pop(dialogContext, false);
                 await controller.openStoreSubscriptionManagement();
               },
-              child: const Text('إدارة الاشتراك'),
+              child: Text(L10n.current.msg432651e0ceb3),
             ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('حذف نهائي'),
+            child: Text(L10n.current.msgcd6f896cc0ee),
           ),
         ],
       ),

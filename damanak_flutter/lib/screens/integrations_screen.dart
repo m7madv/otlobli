@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -30,11 +31,12 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final plan = controller.subscription!.plan;
     final isOwner = controller.membership!.role.canManageSubscription;
     return Scaffold(
-      appBar: AppBar(title: const Text('التكاملات')),
+      appBar: AppBar(title: Text(L10n.current.msgc82e99cb1b8b)),
       body: RefreshIndicator(
         onRefresh: controller.loadIntegrations,
         child: ListView(
@@ -42,28 +44,28 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
           children: [
             const MessageBanner(),
             Text(
-              'اربط نظامك بضمانك',
+              L10n.current.msg32e4c4bf1ab4,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 6),
             Text(
-              'مفاتيح محدودة الصلاحية وWebhooks موقّعة للمطالبات. الأسرار تظهر مرة واحدة فقط.',
+              L10n.current.msg2ef89624fb92,
               style: TextStyle(color: context.colors.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             if (!isOwner)
-              const _AccessCard(text: 'إدارة التكاملات متاحة لمالك المتجر فقط.')
+              _AccessCard(text: L10n.current.msg69c475f1bbb5)
             else ...[
               _IntegrationSection(
                 title: 'API',
                 subtitle: plan.apiAccess
-                    ? 'قراءة الضمانات والمطالبات وإنشاء مطالبة من نظام خارجي.'
-                    : 'متاح في باقة توسع.',
+                    ? L10n.current.msgd006819c83d0
+                    : L10n.current.msg9aec3e68d086,
                 enabled: plan.apiAccess,
-                actionLabel: 'مفتاح جديد',
+                actionLabel: L10n.current.msg13b60161bea7,
                 onAction: () => _createApiKey(context),
                 child: controller.apiKeys.isEmpty
-                    ? const _InlineEmpty(text: 'لا توجد مفاتيح بعد.')
+                    ? _InlineEmpty(text: L10n.current.msg4e1d662db6f8)
                     : Column(
                         children: [
                           for (final key in controller.apiKeys)
@@ -80,13 +82,13 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
               _IntegrationSection(
                 title: 'Webhooks',
                 subtitle: plan.webhookAccess
-                    ? 'إشعار نظامك عند إنشاء مطالبة أو تحديثها.'
-                    : 'متاح في باقة توسع.',
+                    ? L10n.current.msgd849a0413238
+                    : L10n.current.msg9aec3e68d086,
                 enabled: plan.webhookAccess,
-                actionLabel: 'رابط جديد',
+                actionLabel: L10n.current.msg93f3c248a561,
                 onAction: () => _createWebhook(context),
                 child: controller.webhooks.isEmpty
-                    ? const _InlineEmpty(text: 'لا توجد روابط استقبال بعد.')
+                    ? _InlineEmpty(text: L10n.current.msgdb126e6fa615)
                     : Column(
                         children: [
                           for (final hook in controller.webhooks)
@@ -108,7 +110,7 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
                     ),
                   ),
                   icon: const Icon(Icons.workspace_premium_outlined),
-                  label: const Text('عرض باقة توسع'),
+                  label: Text(L10n.current.msg7be81ee52e15),
                 ),
               ],
             ],
@@ -130,9 +132,9 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
     if (created != null && context.mounted) {
       await _showSecret(
         context,
-        title: 'انسخ مفتاح API الآن',
+        title: L10n.current.msg130e05c33a70,
         secret: created.secret,
-        warning: 'لن نعرض هذا المفتاح كاملاً مرة أخرى.',
+        warning: L10n.current.msgc4fed8918459,
       );
     }
   }
@@ -149,10 +151,9 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
     if (created != null && context.mounted) {
       await _showSecret(
         context,
-        title: 'سر توقيع Webhook',
+        title: L10n.current.msgbd4e16d06de0,
         secret: created.secret,
-        warning:
-            'استخدمه للتحقق من ترويسة x-damanak-signature. لن يظهر كاملاً مرة أخرى.',
+        warning: L10n.current.msg679e6cf2d464,
       );
     }
   }
@@ -161,16 +162,16 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('إلغاء المفتاح فوراً؟'),
-        content: Text('سيتوقف «${key.name}» عن العمل ولا يمكن استعادته.'),
+        title: Text(L10n.current.msg5ce7c147d834),
+        content: Text(L10n.current.msg3c4870c1d279(key.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('رجوع'),
+            child: Text(L10n.current.msgcb822418a29d),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('إلغاء المفتاح'),
+            child: Text(L10n.current.msgfb5485cbbc6e),
           ),
         ],
       ),
@@ -215,17 +216,17 @@ class _IntegrationsScreenState extends State<IntegrationsScreen> {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: secret));
               if (dialogContext.mounted) {
-                ScaffoldMessenger.of(
-                  dialogContext,
-                ).showSnackBar(const SnackBar(content: Text('تم النسخ.')));
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text(L10n.current.msg48b2aff2b1a3)),
+                );
               }
             },
             icon: const Icon(Icons.copy_rounded),
-            label: const Text('نسخ'),
+            label: Text(L10n.current.msg29a0e2739a92),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('حفظته'),
+            child: Text(L10n.current.msg28da90313e7e),
           ),
         ],
       ),
@@ -295,14 +296,14 @@ class _ApiKeyTile extends StatelessWidget {
     ),
     title: Text(value.name),
     subtitle: Text(
-      '${value.keyPrefix}… • ${value.scopes.length} صلاحيات',
+      L10n.current.msg711625369e11(value.keyPrefix, value.scopes.length),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.end,
     ),
     trailing: onRevoke == null
-        ? const Text('ملغي')
+        ? Text(L10n.current.msg616d302cb016)
         : IconButton(
-            tooltip: 'إلغاء المفتاح',
+            tooltip: L10n.current.msgfb5485cbbc6e,
             onPressed: onRevoke,
             icon: const Icon(Icons.block_rounded),
           ),
@@ -356,7 +357,7 @@ class _ApiKeyDialogState extends State<_ApiKeyDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('مفتاح API جديد'),
+    title: Text(L10n.current.msg76526f5838b3),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -365,22 +366,24 @@ class _ApiKeyDialogState extends State<_ApiKeyDialog> {
             controller: _name,
             autofocus: true,
             maxLength: 80,
-            decoration: const InputDecoration(labelText: 'اسم الاستخدام'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msg478eee91c22d,
+            ),
           ),
           CheckboxListTile(
             value: _warranties,
             onChanged: (value) => setState(() => _warranties = value ?? false),
-            title: const Text('قراءة الضمانات'),
+            title: Text(L10n.current.msg20e1047902e4),
           ),
           CheckboxListTile(
             value: _claimsRead,
             onChanged: (value) => setState(() => _claimsRead = value ?? false),
-            title: const Text('قراءة المطالبات'),
+            title: Text(L10n.current.msgf60ce278fc14),
           ),
           CheckboxListTile(
             value: _claimsWrite,
             onChanged: (value) => setState(() => _claimsWrite = value ?? false),
-            title: const Text('إنشاء مطالبة'),
+            title: Text(L10n.current.msg779a27aba7f5),
           ),
         ],
       ),
@@ -388,7 +391,7 @@ class _ApiKeyDialogState extends State<_ApiKeyDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('إلغاء'),
+        child: Text(L10n.current.msg9a30dc2a96b8),
       ),
       FilledButton(
         onPressed: () {
@@ -400,7 +403,7 @@ class _ApiKeyDialogState extends State<_ApiKeyDialog> {
           if (_name.text.trim().length < 2 || scopes.isEmpty) return;
           Navigator.pop(context, _ApiKeyDraft(_name.text.trim(), scopes));
         },
-        child: const Text('إنشاء'),
+        child: Text(L10n.current.msga820f3590d36),
       ),
     ],
   );
@@ -426,7 +429,7 @@ class _WebhookDialogState extends State<_WebhookDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Webhook جديد'),
+    title: Text(L10n.current.msge401fff86fca),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -436,20 +439,20 @@ class _WebhookDialogState extends State<_WebhookDialog> {
             autofocus: true,
             keyboardType: TextInputType.url,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-              labelText: 'رابط HTTPS',
+            decoration: InputDecoration(
+              labelText: L10n.current.msgb3895826cf8a,
               hintText: 'https://example.com/damanak',
             ),
           ),
           CheckboxListTile(
             value: _created,
             onChanged: (value) => setState(() => _created = value ?? false),
-            title: const Text('مطالبة جديدة'),
+            title: Text(L10n.current.msg946f0256003d),
           ),
           CheckboxListTile(
             value: _updated,
             onChanged: (value) => setState(() => _updated = value ?? false),
-            title: const Text('تحديث مطالبة'),
+            title: Text(L10n.current.msga8c00baf4c19),
           ),
         ],
       ),
@@ -457,7 +460,7 @@ class _WebhookDialogState extends State<_WebhookDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('إلغاء'),
+        child: Text(L10n.current.msg9a30dc2a96b8),
       ),
       FilledButton(
         onPressed: () {
@@ -471,7 +474,7 @@ class _WebhookDialogState extends State<_WebhookDialog> {
           }
           Navigator.pop(context, _WebhookDraft(_url.text.trim(), events));
         },
-        child: const Text('إنشاء'),
+        child: Text(L10n.current.msga820f3590d36),
       ),
     ],
   );

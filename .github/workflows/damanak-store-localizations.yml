@@ -1,0 +1,55 @@
+name: Damanak Localized Store Metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect only or prepare localized metadata without submitting review
+        required: true
+        type: choice
+        default: inspect
+        options: [inspect, apply]
+      version:
+        description: Exact App Store version
+        required: true
+        type: string
+        default: "4.6.0"
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: damanak_flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Inspect or prepare localizations
+        env:
+          DAMANAK_STORE_VERSION: ${{ inputs.version }}
+          MODE: ${{ inputs.mode }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        shell: bash
+        run: |
+          if [[ "$MODE" == "apply" ]]; then
+            node scripts/verify_localizations.mjs
+            node scripts/verify_store_localizations.mjs
+            node scripts/app_store_localizations.mjs --apply
+          else
+            node scripts/app_store_localizations.mjs
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: damanak-localized-metadata-${{ github.run_number }}
+          path: damanak_flutter/build/app-store-localizations/report.json
+          if-no-files-found: warn
+          retention-days: 14

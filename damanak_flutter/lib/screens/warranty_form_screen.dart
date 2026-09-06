@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -149,9 +150,9 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
       initialDate: _purchaseDate,
       firstDate: DateTime(2015),
       lastDate: DateTime.now().add(const Duration(days: 30)),
-      helpText: 'اختر تاريخ الشراء',
-      cancelText: 'إلغاء',
-      confirmText: 'اختيار',
+      helpText: L10n.current.msg02c2c680a701,
+      cancelText: L10n.current.msg9a30dc2a96b8,
+      confirmText: L10n.current.msgfdcd3da079f0,
     );
     if (picked != null && mounted) setState(() => _purchaseDate = picked);
   }
@@ -189,16 +190,18 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.content_copy_rounded),
-          title: const Text('الرقم التسلسلي مسجل'),
+          title: Text(L10n.current.msgf3d8ce2f24b9),
           content: Text(
-            'هذا الرقم مرتبط بالضمان ${duplicate.displayNumber} للعميل '
-            '${duplicate.customerName}، وصلاحيته حتى '
-            '${formatDate(duplicate.expiryDate)}. افتح السجل قبل إصدار ضمان آخر.',
+            L10n.current.msgfbe60c8a1c91(
+              duplicate.displayNumber,
+              duplicate.customerName,
+              formatDate(duplicate.expiryDate),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء'),
+              child: Text(L10n.current.msg9a30dc2a96b8),
             ),
             if (controller.membership!.role.canManageTeam)
               TextButton(
@@ -206,14 +209,14 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                   dialogContext,
                   _DuplicateWarrantyAction.continueIssuing,
                 ),
-                child: const Text('إصدار جديد بعد المراجعة'),
+                child: Text(L10n.current.msgd09208df3e07),
               ),
             FilledButton(
               onPressed: () => Navigator.pop(
                 dialogContext,
                 _DuplicateWarrantyAction.openExisting,
               ),
-              child: const Text('فتح الضمان الحالي'),
+              child: Text(L10n.current.msg2d05eb0bfde6),
             ),
           ],
         ),
@@ -234,14 +237,12 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('لا يمكن إصدار الضمان'),
-          content: const Text(
-            'الاشتراك غير فعّال أو تم استهلاك الحد الشهري. راجع المالك لتجديد الخطة.',
-          ),
+          title: Text(L10n.current.msgfcc2e8cbb761),
+          content: Text(L10n.current.msgae2412ad9cb6),
           actions: [
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('حسناً'),
+              child: Text(L10n.current.msgc556786eb169),
             ),
           ],
         ),
@@ -285,12 +286,13 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final store = controller.store!;
     final currency = currencyInfo(store.currencyCode);
     final totals = _totals(store);
     return Scaffold(
-      appBar: AppBar(title: const Text('إصدار ضمان')),
+      appBar: AppBar(title: Text(L10n.current.msg92cb3a8b07d2)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -311,7 +313,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                     const SizedBox(height: 14),
                     _FormSection(
                       step: 1,
-                      title: 'المنتج',
+                      title: L10n.current.msga79e304d96a1,
                       child: Column(
                         children: [
                           DropdownButtonFormField<Product?>(
@@ -320,14 +322,14 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             ),
                             initialValue: _selectedProduct,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'منتج من الكتالوج (اختياري)',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msga4b471c40b05,
                               prefixIcon: Icon(Icons.inventory_2_outlined),
                             ),
                             items: [
-                              const DropdownMenuItem<Product?>(
+                              DropdownMenuItem<Product?>(
                                 value: null,
-                                child: Text('إدخال منتج يدوياً'),
+                                child: Text(L10n.current.msg7b1c6d8d3456),
                               ),
                               ...controller.products.map(
                                 (product) => DropdownMenuItem<Product?>(
@@ -351,8 +353,8 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             readOnly: _selectedProduct != null,
                             textInputAction: TextInputAction.next,
                             onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(
-                              labelText: 'اسم المنتج',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg57efd1ac6869,
                               prefixIcon: Icon(Icons.devices_other_outlined),
                             ),
                             validator: _required,
@@ -368,11 +370,11 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             autocorrect: false,
                             enableSuggestions: false,
                             decoration: InputDecoration(
-                              labelText: 'الباركود (اختياري)',
-                              helperText: 'امسحه أو اكتبه يدوياً.',
+                              labelText: L10n.current.msg8e6750d61bff,
+                              helperText: L10n.current.msgb916f4141fbc,
                               prefixIcon: const Icon(Icons.qr_code_2_rounded),
                               suffixIcon: IconButton(
-                                tooltip: 'مسح الباركود',
+                                tooltip: L10n.current.msgb63457dea004,
                                 onPressed: _scanBarcode,
                                 icon: const Icon(Icons.qr_code_scanner_rounded),
                               ),
@@ -387,11 +389,11 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             autocorrect: false,
                             enableSuggestions: false,
                             decoration: InputDecoration(
-                              labelText: 'الرقم التسلسلي (اختياري)',
-                              helperText: 'امسحه أو اكتبه يدوياً.',
+                              labelText: L10n.current.msg0c5cb4277a4e,
+                              helperText: L10n.current.msgb916f4141fbc,
                               prefixIcon: const Icon(Icons.tag_rounded),
                               suffixIcon: IconButton(
-                                tooltip: 'مسح الرقم التسلسلي',
+                                tooltip: L10n.current.msg95475323890f,
                                 onPressed: _scanSerialNumber,
                                 icon: const Icon(Icons.center_focus_strong),
                               ),
@@ -403,20 +405,20 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                     const SizedBox(height: 14),
                     _FormSection(
                       step: 2,
-                      title: 'العميل',
+                      title: L10n.current.msga042411e90be,
                       child: Column(
                         children: [
                           DropdownButtonFormField<CustomerProfile?>(
                             initialValue: _selectedCustomer,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'عميل مسجل (اختياري)',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgc213f96e206f,
                               prefixIcon: Icon(Icons.people_outline_rounded),
                             ),
                             items: [
-                              const DropdownMenuItem<CustomerProfile?>(
+                              DropdownMenuItem<CustomerProfile?>(
                                 value: null,
-                                child: Text('عميل جديد'),
+                                child: Text(L10n.current.msg9f73e063ae8d),
                               ),
                               ...controller.customers.map(
                                 (customer) =>
@@ -438,8 +440,8 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             controller: _customerName,
                             textInputAction: TextInputAction.next,
                             autofillHints: const [AutofillHints.name],
-                            decoration: const InputDecoration(
-                              labelText: 'اسم العميل',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg70771eb8320f,
                               prefixIcon: Icon(Icons.person_outline_rounded),
                             ),
                             validator: _required,
@@ -454,13 +456,13 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             autofillHints: const [
                               AutofillHints.telephoneNumber,
                             ],
-                            decoration: const InputDecoration(
-                              labelText: 'رقم الجوال',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg6dbe8474b01b,
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
                             validator: (value) =>
                                 (value?.trim().length ?? 0) < 7
-                                ? 'أدخل رقم جوال صحيحاً'
+                                ? L10n.current.msg1635df2532a1
                                 : null,
                           ),
                         ],
@@ -469,19 +471,21 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                     const SizedBox(height: 14),
                     _FormSection(
                       step: 3,
-                      title: 'مدة الضمان',
+                      title: L10n.current.msg060541f1a255,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Semantics(
                             button: true,
-                            label: 'تاريخ الشراء ${formatDate(_purchaseDate)}',
+                            label: L10n.current.msg54331bf7051a(
+                              formatDate(_purchaseDate),
+                            ),
                             child: InkWell(
                               onTap: _pickPurchaseDate,
                               borderRadius: BorderRadius.circular(13),
                               child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'تاريخ الشراء',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msgdc24afda1b22,
                                   prefixIcon: Icon(Icons.event_outlined),
                                   suffixIcon: Icon(Icons.expand_more_rounded),
                                 ),
@@ -490,8 +494,8 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          const Text(
-                            'مدة الضمان',
+                          Text(
+                            L10n.current.msg060541f1a255,
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 8),
@@ -501,7 +505,9 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             children: [3, 6, 12, 18, 24, 36, 60]
                                 .map(
                                   (months) => ChoiceChip(
-                                    label: Text('$months شهراً'),
+                                    label: Text(
+                                      L10n.current.msg5ec8afa2a31e(months),
+                                    ),
                                     selected: _durationMonths == months,
                                     onSelected: (_) => setState(
                                       () => _durationMonths = months,
@@ -512,7 +518,9 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'ينتهي الضمان في ${formatDate(_expiryDate)}',
+                            L10n.current.msge35391812372(
+                              formatDate(_expiryDate),
+                            ),
                             style: TextStyle(
                               color: context.colors.primary,
                               fontWeight: FontWeight.w700,
@@ -530,7 +538,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _OptionalGroupTitle('بيانات العميل'),
+                          _OptionalGroupTitle(L10n.current.msg8d098aea9a44),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: _customerEmail,
@@ -538,8 +546,8 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             textDirection: TextDirection.ltr,
                             textInputAction: TextInputAction.next,
                             autofillHints: const [AutofillHints.email],
-                            decoration: const InputDecoration(
-                              labelText: 'البريد الإلكتروني',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgddf0fca39a4f,
                               prefixIcon: Icon(Icons.email_outlined),
                             ),
                             validator: _emailValidator,
@@ -549,28 +557,28 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             controller: _customerNotes,
                             minLines: 2,
                             maxLines: 3,
-                            decoration: const InputDecoration(
-                              labelText: 'ملاحظات العميل',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg110aa6f60385,
                               alignLabelWithHint: true,
                             ),
                           ),
                           const Divider(height: 32),
-                          const _OptionalGroupTitle('البيع والإيصال'),
+                          _OptionalGroupTitle(L10n.current.msg5e164ebd3d4e),
                           const SizedBox(height: 10),
                           DropdownButtonFormField<StoreBranch?>(
                             initialValue: _selectedBranch,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'الفرع',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg8a706d30e0ed,
                               prefixIcon: Icon(
                                 Icons.store_mall_directory_outlined,
                               ),
                             ),
                             items: [
                               if (controller.branches.isEmpty)
-                                const DropdownMenuItem<StoreBranch?>(
+                                DropdownMenuItem<StoreBranch?>(
                                   value: null,
-                                  child: Text('لا يوجد فرع مسجل'),
+                                  child: Text(L10n.current.msgfc4fca62af22),
                                 ),
                               ...controller.branches.map(
                                 (branch) => DropdownMenuItem<StoreBranch?>(
@@ -591,18 +599,17 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             textDirection: TextDirection.ltr,
                             textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
-                              labelText: 'رقم الإيصال',
+                              labelText: L10n.current.msg239cb47cd98d,
                               hintText: '${store.invoicePrefix}-000001',
                               prefixIcon: const Icon(Icons.numbers_rounded),
-                              helperText:
-                                  'اتركه فارغاً ليولده النظام تلقائياً.',
+                              helperText: L10n.current.msge7327341464b,
                             ),
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<PaymentMethod>(
                             initialValue: _paymentMethod,
-                            decoration: const InputDecoration(
-                              labelText: 'طريقة الدفع',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msgae2d60052976,
                               prefixIcon: Icon(Icons.credit_card_outlined),
                             ),
                             items: PaymentMethod.values
@@ -627,7 +634,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             textInputAction: TextInputAction.next,
                             onChanged: (_) => setState(() {}),
                             decoration: InputDecoration(
-                              labelText: 'سعر البيع',
+                              labelText: L10n.current.msg2d37565e6fe3,
                               prefixIcon: const Icon(Icons.sell_outlined),
                               suffixText: currency.symbol,
                             ),
@@ -643,7 +650,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             textInputAction: TextInputAction.next,
                             onChanged: (_) => setState(() {}),
                             decoration: InputDecoration(
-                              labelText: 'الخصم',
+                              labelText: L10n.current.msgb593a6457673,
                               prefixIcon: const Icon(Icons.discount_outlined),
                               suffixText: currency.symbol,
                             ),
@@ -658,15 +665,15 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             ),
                           ],
                           const Divider(height: 32),
-                          const _OptionalGroupTitle('ملاحظات الضمان'),
+                          _OptionalGroupTitle(L10n.current.msg946923da935e),
                           const SizedBox(height: 10),
                           TextFormField(
                             controller: _notes,
                             minLines: 2,
                             maxLines: 4,
                             textInputAction: TextInputAction.newline,
-                            decoration: const InputDecoration(
-                              labelText: 'الشروط أو الملاحظات',
+                            decoration: InputDecoration(
+                              labelText: L10n.current.msg24d1c2bdd586,
                               alignLabelWithHint: true,
                             ),
                           ),
@@ -681,14 +688,16 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                         onPressed: controller.busy ? null : _save,
                         icon: const Icon(Icons.verified_user_outlined),
                         label: Text(
-                          controller.busy ? 'جارٍ الإصدار…' : 'إصدار الضمان',
+                          controller.busy
+                              ? L10n.current.msgcbb92ac69976
+                              : L10n.current.msgd80daaf56343,
                         ),
                       ),
                     ),
                     const SizedBox(height: 6),
                     Center(
                       child: Text(
-                        'يمكن إضافة تفاصيل البيع والإيصال قبل الإصدار عند الحاجة.',
+                        L10n.current.msg0df9144ddd76,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: context.colors.onSurfaceVariant,
@@ -706,20 +715,21 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
     );
   }
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? L10n.current.msgd5a02f880a17
+      : null;
 
   String? _emailValidator(String? value) {
     final email = value?.trim() ?? '';
     if (email.isEmpty) return null;
-    return email.contains('@') ? null : 'أدخل بريداً صحيحاً';
+    return email.contains('@') ? null : L10n.current.msg42b7db3713db;
   }
 
   String? _moneyValidator(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return null;
     final amount = num.tryParse(raw);
-    if (amount == null || amount < 0) return 'أدخل مبلغاً صحيحاً';
+    if (amount == null || amount < 0) return L10n.current.msg59786b599b41;
     return null;
   }
 
@@ -730,7 +740,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
     if (raw.isEmpty) return null;
     final price = num.tryParse(_salePrice.text.trim()) ?? 0;
     final discount = num.tryParse(raw) ?? 0;
-    return discount > price ? 'الخصم أكبر من سعر البيع' : null;
+    return discount > price ? L10n.current.msg75b9e4c916a2 : null;
   }
 }
 
@@ -754,6 +764,7 @@ class _MoneySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       width: double.infinity,
@@ -765,17 +776,17 @@ class _MoneySummary extends StatelessWidget {
       child: Column(
         children: [
           _SummaryRow(
-            label: 'سعر البيع',
+            label: L10n.current.msg2d37565e6fe3,
             value: formatMoney(totals.subtotal, currencyCode),
           ),
           if (totals.discount > 0)
             _SummaryRow(
-              label: 'الخصم',
+              label: L10n.current.msgb593a6457673,
               value: '- ${formatMoney(totals.discount, currencyCode)}',
             ),
           const Divider(height: 20),
           _SummaryRow(
-            label: 'الإجمالي',
+            label: L10n.current.msgbaed6e999960,
             value: formatMoney(totals.total, currencyCode),
             emphasized: true,
           ),
@@ -798,6 +809,7 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final style = TextStyle(
       color: emphasized ? colors.onSurface : colors.onSurfaceVariant,
@@ -810,7 +822,7 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Expanded(child: Text(label, style: style)),
           Directionality(
-            textDirection: TextDirection.rtl,
+            textDirection: Directionality.of(context),
             child: Text(value, style: style),
           ),
         ],
@@ -827,6 +839,7 @@ class _IssueHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       width: double.infinity,
@@ -853,14 +866,16 @@ class _IssueHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  productName.trim().isEmpty ? 'ضمان جديد' : productName.trim(),
+                  productName.trim().isEmpty
+                      ? L10n.current.msg6820664c2dce
+                      : productName.trim(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'ينتهي في ${formatDate(expiryDate)}',
+                  L10n.current.msg9f98738b3ad9(formatDate(expiryDate)),
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 12,
@@ -871,7 +886,7 @@ class _IssueHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '3 خطوات',
+            L10n.current.msg9b7b146f3ae6,
             style: TextStyle(
               color: colors.primary,
               fontSize: 12,
@@ -897,6 +912,7 @@ class _FormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -954,6 +970,7 @@ class _OptionalDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Column(
@@ -976,12 +993,12 @@ class _OptionalDetailsCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'تفاصيل اختيارية',
+                          L10n.current.msg335f3bce69e2,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'البيع والإيصال والبريد والملاحظات',
+                          L10n.current.msgad8e12d3c133,
                           style: TextStyle(
                             color: colors.onSurfaceVariant,
                             fontSize: 12,
@@ -1017,6 +1034,7 @@ class _OptionalGroupTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Text(
       label,
       style: TextStyle(

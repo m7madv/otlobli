@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -19,26 +20,26 @@ class ShellScreen extends StatefulWidget {
 class _ShellScreenState extends State<ShellScreen> {
   int _index = 0;
 
-  static const _destinations = [
+  static List<NavigationDestination> get _destinations => [
     NavigationDestination(
       icon: Icon(Icons.home_outlined),
       selectedIcon: Icon(Icons.home_rounded),
-      label: 'الرئيسية',
+      label: L10n.knownLabel('الرئيسية'),
     ),
     NavigationDestination(
       icon: Icon(Icons.verified_user_outlined),
       selectedIcon: Icon(Icons.verified_user_rounded),
-      label: 'الضمانات',
+      label: L10n.knownLabel('الضمانات'),
     ),
     NavigationDestination(
       icon: Icon(Icons.fact_check_outlined),
       selectedIcon: Icon(Icons.fact_check_rounded),
-      label: 'المطالبات',
+      label: L10n.knownLabel('المطالبات'),
     ),
     NavigationDestination(
       icon: Icon(Icons.admin_panel_settings_outlined),
       selectedIcon: Icon(Icons.admin_panel_settings_rounded),
-      label: 'الإدارة',
+      label: L10n.knownLabel('الإدارة'),
     ),
   ];
 
@@ -74,6 +75,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 820;
@@ -110,7 +112,7 @@ class _ShellScreenState extends State<ShellScreen> {
                                 icon: const Icon(
                                   Icons.add_circle_outline_rounded,
                                 ),
-                                label: const Text('إصدار ضمان'),
+                                label: Text(L10n.current.msg92cb3a8b07d2),
                               ),
                             ),
                             labelType: NavigationRailLabelType.none,

@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -45,9 +46,9 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
     setState(() => _search.text = code);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('الباركود غير مسجل بعد.'),
+        content: Text(L10n.current.msg2fd95dc1a99c),
         action: SnackBarAction(
-          label: 'إضافة المنتج',
+          label: L10n.current.msg599ed9b2189e,
           onPressed: () {
             Navigator.of(context).push<Product>(
               MaterialPageRoute(
@@ -71,7 +72,7 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
     final controller = AppScope.of(context);
     if ((product.salePrice ?? 0) <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('أضف سعر بيع إلى ${product.name} أولاً.')),
+        SnackBar(content: Text(L10n.current.msgebc17899cc00(product.name))),
       );
       return;
     }
@@ -79,7 +80,7 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
     final current = _cart[product.id];
     if (product.trackInventory && stock <= (current?.quantity ?? 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('نفدت الكمية المتاحة من ${product.name}.')),
+        SnackBar(content: Text(L10n.current.msga301affe5159(product.name))),
       );
       return;
     }
@@ -147,12 +148,13 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
     if (sale == null || !mounted) return;
     setState(_cart.clear);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('تم البيع وحفظ الإيصال ${sale.invoiceNumber}.')),
+      SnackBar(content: Text(L10n.current.msg636607b996fe(sale.invoiceNumber))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final branch = controller.activeBranch;
     final products = controller.products.where((item) {
@@ -189,13 +191,13 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              'بيع',
+                              L10n.current.msg3f938fa02d78,
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                           ),
                           if (controller.branches.length > 1)
                             PopupMenuButton<String>(
-                              tooltip: 'تغيير الفرع',
+                              tooltip: L10n.current.msgde4db213d3b3,
                               initialValue: branch?.id,
                               onSelected: controller.selectBranch,
                               itemBuilder: (_) => controller.branches
@@ -207,7 +209,11 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
                                     ),
                                   )
                                   .toList(),
-                              child: _BranchChip(name: branch?.name ?? 'الفرع'),
+                              child: _BranchChip(
+                                name:
+                                    branch?.name ??
+                                    L10n.current.msg8a706d30e0ed,
+                              ),
                             )
                           else if (branch != null)
                             _BranchChip(name: branch.name),
@@ -220,10 +226,10 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
                         onChanged: (_) => setState(() {}),
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
-                          hintText: 'اسم المنتج أو الباركود…',
+                          hintText: L10n.current.msgd1198387ad69,
                           prefixIcon: const Icon(Icons.search_rounded),
                           suffixIcon: IconButton(
-                            tooltip: 'مسح باركود',
+                            tooltip: L10n.current.msgef037f26c21d,
                             onPressed: _scan,
                             icon: const Icon(Icons.qr_code_scanner_rounded),
                           ),
@@ -292,7 +298,7 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
                         child: const Icon(Icons.shopping_bag_outlined),
                       ),
                       const SizedBox(width: 10),
-                      const Expanded(child: Text('مراجعة وإتمام البيع')),
+                      Expanded(child: Text(L10n.current.msgd58160481342)),
                       Text(
                         formatMoney(cartTotal, currency),
                         style: const TextStyle(fontWeight: FontWeight.w800),
@@ -332,13 +338,13 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
   void _submit(String value) {
     final serialNumber = value.trim();
     if (serialNumber.isEmpty) {
-      setState(() => _errorText = 'اكتب الرقم أو امسحه بالكاميرا.');
+      setState(() => _errorText = L10n.current.msge746c7c51155);
       return;
     }
     if (widget.existingSerialNumbers.contains(serialNumber.toLowerCase())) {
       _input.text = serialNumber;
       _input.selection = TextSelection.collapsed(offset: serialNumber.length);
-      setState(() => _errorText = 'هذا الرقم موجود في السلة بالفعل.');
+      setState(() => _errorText = L10n.current.msgd0506250eddc);
       return;
     }
     Navigator.of(context).pop(serialNumber);
@@ -371,7 +377,10 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('رقم القطعة', style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            L10n.current.msge23bdfa31f51,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 5),
           Text(
             widget.product.name,
@@ -385,7 +394,7 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
             child: FilledButton.icon(
               onPressed: _scanSerialNumber,
               icon: const Icon(Icons.qr_code_scanner_rounded),
-              label: const Text('مسح الرقم التسلسلي'),
+              label: Text(L10n.current.msg95475323890f),
             ),
           ),
           const SizedBox(height: 14),
@@ -397,7 +406,7 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
-                    'أو اكتبه يدوياً',
+                    L10n.current.msg6ed31b8a223f,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: context.colors.onSurfaceVariant,
@@ -417,8 +426,8 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
             textDirection: TextDirection.ltr,
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
-              labelText: 'الرقم التسلسلي',
-              helperText: 'يُربط بالقطعة وضمانها.',
+              labelText: L10n.current.msg5789f0fed61c,
+              helperText: L10n.current.msgfd2f175c6f1d,
               errorText: _errorText,
             ),
             onChanged: (_) {
@@ -431,7 +440,7 @@ class _SerialNumberSheetState extends State<_SerialNumberSheet> {
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () => _submit(_input.text),
-              child: const Text('إضافة الرقم للسلة'),
+              child: Text(L10n.current.msg9c8e19ee120d),
             ),
           ),
         ],
@@ -495,6 +504,7 @@ class _PosProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -507,8 +517,12 @@ class _PosProductTile extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           available == null
-              ? (product.brand.isEmpty ? 'متاح للبيع' : product.brand)
-              : 'المتوفر ${available!.toStringAsFixed(available! % 1 == 0 ? 0 : 2)}',
+              ? (product.brand.isEmpty
+                    ? L10n.current.msg2b22bfedb2b2
+                    : product.brand)
+              : L10n.current.msg9d8f17d53ab6(
+                  available!.toStringAsFixed(available! % 1 == 0 ? 0 : 2),
+                ),
           style: TextStyle(
             color: context.colors.onSurfaceVariant,
             fontSize: 13,
@@ -528,7 +542,7 @@ class _PosProductTile extends StatelessWidget {
         ? SizedBox.square(
             dimension: 36,
             child: IconButton.filledTonal(
-              tooltip: 'إضافة ${product.name}',
+              tooltip: L10n.current.msgd2340abd10ff(product.name),
               onPressed: onAdd,
               padding: EdgeInsets.zero,
               icon: const Icon(Icons.add_rounded, size: 21),
@@ -603,7 +617,7 @@ class _QuantityControl extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          tooltip: 'تقليل الكمية',
+          tooltip: L10n.current.msg2cd1436defd5,
           onPressed: onDecrease,
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.remove_rounded, size: 18),
@@ -613,7 +627,7 @@ class _QuantityControl extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         IconButton(
-          tooltip: 'زيادة الكمية',
+          tooltip: L10n.current.msgea8664c03f07,
           onPressed: onAdd,
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.add_rounded, size: 18),
@@ -643,15 +657,17 @@ class _EmptySale extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            hasQuery ? 'لا يوجد منتج مطابق' : 'أضف أول منتج لتبدأ البيع',
+            hasQuery
+                ? L10n.current.msgc5ca157dad01
+                : L10n.current.msgd418d297cb5d,
             style: Theme.of(context).textTheme.titleLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
           Text(
             hasQuery
-                ? 'جرّب اسماً أو باركوداً آخر.'
-                : 'يكفي الاسم والسعر والكمية. تستطيع إضافة بقية التفاصيل لاحقاً.',
+                ? L10n.current.msgceedff773256
+                : L10n.current.msg781887077750,
             style: TextStyle(color: context.colors.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
@@ -660,7 +676,7 @@ class _EmptySale extends StatelessWidget {
             FilledButton.icon(
               onPressed: onAddProduct,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('إضافة منتج'),
+              label: Text(L10n.current.msg515506c4eaa6),
             ),
           ],
         ],
@@ -736,9 +752,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (total <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('إجمالي البيع يجب أن يكون أكبر من صفر.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg2bf759332486)));
       return;
     }
     final payments = _splitPayment
@@ -769,7 +785,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'مجموع الدفعات يجب أن يساوي ${formatMoney(total, AppScope.of(context).store!.currencyCode)}.',
+            L10n.current.msgce33cdeba1f9(
+              formatMoney(total, AppScope.of(context).store!.currencyCode),
+            ),
           ),
         ),
       );
@@ -801,6 +819,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final currency = controller.store!.currencyCode;
     return DraggableScrollableSheet(
@@ -823,12 +842,15 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'تحصيل البيع',
+                        L10n.current.msgaed38a79ce77,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${widget.lines.length} منتجات • ${widget.branch.name}',
+                        L10n.current.msg61dfae680422(
+                          widget.lines.length,
+                          widget.branch.name,
+                        ),
                         style: TextStyle(
                           color: context.colors.onSurfaceVariant,
                         ),
@@ -869,7 +891,10 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               ),
             ),
             const Divider(height: 24),
-            Text('طريقة الدفع', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              L10n.current.msgae2d60052976,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 9),
             Wrap(
               spacing: 8,
@@ -889,7 +914,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               OutlinedButton.icon(
                 onPressed: () => setState(() => _showCustomer = true),
                 icon: const Icon(Icons.person_add_alt_1_outlined),
-                label: const Text('ربط البيع بعميل'),
+                label: Text(L10n.current.msg808b65537bdd),
               )
             else
               _CustomerFields(
@@ -909,7 +934,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
             if (hasWarranty) ...[
               const SizedBox(height: 8),
               Text(
-                'بيانات العميل مطلوبة لإنشاء الضمان تلقائياً.',
+                L10n.current.msg2d5c97c70485,
                 style: TextStyle(
                   color: context.colors.primary,
                   fontWeight: FontWeight.w600,
@@ -926,7 +951,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                     : Icons.tune_rounded,
               ),
               label: Text(
-                _showMore ? 'إخفاء التفاصيل الإضافية' : 'خصم أو تقسيم الدفع',
+                _showMore
+                    ? L10n.current.msg4520bf130285
+                    : L10n.current.msgd9d5e5385cb5,
               ),
             ),
             if (_showMore) ...[
@@ -938,7 +965,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                 ),
                 textDirection: TextDirection.ltr,
                 decoration: InputDecoration(
-                  labelText: 'الخصم',
+                  labelText: L10n.current.msgb593a6457673,
                   suffixText: currencyInfo(currency).symbol,
                 ),
                 onChanged: (_) => _refreshTotal(),
@@ -946,15 +973,15 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                   final raw = value?.trim() ?? '';
                   final amount = num.tryParse(raw.isEmpty ? '0' : raw);
                   return amount == null || amount < 0 || amount > subtotal
-                      ? 'أدخل خصماً صحيحاً'
+                      ? L10n.current.msgae03778f56c1
                       : null;
                 },
               ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: _splitPayment,
-                title: const Text('تقسيم الدفع'),
-                subtitle: const Text('استخدم طريقتين للدفع في العملية نفسها.'),
+                title: Text(L10n.current.msg18420f50a868),
+                subtitle: Text(L10n.current.msg447b345a02f4),
                 onChanged: (value) => setState(() {
                   _splitPayment = value;
                   _firstAmount.text = value ? '' : '$total';
@@ -979,8 +1006,8 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                 controller: _notes,
                 minLines: 2,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'ملاحظة (اختياري)',
+                decoration: InputDecoration(
+                  labelText: L10n.current.msgc3fc8a6c2041,
                 ),
               ),
             ],
@@ -990,8 +1017,10 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               icon: const Icon(Icons.check_rounded),
               label: Text(
                 controller.busy
-                    ? 'جارٍ الحفظ…'
-                    : 'تأكيد ${formatMoney(total, currency)}',
+                    ? L10n.current.msg47d263ad0ba4
+                    : L10n.current.msg00a2ea2289ab(
+                        formatMoney(total, currency),
+                      ),
               ),
             ),
           ],
@@ -1033,15 +1062,15 @@ class _CustomerFields extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'العميل',
+                L10n.current.msga042411e90be,
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
             if (onRemove != null)
               IconButton(
-                tooltip: 'إزالة العميل',
+                tooltip: L10n.current.msg5aa88db78e0d,
                 onPressed: onRemove,
                 icon: const Icon(Icons.close_rounded),
               ),
@@ -1050,11 +1079,13 @@ class _CustomerFields extends StatelessWidget {
         if (customers.isNotEmpty) ...[
           DropdownButtonFormField<CustomerProfile?>(
             initialValue: customer,
-            decoration: const InputDecoration(labelText: 'عميل محفوظ'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msg2b0c6a2e8a05,
+            ),
             items: [
-              const DropdownMenuItem<CustomerProfile?>(
+              DropdownMenuItem<CustomerProfile?>(
                 value: null,
-                child: Text('عميل جديد'),
+                child: Text(L10n.current.msg9f73e063ae8d),
               ),
               ...customers.map(
                 (item) => DropdownMenuItem(value: item, child: Text(item.name)),
@@ -1067,10 +1098,10 @@ class _CustomerFields extends StatelessWidget {
         TextFormField(
           controller: name,
           textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(labelText: 'اسم العميل'),
+          decoration: InputDecoration(labelText: L10n.current.msg70771eb8320f),
           validator: (value) =>
               requiredForWarranty && (value?.trim().length ?? 0) < 2
-              ? 'أدخل اسم العميل'
+              ? L10n.current.msg149beb2779d5
               : null,
         ),
         const SizedBox(height: 10),
@@ -1078,10 +1109,10 @@ class _CustomerFields extends StatelessWidget {
           controller: phone,
           keyboardType: TextInputType.phone,
           textDirection: TextDirection.ltr,
-          decoration: const InputDecoration(labelText: 'رقم الجوال'),
+          decoration: InputDecoration(labelText: L10n.current.msg6dbe8474b01b),
           validator: (value) =>
               requiredForWarranty && (value?.trim().length ?? 0) < 7
-              ? 'أدخل رقم جوال صحيحاً'
+              ? L10n.current.msg1635df2532a1
               : null,
         ),
       ],
@@ -1106,7 +1137,7 @@ class _PaymentRow extends StatelessWidget {
       Expanded(
         child: DropdownButtonFormField<PaymentMethod>(
           initialValue: method,
-          decoration: const InputDecoration(labelText: 'الطريقة'),
+          decoration: InputDecoration(labelText: L10n.current.msg0572c0f0cf19),
           items: PaymentMethod.values
               .map(
                 (item) =>
@@ -1122,9 +1153,10 @@ class _PaymentRow extends StatelessWidget {
           controller: amount,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textDirection: TextDirection.ltr,
-          decoration: const InputDecoration(labelText: 'المبلغ'),
-          validator: (value) =>
-              (num.tryParse(value ?? '') ?? 0) <= 0 ? 'مبلغ غير صحيح' : null,
+          decoration: InputDecoration(labelText: L10n.current.msg1cd480f91b24),
+          validator: (value) => (num.tryParse(value ?? '') ?? 0) <= 0
+              ? L10n.current.msg477aa3178253
+              : null,
         ),
       ),
     ],

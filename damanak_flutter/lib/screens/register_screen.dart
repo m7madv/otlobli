@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -12,10 +13,11 @@ class RegisterScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final currency = controller.store!.currencyCode;
     return Scaffold(
-      appBar: AppBar(title: const Text('جلسات الصندوق')),
+      appBar: AppBar(title: Text(L10n.current.msgd127ef29f50d)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -26,19 +28,15 @@ class RegisterScreen extends StatelessWidget {
               children: [
                 const MessageBanner(),
                 Text(
-                  'كل وردية تبدأ برصيد افتتاحي وتنتهي بجرد فعلي يظهر العجز أو الزيادة.',
+                  L10n.current.msg037b9f8c678c,
                   style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 14),
                 if (controller.registerSessions.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
                       padding: EdgeInsets.all(28),
-                      child: Center(
-                        child: Text(
-                          'لا توجد جلسات صندوق بعد. افتح أول جلسة من نقطة البيع.',
-                        ),
-                      ),
+                      child: Center(child: Text(L10n.current.msg740bccec6c9a)),
                     ),
                   )
                 else
@@ -62,6 +60,7 @@ class _RegisterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final branch = controller.branches
         .where((item) => item.id == session.branchId)
@@ -98,11 +97,11 @@ class _RegisterCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        branch?.name ?? 'فرع',
+                        branch?.name ?? L10n.current.msg28adde4ba2a8,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       Text(
-                        '${open ? 'مفتوح' : 'مغلق'} • ${formatDate(session.openedAt)}',
+                        '${L10n.knownLabel(open ? 'مفتوح' : 'مغلق')} • ${formatDate(session.openedAt)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: context.colors.onSurfaceVariant,
@@ -114,7 +113,7 @@ class _RegisterCard extends StatelessWidget {
                 if (open)
                   OutlinedButton(
                     onPressed: () => _close(context),
-                    child: const Text('إغلاق'),
+                    child: Text(L10n.current.msgca90c297b099),
                   ),
               ],
             ),
@@ -124,20 +123,20 @@ class _RegisterCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _Value(
-                  label: 'الافتتاحي',
+                  label: L10n.current.msg7123bef9e335,
                   value: formatMoney(session.openingCash, currency),
                 ),
                 _Value(
-                  label: 'مبيعات نقدية',
+                  label: L10n.current.msg5b897d3bb02f,
                   value: formatMoney(session.cashSales, currency),
                 ),
                 _Value(
-                  label: 'المتوقع',
+                  label: L10n.current.msg8d0a03c36d7f,
                   value: formatMoney(session.expectedCash, currency),
                 ),
                 if (!open)
                   _Value(
-                    label: 'الفرق',
+                    label: L10n.current.msg0b5254487af9,
                     value: formatMoney(session.variance, currency),
                     alert: session.variance != 0,
                   ),
@@ -154,26 +153,26 @@ class _RegisterCard extends StatelessWidget {
     final value = await showDialog<num>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('إغلاق الصندوق'),
+        title: Text(L10n.current.msg395c4b980330),
         content: TextField(
           controller: input,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textDirection: TextDirection.ltr,
-          decoration: const InputDecoration(
-            labelText: 'النقد المعدود فعلياً',
-            helperText: 'سيُحسب الفرق تلقائياً ويحفظ في سجل الوردية.',
+          decoration: InputDecoration(
+            labelText: L10n.current.msgafbc17090735,
+            helperText: L10n.current.msgcad9e227c5b8,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, num.tryParse(input.text)),
-            child: const Text('تأكيد الإغلاق'),
+            child: Text(L10n.current.msg92f294545557),
           ),
         ],
       ),

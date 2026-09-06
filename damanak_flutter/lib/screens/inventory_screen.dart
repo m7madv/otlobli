@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -81,6 +82,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final branch = controller.activeBranch;
     final canManage = controller.membership!.role.canManageTeam;
@@ -107,12 +109,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'المخزون',
+                        L10n.current.msga0e7c1b2423d,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        'رصيد فعلي لكل فرع مع سجل كامل للحركات.',
+                        L10n.current.msg77ec83154126,
                         style: TextStyle(
                           color: context.colors.onSurfaceVariant,
                         ),
@@ -123,7 +125,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         children: [
                           Expanded(
                             child: _InventoryMetric(
-                              label: 'الأصناف',
+                              label: L10n.current.msgcdc1331ab21e,
                               value: '${rows.length}',
                               icon: Icons.inventory_2_outlined,
                             ),
@@ -131,7 +133,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           const SizedBox(width: 9),
                           Expanded(
                             child: _InventoryMetric(
-                              label: 'تحتاج انتباهاً',
+                              label: L10n.current.msg93020592faa0,
                               value: '$lowCount',
                               icon: Icons.warning_amber_rounded,
                               alert: lowCount > 0,
@@ -143,8 +145,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       if (controller.branches.length > 1)
                         DropdownButtonFormField<String>(
                           initialValue: branch?.id,
-                          decoration: const InputDecoration(
-                            labelText: 'عرض مخزون الفرع',
+                          decoration: InputDecoration(
+                            labelText: L10n.current.msg90bc2bfaccb2,
                             prefixIcon: Icon(Icons.storefront_outlined),
                           ),
                           items: controller.branches
@@ -167,11 +169,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         controller: _search,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
-                          labelText: 'بحث في المخزون',
+                          labelText: L10n.current.msg5b37a29b3f7e,
                           prefixIcon: const Icon(Icons.search_rounded),
                           suffixIcon: IconButton(
                             onPressed: _scan,
-                            tooltip: 'مسح باركود',
+                            tooltip: L10n.current.msgef037f26c21d,
                             icon: const Icon(Icons.qr_code_scanner_rounded),
                           ),
                         ),
@@ -282,6 +284,7 @@ class _InventoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final isLow = level?.isLow ?? true;
     return Card(
       child: Padding(
@@ -313,7 +316,7 @@ class _InventoryTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${product.sku}${product.isSerialized ? ' • متسلسل' : ''}',
+                    '${product.sku}${product.isSerialized ? L10n.knownLabel(' • متسلسل') : ''}',
                     style: TextStyle(
                       fontSize: 12,
                       color: context.colors.onSurfaceVariant,
@@ -325,7 +328,7 @@ class _InventoryTile extends StatelessWidget {
                     runSpacing: 4,
                     children: [
                       Text(
-                        'متاح ${level?.available ?? 0}',
+                        L10n.current.msg3c5264e88fce(level?.available ?? 0),
                         style: TextStyle(
                           color: isLow
                               ? context.colors.error
@@ -334,11 +337,18 @@ class _InventoryTile extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'حد الطلب ${level?.reorderPoint ?? product.reorderPoint}',
+                        L10n.current.msg5ca3e9ac1e4c(
+                          level?.reorderPoint ?? product.reorderPoint,
+                        ),
                         style: const TextStyle(fontSize: 12),
                       ),
                       Text(
-                        'تكلفة ${formatMoney(level?.averageCost ?? product.costPrice ?? 0, currency)}',
+                        L10n.current.msg00c439c9e1cc(
+                          formatMoney(
+                            level?.averageCost ?? product.costPrice ?? 0,
+                            currency,
+                          ),
+                        ),
                         style: const TextStyle(fontSize: 12),
                       ),
                     ],
@@ -348,25 +358,25 @@ class _InventoryTile extends StatelessWidget {
             ),
             if (onAdjust != null)
               PopupMenuButton<String>(
-                tooltip: 'إدارة المخزون',
+                tooltip: L10n.current.msg8330a0c71014,
                 onSelected: (value) =>
                     value == 'adjust' ? onAdjust!() : onTransfer?.call(),
                 itemBuilder: (_) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'adjust',
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(Icons.tune_rounded),
-                      title: Text('تسوية الرصيد'),
+                      title: Text(L10n.current.msg21ee6ce92265),
                     ),
                   ),
                   if (onTransfer != null)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'transfer',
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.swap_horiz_rounded),
-                        title: Text('تحويل لفرع'),
+                        title: Text(L10n.current.msg0c19e9d7514c),
                       ),
                     ),
                 ],
@@ -424,12 +434,12 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'تسوية ${widget.product.name}',
+            L10n.current.msgc26759e06f41(widget.product.name),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 6),
           Text(
-            'أدخل الرصيد الذي عُد فعلياً، وسيُحفظ الفرق كحركة تدقيق.',
+            L10n.current.msg18a5dc02e52e,
             style: TextStyle(color: context.colors.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
@@ -438,7 +448,9 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(labelText: 'الرصيد الفعلي'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msga8e0fa2ad992,
+            ),
             validator: _nonNegative,
           ),
           const SizedBox(height: 10),
@@ -446,7 +458,9 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
             controller: _cost,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(labelText: 'متوسط تكلفة الوحدة'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msga82a4ab6a00d,
+            ),
             validator: _nonNegative,
           ),
           const SizedBox(height: 10),
@@ -454,12 +468,12 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
             controller: _note,
             minLines: 2,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'سبب التسوية',
-              hintText: 'جرد فعلي، تلف، فرق استلام…',
+            decoration: InputDecoration(
+              labelText: L10n.current.msg046d9847b03a,
+              hintText: L10n.current.msgd84e3987c305,
             ),
             validator: (value) => (value?.trim().length ?? 0) < 3
-                ? 'اذكر سبباً واضحاً للتدقيق'
+                ? L10n.current.msg3c94b6a4fd15
                 : null,
           ),
           const SizedBox(height: 16),
@@ -477,7 +491,7 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
                   ),
                 );
               },
-              child: const Text('حفظ التسوية'),
+              child: Text(L10n.current.msgd8a3c0282316),
             ),
           ),
         ],
@@ -487,7 +501,7 @@ class _AdjustmentSheetState extends State<_AdjustmentSheet> {
 
   String? _nonNegative(String? value) {
     final number = num.tryParse(value ?? '');
-    return number == null || number < 0 ? 'أدخل رقماً صفراً أو أكبر' : null;
+    return number == null || number < 0 ? L10n.current.msg981ec91b2ce8 : null;
   }
 }
 
@@ -540,17 +554,19 @@ class _TransferSheetState extends State<_TransferSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'تحويل ${widget.product.name}',
+            L10n.current.msg20c617d828ac(widget.product.name),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           Text(
-            'من ${widget.source.name} • المتاح ${widget.available}',
+            L10n.current.msgee2c7ed76339(widget.source.name, widget.available),
             style: TextStyle(color: context.colors.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _destinationId,
-            decoration: const InputDecoration(labelText: 'إلى الفرع'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msgab8fdcefa964,
+            ),
             items: widget.destinations
                 .map(
                   (item) =>
@@ -564,21 +580,23 @@ class _TransferSheetState extends State<_TransferSheet> {
             controller: _quantity,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(labelText: 'الكمية'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msg935e21853946,
+            ),
             validator: (value) {
               final quantity = num.tryParse(value ?? '');
               return quantity == null ||
                       quantity <= 0 ||
                       quantity > widget.available
-                  ? 'الكمية يجب أن تكون ضمن الرصيد المتاح'
+                  ? L10n.current.msge342accfe3ff
                   : null;
             },
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _note,
-            decoration: const InputDecoration(
-              labelText: 'ملاحظة التحويل (اختياري)',
+            decoration: InputDecoration(
+              labelText: L10n.current.msgdaa5eccaa4f0,
             ),
           ),
           const SizedBox(height: 16),
@@ -597,7 +615,7 @@ class _TransferSheetState extends State<_TransferSheet> {
                 );
               },
               icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('تنفيذ التحويل'),
+              label: Text(L10n.current.msg7e05ad8ae33d),
             ),
           ),
         ],

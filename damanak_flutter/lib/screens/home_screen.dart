@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -31,6 +32,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final subscription = controller.subscription!;
     final warranties = controller.warranties;
@@ -90,7 +92,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'الأعداد حسب السجل المحمّل حالياً.',
+              L10n.current.msgf758065c9bc0,
               style: TextStyle(
                 color: context.colors.onSurfaceVariant,
                 fontSize: 11,
@@ -106,8 +108,8 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 26),
             _SectionHeading(
-              title: 'مطالبات الضمان الحديثة',
-              actionLabel: 'عرض الكل',
+              title: L10n.current.msge00a71539de4,
+              actionLabel: L10n.current.msgcc52200ebc71,
               onAction: onShowRequests,
             ),
             const SizedBox(height: 10),
@@ -142,6 +144,7 @@ class _MobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     if (MediaQuery.sizeOf(context).width >= 820) return const SizedBox.shrink();
     final controller = AppScope.of(context);
     final iconOnly =
@@ -151,13 +154,13 @@ class _MobileHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          BrandMark(compact: true, iconOnly: iconOnly),
-          const Spacer(),
+          Expanded(child: BrandMark(compact: true, iconOnly: iconOnly)),
+          const SizedBox(width: 8),
           Badge.count(
             count: controller.unreadNotificationCount,
             isLabelVisible: controller.unreadNotificationCount > 0,
             child: IconButton.filledTonal(
-              tooltip: 'الإشعارات',
+              tooltip: L10n.current.msg8ce3e0cc0601,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => const NotificationsScreen(),
@@ -177,6 +180,7 @@ class _DemoRibbon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       width: double.infinity,
@@ -188,7 +192,7 @@ class _DemoRibbon extends StatelessWidget {
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Text(
-        'عرض تشغيلي — يمكنك تجربة المسار كاملاً دون إرسال بيانات إلى خادم.',
+        L10n.current.msg8a31e9534d36,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -207,6 +211,7 @@ class _WorkspaceHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,7 +224,7 @@ class _WorkspaceHeading extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '$role • إصدار الضمان ومتابعة الصيانة من مكان واحد',
+          L10n.current.msg287b7c7cf0a3(role),
           style: TextStyle(
             color: colors.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -245,15 +250,18 @@ class _TodayWorkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final parts = <String>[
-      if (overdue > 0) '$overdue متأخرة',
-      if (unassigned > 0) '$unassigned بلا مسؤول',
-      if (ready > 0) '$ready جاهزة للاستلام',
+      if (overdue > 0) L10n.current.msg12864cd9cdfb(overdue),
+      if (unassigned > 0) L10n.current.msgc480c8045021(unassigned),
+      if (ready > 0) L10n.current.msg2ce8eb84fed6(ready),
     ];
     return Semantics(
       button: true,
-      label: 'متابعة اليوم، ${parts.join('، ')}',
+      label: L10n.current.msg4d308425f002(
+        parts.join(L10n.current.msg11735aabd336),
+      ),
       child: Card(
         color: overdue > 0 ? colors.errorContainer : colors.primaryContainer,
         child: InkWell(
@@ -277,7 +285,7 @@ class _TodayWorkCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'متابعة اليوم',
+                        L10n.current.msgf429d83108ce,
                         style: TextStyle(
                           color: overdue > 0
                               ? colors.onErrorContainer
@@ -321,10 +329,11 @@ class _WarrantyStarter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Semantics(
       container: true,
-      label: 'بدء إصدار ضمان جديد',
+      label: L10n.current.msgd53616535a1d,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -346,12 +355,12 @@ class _WarrantyStarter extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Text(
-                'ابدأ بمسح المنتج',
+                L10n.current.msg8b1fdfb786c4,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 6),
               Text(
-                'نطابق الباركود مع الكتالوج، ثم تكمل بيانات العميل وتصدر الضمان.',
+                L10n.current.msg0d99f8cc07fb,
                 style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
               ),
               const SizedBox(height: 16),
@@ -363,13 +372,13 @@ class _WarrantyStarter extends StatelessWidget {
                     key: const ValueKey('home-scan-warranty'),
                     onPressed: onScan,
                     icon: const Icon(Icons.qr_code_scanner_rounded),
-                    label: const Text('مسح المنتج'),
+                    label: Text(L10n.current.msg25182c76dee6),
                   ),
                   OutlinedButton.icon(
                     key: const ValueKey('home-manual-warranty'),
                     onPressed: onManual,
                     icon: const Icon(Icons.keyboard_alt_outlined),
-                    label: const Text('إدخال يدوي'),
+                    label: Text(L10n.current.msgb4b8eec4042c),
                   ),
                 ],
               ),
@@ -386,11 +395,12 @@ class _WarrantyPath extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
-    const steps = [
-      (Icons.qr_code_2_rounded, 'امسح المنتج'),
-      (Icons.person_outline_rounded, 'أدخل العميل'),
-      (Icons.verified_user_outlined, 'أصدر الضمان'),
+    final steps = [
+      (Icons.qr_code_2_rounded, L10n.current.msg5e602d09859b),
+      (Icons.person_outline_rounded, L10n.current.msg3f6d31670d93),
+      (Icons.verified_user_outlined, L10n.current.msg318aff1c3fce),
     ];
     return Container(
       width: double.infinity,
@@ -462,6 +472,7 @@ class _PathStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Row(
       children: [
@@ -513,24 +524,25 @@ class _WarrantyPulse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final items = [
       _PulseData(
         icon: Icons.verified_user_outlined,
         value: active,
-        label: 'ضمان ساري',
+        label: L10n.current.msgdeccfc3a2905,
         onTap: onShowWarranties,
       ),
       _PulseData(
         icon: Icons.schedule_rounded,
         value: expiring,
-        label: 'قريب الانتهاء',
+        label: L10n.current.msgd839601c93ae,
         onTap: onShowWarranties,
       ),
       _PulseData(
         icon: Icons.build_outlined,
         value: openRequests,
-        label: 'صيانة مفتوحة',
+        label: L10n.current.msg24e9465a42ff,
         onTap: onShowRequests,
       ),
     ];
@@ -586,6 +598,7 @@ class _PulseItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return InkWell(
       onTap: data.onTap,
@@ -639,6 +652,7 @@ class _UsageStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final ratio = limit == 0 ? 0.0 : (used / limit).clamp(0.0, 1.0);
     return Material(
@@ -655,13 +669,13 @@ class _UsageStrip extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$used من $limit ضماناً هذا الشهر',
+                      L10n.current.msg87e424bf06da(used, limit),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     if (isTrial) ...[
                       const SizedBox(height: 2),
                       Text(
-                        '$trialDays يوم متبقٍ في التجربة',
+                        L10n.current.msg549a8617b41c(trialDays),
                         style: TextStyle(
                           color: colors.onSurfaceVariant,
                           fontSize: 12,
@@ -706,12 +720,15 @@ class _SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Row(
       children: [
         Expanded(
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        TextButton(onPressed: onAction, child: Text(actionLabel)),
+        Flexible(
+          child: TextButton(onPressed: onAction, child: Text(actionLabel)),
+        ),
       ],
     );
   }
@@ -730,6 +747,7 @@ class _RecentRequest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: InkWell(
@@ -780,7 +798,7 @@ class _RecentRequest extends StatelessWidget {
               ),
               const SizedBox(height: 9),
               Text(
-                'آخر تحديث ${formatDate(request.updatedAt)}',
+                L10n.current.msgcf18c240c095(formatDate(request.updatedAt)),
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ],
@@ -798,6 +816,7 @@ class _EmptyRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -810,13 +829,13 @@ class _EmptyRequests extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'لا توجد مطالبات ضمان حديثة',
+                  Text(
+                    L10n.current.msg7d1152f44758,
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'تظهر هنا المطالبات المسجلة من بطاقات الضمان.',
+                    L10n.current.msg92199567adc2,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
                       fontSize: 12,
@@ -826,7 +845,7 @@ class _EmptyRequests extends StatelessWidget {
               ),
             ),
             IconButton(
-              tooltip: 'فتح مركز المطالبات',
+              tooltip: L10n.current.msg7e189495d1b1,
               onPressed: onOpen,
               icon: const Icon(Icons.arrow_back_rounded),
             ),

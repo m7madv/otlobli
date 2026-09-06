@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum AppStage { configuring, signedOut, onboarding, ready }
 
 enum SocialAuthProvider { google, apple }
@@ -13,9 +15,9 @@ enum MemberRole { owner, manager, staff }
 
 extension MemberRoleText on MemberRole {
   String get label => switch (this) {
-    MemberRole.owner => 'المالك',
-    MemberRole.manager => 'مدير',
-    MemberRole.staff => 'موظف',
+    MemberRole.owner => L10n.current.msgee9b5203194c,
+    MemberRole.manager => L10n.current.msg6a05608678d2,
+    MemberRole.staff => L10n.current.msg45372718dd18,
   };
 
   bool get canManageTeam =>

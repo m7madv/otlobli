@@ -719,6 +719,57 @@ void main() {
       expect(controller.errorMessage, isNull);
     });
 
+    test(
+      'يرفض سماح الاختبار المنتهي دون منح باقة ويتيح الاستعادة بعد إصلاحه',
+      () async {
+        final repository = _SubscriptionRepository(
+          subscription: _inactiveStoreReceiptSubscription(),
+          verifiedSubscription: _subscription(provider: 'app_store'),
+          verifyError: StateError('SANDBOX_NOT_AVAILABLE'),
+        );
+        final billing = _LifecycleBillingService(
+          platform: StoreBillingPlatform.appStore,
+        );
+        final controller = AppController.withRepository(
+          repository,
+          billingService: billing,
+        );
+        addTearDown(controller.dispose);
+        await controller.initialize();
+        await controller.refreshStoreProducts();
+
+        billing.emit(
+          _appleRestoredEvent(
+            key: 'sandbox-access-denied',
+            purchaseId: 'sandbox-same-transaction',
+            verificationData: 'sandbox-same-receipt',
+            appAccountToken: 'demo-store',
+          ),
+        );
+        await _waitUntil(() => repository.verifyCalls == 1);
+        await _waitUntil(() => !controller.storeBillingOperationInProgress);
+        expect(controller.subscription?.isUsable, isFalse);
+        expect(controller.errorMessage, contains('تواصل مع دعم ضمانك'));
+        expect(controller.errorMessage, isNot(contains('بعد قليل')));
+        expect(billing.purchaseCalls, 0);
+
+        repository.verifyError = null;
+        billing.emit(
+          _appleRestoredEvent(
+            key: 'sandbox-access-repaired',
+            purchaseId: 'sandbox-same-transaction',
+            verificationData: 'sandbox-same-receipt',
+            appAccountToken: 'demo-store',
+          ),
+        );
+        await _waitUntil(() => repository.verifyCalls == 2);
+        await _waitUntil(() => !controller.storeBillingOperationInProgress);
+        expect(controller.subscription?.isUsable, isTrue);
+        expect(controller.errorMessage, isNull);
+        expect(billing.purchaseCalls, 0);
+      },
+    );
+
     test('يمسح خطأ الفوترة بعد نجاح إيصال متأخر فقط', () async {
       final repository = _SubscriptionRepository(
         subscription: _inactiveStoreReceiptSubscription(),

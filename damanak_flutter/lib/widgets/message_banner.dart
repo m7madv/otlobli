@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -8,6 +9,7 @@ class MessageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final error = controller.errorMessage;
     final notice = controller.noticeMessage;
@@ -51,7 +53,7 @@ class MessageBanner extends StatelessWidget {
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: 'إغلاق الرسالة',
+            tooltip: L10n.current.msg5f9e78696d67,
             onPressed: controller.clearMessages,
             icon: const Icon(Icons.close_rounded, size: 18),
           ),

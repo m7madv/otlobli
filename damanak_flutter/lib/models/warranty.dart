@@ -1,14 +1,15 @@
+import 'package:damanak/l10n/l10n.dart';
 import '../core/date_utils.dart';
 
 enum PaymentMethod { cash, card, bankTransfer, digitalWallet, other }
 
 extension PaymentMethodText on PaymentMethod {
   String get label => switch (this) {
-    PaymentMethod.cash => 'نقداً',
-    PaymentMethod.card => 'بطاقة',
-    PaymentMethod.bankTransfer => 'تحويل بنكي',
-    PaymentMethod.digitalWallet => 'محفظة رقمية',
-    PaymentMethod.other => 'أخرى',
+    PaymentMethod.cash => L10n.current.msg4a05893d630f,
+    PaymentMethod.card => L10n.current.msg1089e4018122,
+    PaymentMethod.bankTransfer => L10n.current.msg5385ccd1ff51,
+    PaymentMethod.digitalWallet => L10n.current.msg93e96ec7059b,
+    PaymentMethod.other => L10n.current.msg17a9f38e22b6,
   };
 
   static PaymentMethod fromValue(String? value) => switch (value) {
@@ -30,9 +31,9 @@ enum WarrantyStatus { active, expiringSoon, expired }
 
 extension WarrantyStatusText on WarrantyStatus {
   String get label => switch (this) {
-    WarrantyStatus.active => 'ساري',
-    WarrantyStatus.expiringSoon => 'قارب على الانتهاء',
-    WarrantyStatus.expired => 'منتهي',
+    WarrantyStatus.active => L10n.current.msge7e4a3bf3fb7,
+    WarrantyStatus.expiringSoon => L10n.current.msg391609950c28,
+    WarrantyStatus.expired => L10n.current.msg6217883aee8e,
   };
 }
 

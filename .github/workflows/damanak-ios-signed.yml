@@ -36,12 +36,13 @@ jobs:
           DAMANAK_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAMANAK_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
-          grep -qx 'version: 4.5.1+31' pubspec.yaml
+          grep -qx 'version: 4.6.0+32' pubspec.yaml
           test -n "$DAMANAK_SUPABASE_URL"
           test -n "$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
           flutter pub get
+          node scripts/verify_localizations.mjs
           flutter analyze
-          flutter test
+          flutter test --concurrency=1
           flutter build ios \
             --release \
             --no-codesign \
@@ -134,8 +135,12 @@ jobs:
           APP_DEEP_LINK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           GOOGLE_CALLBACK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
-          test "$APP_VERSION" = "4.5.1"
-          test "$APP_BUILD" = "31"
+          test "$APP_VERSION" = "4.6.0"
+          test "$APP_BUILD" = "32"
+          for APP_LANGUAGE in ar en es fr de pt zh-Hans hi ja ru; do
+            test -f "$APP_PATH/$APP_LANGUAGE.lproj/InfoPlist.strings"
+          done
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_PATH/en.lproj/InfoPlist.strings")" = "Damanak"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
@@ -177,7 +182,7 @@ jobs:
       - name: Upload signed IPA
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-ios-4.5.1-build-31-signed
+          name: damanak-ios-4.6.0-build-32-signed
           path: damanak_flutter/build/ios/signed/*.ipa
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,5 @@
+.dart_tool/
+extraction.json
+translation-cache/
+.venv/
+model-cache/

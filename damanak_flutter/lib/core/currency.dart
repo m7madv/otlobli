@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 
 class CurrencyInfo {
   const CurrencyInfo({
@@ -10,6 +11,7 @@ class CurrencyInfo {
 
   final String code;
   final String name;
+  String get localizedName => L10n.knownLabel(name);
   final String symbol;
   final int decimalDigits;
 }
@@ -83,8 +85,8 @@ String defaultCurrencyForCountry(String countryCode) => switch (countryCode) {
 String formatMoney(num amount, String code, {bool withCode = false}) {
   final currency = currencyInfo(code);
   final formatter = NumberFormat.currency(
-    locale: 'ar',
-    symbol: currency.symbol,
+    locale: L10n.instance.locale.languageCode,
+    symbol: L10n.isRtl ? currency.symbol : currency.code,
     decimalDigits: currency.decimalDigits,
   );
   final formatted = formatter.format(amount);

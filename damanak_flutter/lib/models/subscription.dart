@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 /// معلومات العرض المحلية للباقات.
 ///
 /// لا تُستخدم هذه البيانات لمنح صلاحية أو تجاوز تحقق الخادم؛ الحصص الفعلية
@@ -103,6 +105,13 @@ class PlanInfo {
 
   final String id;
   final String name;
+  String get displayName => switch (id) {
+    'free' => L10n.knownLabel('خطة مجانية'),
+    'starter' => L10n.knownLabel('بداية'),
+    'growth' => L10n.knownLabel('نمو'),
+    'scale' => L10n.knownLabel('توسع'),
+    _ => name,
+  };
   final num monthlyPrice;
   final num yearlyPrice;
   final int maxMembers;
@@ -115,18 +124,17 @@ class PlanInfo {
   final bool customBranding;
 
   PlanPresentation get presentation => PlanPresentation.forPlanId(id);
-  String get audience => presentation.audience;
-  String get branchLabel => presentation.branchLabel;
+  String get audience => L10n.knownLabel(presentation.audience);
+  String get branchLabel => L10n.knownLabel(presentation.branchLabel);
   int? get suggestedBranches => presentation.suggestedBranches;
   List<String> get features => [
-    ...presentation.features,
-    if (monthlyAiImports > 0)
-      '$monthlyAiImports تحليل ملف منتجات بالذكاء الاصطناعي شهرياً',
+    ...presentation.features.map(L10n.knownLabel),
+    if (monthlyAiImports > 0) L10n.current.msg35e24cd09d8e(monthlyAiImports),
     if (monthlyAiClaimReviews > 0)
-      '$monthlyAiClaimReviews مراجعة ذكية للمطالبات شهرياً',
-    if (customBranding) 'هوية وسياسة ضمان مخصصة للعميل',
-    if (apiAccess) 'مفاتيح API تُعرض مرة واحدة فقط',
-    if (webhookAccess) 'إشعارات Webhook مع توقيع وإعادة محاولة',
+      L10n.current.msg79f13793d2f2(monthlyAiClaimReviews),
+    if (customBranding) L10n.current.msg747cabd620f2,
+    if (apiAccess) L10n.current.msg9d56094ee70b,
+    if (webhookAccess) L10n.current.msg53cf225f153d,
   ];
   bool get isRecommended => presentation.recommended;
 

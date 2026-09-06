@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -148,8 +149,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         newQuantity: quantity,
         unitCost: cost ?? product.costPrice ?? 0,
         note: widget.product == null
-            ? 'رصيد أولي عند إضافة المنتج'
-            : 'تعديل الرصيد من بطاقة المنتج',
+            ? L10n.current.msg4cb99fac5bbb
+            : L10n.current.msg901f25dbe8cb,
       );
     }
     if (mounted && product != null) Navigator.of(context).pop(product);
@@ -157,11 +158,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final currency = currencyInfo(controller.store!.currencyCode);
     final editing = widget.product != null;
     return Scaffold(
-      appBar: AppBar(title: Text(editing ? 'تعديل المنتج' : 'منتج جديد')),
+      appBar: AppBar(
+        title: Text(
+          editing ? L10n.current.msgf952513ba85f : L10n.current.msg5f93d58f33e3,
+        ),
+      ),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -178,8 +184,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     const MessageBanner(),
                     Text(
                       editing
-                          ? 'غيّر ما تحتاجه فقط.'
-                          : 'الاسم والسعر والكمية تكفي للبدء.',
+                          ? L10n.current.msg8b23844de0da
+                          : L10n.current.msg93fc12b500de,
                       style: TextStyle(
                         color: context.colors.onSurfaceVariant,
                         fontSize: 15,
@@ -194,8 +200,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             TextFormField(
                               controller: _name,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'اسم المنتج',
+                              decoration: InputDecoration(
+                                labelText: L10n.current.msg57efd1ac6869,
                                 prefixIcon: Icon(Icons.inventory_2_outlined),
                               ),
                               validator: _required,
@@ -214,7 +220,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                     textDirection: TextDirection.ltr,
                                     textInputAction: TextInputAction.next,
                                     decoration: InputDecoration(
-                                      labelText: 'سعر البيع',
+                                      labelText: L10n.current.msg2d37565e6fe3,
                                       suffixText: currency.symbol,
                                     ),
                                     validator: (value) {
@@ -222,7 +228,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                         value?.trim() ?? '',
                                       );
                                       return amount == null || amount <= 0
-                                          ? 'أدخل سعراً صحيحاً'
+                                          ? L10n.current.msg3f31bdb96388
                                           : null;
                                     },
                                   ),
@@ -238,8 +244,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                         ),
                                     textDirection: TextDirection.ltr,
                                     textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
-                                      labelText: 'الكمية الحالية',
+                                    decoration: InputDecoration(
+                                      labelText: L10n.current.msgcefa6ccfca09,
                                     ),
                                     validator: _nonNegative,
                                   ),
@@ -252,10 +258,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               textDirection: TextDirection.ltr,
                               textInputAction: TextInputAction.done,
                               decoration: InputDecoration(
-                                labelText: 'الباركود (اختياري)',
+                                labelText: L10n.current.msg8e6750d61bff,
                                 prefixIcon: const Icon(Icons.qr_code_2_rounded),
                                 suffixIcon: IconButton(
-                                  tooltip: 'مسح الباركود',
+                                  tooltip: L10n.current.msgb63457dea004,
                                   onPressed: _scanBarcode,
                                   icon: const Icon(
                                     Icons.qr_code_scanner_rounded,
@@ -266,8 +272,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             const SizedBox(height: 12),
                             DropdownButtonFormField<int>(
                               initialValue: _warrantyMonths,
-                              decoration: const InputDecoration(
-                                labelText: 'الضمان',
+                              decoration: InputDecoration(
+                                labelText: L10n.current.msgb3b3c061b465,
                                 prefixIcon: Icon(Icons.verified_user_outlined),
                               ),
                               items: const [0, 3, 6, 12, 18, 24, 36, 60]
@@ -276,8 +282,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                       value: months,
                                       child: Text(
                                         months == 0
-                                            ? 'بلا ضمان'
-                                            : '$months شهراً',
+                                            ? L10n.current.msg2086605a1a6e
+                                            : L10n.current.msg5ec8afa2a31e(
+                                                months,
+                                              ),
                                       ),
                                     ),
                                   )
@@ -300,8 +308,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       ),
                       label: Text(
                         _showAdvanced
-                            ? 'إخفاء الخيارات الإضافية'
-                            : 'علامة تجارية وتكلفة وخيارات مخزون',
+                            ? L10n.current.msg36969e86e76e
+                            : L10n.current.msg88ecfd057419,
                       ),
                     ),
                     if (_showAdvanced) ...[
@@ -317,8 +325,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                     child: TextFormField(
                                       controller: _brand,
                                       textInputAction: TextInputAction.next,
-                                      decoration: const InputDecoration(
-                                        labelText: 'العلامة التجارية',
+                                      decoration: InputDecoration(
+                                        labelText: L10n.current.msgaba316f6a70b,
                                       ),
                                     ),
                                   ),
@@ -327,8 +335,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                     child: TextFormField(
                                       controller: _category,
                                       textInputAction: TextInputAction.next,
-                                      decoration: const InputDecoration(
-                                        labelText: 'التصنيف',
+                                      decoration: InputDecoration(
+                                        labelText: L10n.current.msg3a7c87ed0100,
                                       ),
                                     ),
                                   ),
@@ -339,8 +347,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                 controller: _sku,
                                 textDirection: TextDirection.ltr,
                                 textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'رمز المخزون (اختياري)',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msgf937a7f18116,
                                   prefixIcon: Icon(Icons.tag_outlined),
                                 ),
                               ),
@@ -356,7 +364,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                           ),
                                       textDirection: TextDirection.ltr,
                                       decoration: InputDecoration(
-                                        labelText: 'تكلفة الشراء',
+                                        labelText: L10n.current.msg62c92ea6ab8a,
                                         suffixText: currency.symbol,
                                       ),
                                       validator: _optionalNonNegative,
@@ -371,8 +379,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                             decimal: true,
                                           ),
                                       textDirection: TextDirection.ltr,
-                                      decoration: const InputDecoration(
-                                        labelText: 'تنبيه عند كمية',
+                                      decoration: InputDecoration(
+                                        labelText: L10n.current.msg42d90631a5ff,
                                       ),
                                       validator: _nonNegative,
                                     ),
@@ -382,10 +390,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               SwitchListTile.adaptive(
                                 contentPadding: EdgeInsets.zero,
                                 value: _trackInventory,
-                                title: const Text('تتبّع الكمية'),
-                                subtitle: const Text(
-                                  'أوقفه للخدمات أو المنتجات غير المخزنة.',
-                                ),
+                                title: Text(L10n.current.msgf65af7345818),
+                                subtitle: Text(L10n.current.msge69fc97b753f),
                                 onChanged: (value) => setState(() {
                                   _trackInventory = value;
                                   if (!value) _isSerialized = false;
@@ -397,10 +403,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                 minLines: 2,
                                 maxLines: 5,
                                 maxLength: 4000,
-                                decoration: const InputDecoration(
-                                  labelText: 'تغطية خاصة لهذا المنتج',
-                                  hintText:
-                                      'اتركها فارغة لاستخدام سياسة المتجر.',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg3d9a91420e22,
+                                  hintText: L10n.current.msgac9e7e538afe,
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -410,20 +415,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                 minLines: 2,
                                 maxLines: 5,
                                 maxLength: 4000,
-                                decoration: const InputDecoration(
-                                  labelText: 'استثناءات خاصة بهذا المنتج',
-                                  hintText:
-                                      'اتركها فارغة لاستخدام استثناءات المتجر.',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msgc9dc69820b4f,
+                                  hintText: L10n.current.msg177ad41891db,
                                   alignLabelWithHint: true,
                                 ),
                               ),
                               SwitchListTile.adaptive(
                                 contentPadding: EdgeInsets.zero,
                                 value: _isSerialized,
-                                title: const Text('رقم تسلسلي لكل قطعة'),
-                                subtitle: const Text(
-                                  'للهواتف والأجهزة التي تحتاج تتبعاً فردياً.',
-                                ),
+                                title: Text(L10n.current.msged18040b60cd),
+                                subtitle: Text(L10n.current.msg975e7e328277),
                                 onChanged: _trackInventory
                                     ? (value) =>
                                           setState(() => _isSerialized = value)
@@ -442,10 +444,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         icon: const Icon(Icons.check_rounded),
                         label: Text(
                           controller.busy
-                              ? 'جارٍ الحفظ…'
+                              ? L10n.current.msg47d263ad0ba4
                               : editing
-                              ? 'حفظ التعديلات'
-                              : 'حفظ المنتج',
+                              ? L10n.current.msg6c03d6737c2f
+                              : L10n.current.msga5fec1aeeb19,
                         ),
                       ),
                     ),
@@ -459,12 +461,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'أدخل اسم المنتج' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? L10n.current.msgc833a0d05983
+      : null;
 
   String? _nonNegative(String? value) {
     final number = num.tryParse(value?.trim() ?? '');
-    return number == null || number < 0 ? 'أدخل رقماً صحيحاً' : null;
+    return number == null || number < 0 ? L10n.current.msga0400e1d27d8 : null;
   }
 
   String? _optionalNonNegative(String? value) {

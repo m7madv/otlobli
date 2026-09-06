@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import '../../../../models/store_billing.dart';
 import '../../../../models/subscription.dart';
 
@@ -234,8 +235,7 @@ class SubscriptionFlowMachine {
         status: ready ? CatalogStatus.ready : CatalogStatus.unavailable,
         platform: platform,
         offers: validOffers,
-        message:
-            message ?? (ready ? null : 'لم يُرجع متجر التطبيقات باقات صالحة.'),
+        message: message ?? (ready ? null : L10n.current.msg37d315322974),
       ),
       operation: _state.operation,
       message: _state.message,

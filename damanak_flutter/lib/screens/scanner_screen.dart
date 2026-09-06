@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -15,24 +16,29 @@ enum ScannerMode { productBarcode, serialNumber }
 extension on ScannerMode {
   bool get isSerialNumber => this == ScannerMode.serialNumber;
 
-  String get screenTitle =>
-      isSerialNumber ? 'مسح الرقم التسلسلي' : 'ماسح ضمانك';
+  String get screenTitle => isSerialNumber
+      ? L10n.current.msg95475323890f
+      : L10n.current.msgeef242e5f60a;
 
   String get scanInstruction => isSerialNumber
-      ? 'وجّه رمز الرقم التسلسلي داخل الإطار'
-      : 'وجّه الباركود داخل الإطار';
+      ? L10n.current.msg3a4e66889236
+      : L10n.current.msg694c78c1743d;
 
   String get fallbackInstruction => isSerialNumber
-      ? 'إذا تعذّرت القراءة، اكتب الرقم التسلسلي يدوياً.'
-      : 'إذا تعذّرت القراءة، أدخل الرقم المكتوب تحت الباركود.';
+      ? L10n.current.msge1f1a8206c6c
+      : L10n.current.msg4722ca18bc62;
 
-  String get manualDialogTitle =>
-      isSerialNumber ? 'إدخال الرقم التسلسلي' : 'إدخال الباركود';
+  String get manualDialogTitle => isSerialNumber
+      ? L10n.current.msg8cfd61170f97
+      : L10n.current.msg495059d04864;
 
-  String get manualFieldLabel =>
-      isSerialNumber ? 'الرقم التسلسلي' : 'رقم الباركود';
+  String get manualFieldLabel => isSerialNumber
+      ? L10n.current.msg5789f0fed61c
+      : L10n.current.msg89120753f66e;
 
-  String get manualActionLabel => isSerialNumber ? 'استخدام الرقم' : 'بحث';
+  String get manualActionLabel => isSerialNumber
+      ? L10n.current.msg0f60e04c50eb
+      : L10n.current.msgd0f6edcf6d65;
 }
 
 class ScannerScreen extends StatefulWidget {
@@ -177,7 +183,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           FilledButton(
             onPressed: () {
@@ -205,6 +211,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Scaffold(
       backgroundColor: AppColors.ink,
       body: Stack(
@@ -213,7 +220,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           MobileScanner(
             controller: _scanner,
             onDetect: _onDetect,
-            errorBuilder: (context, error) => const ColoredBox(
+            errorBuilder: (context, error) => ColoredBox(
               color: AppColors.ink,
               child: Center(
                 child: Padding(
@@ -228,7 +235,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                       SizedBox(height: 12),
                       Text(
-                        'الكاميرا غير متاحة حالياً',
+                        L10n.current.msgd65b17f41a7f,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -237,7 +244,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                       SizedBox(height: 5),
                       Text(
-                        'اسمح باستخدام الكاميرا من إعدادات الجهاز، أو استخدم الإدخال اليدوي أدناه.',
+                        L10n.current.msgce22a010407c,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Color(0xFFBDD0CD),
@@ -285,8 +292,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                       _RoundControl(
                         tooltip: _torchEnabled
-                            ? 'إطفاء الإضاءة'
-                            : 'تشغيل الإضاءة',
+                            ? L10n.current.msg738b82a27754
+                            : L10n.current.msgd7050d12fdbb,
                         onPressed: _toggleTorch,
                         icon: _torchEnabled
                             ? Icons.flash_on_rounded
@@ -295,7 +302,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                       const SizedBox(width: 8),
                       _RoundControl(
-                        tooltip: 'تبديل الكاميرا',
+                        tooltip: L10n.current.msg22d515581ae2,
                         onPressed: _scanner.switchCamera,
                         icon: Icons.cameraswitch_outlined,
                       ),
@@ -335,7 +342,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           minimumSize: const Size(44, 44),
                         ),
                         icon: const Icon(Icons.keyboard_alt_outlined, size: 19),
-                        label: const Text('إدخال'),
+                        label: Text(L10n.current.msg3e8f9b9cc74e),
                       ),
                     ],
                   ),
@@ -371,6 +378,7 @@ class _RoundControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
@@ -397,6 +405,7 @@ class _ScanResultSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final found = product != null;
     final colors = context.colors;
     return Padding(
@@ -424,14 +433,17 @@ class _ScanResultSheet extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            found ? 'تمت مطابقة المنتج' : 'باركود جديد على المتجر',
+            found ? L10n.current.msg5961abc0e384 : L10n.current.msg9efb15a0be65,
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 5),
           Text(
             found
-                ? '${product!.name} • ضمان ${product!.warrantyMonths} شهراً'
-                : 'أضف بيانات هذا المنتج مرة واحدة، ثم سيُعرف تلقائياً في كل مسحة لاحقة.',
+                ? L10n.current.msg0c85a84d5f42(
+                    product!.name,
+                    product!.warrantyMonths,
+                  )
+                : L10n.current.msgbefe82928c8b,
             style: TextStyle(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
@@ -468,10 +480,10 @@ class _ScanResultSheet extends StatelessWidget {
               ),
               label: Text(
                 found
-                    ? 'إصدار ضمان لهذا المنتج'
+                    ? L10n.current.msg59af482d0dba
                     : canManageCatalog
-                    ? 'إضافة المنتج للكتالوج'
-                    : 'إصدار ضمان بإدخال اسم المنتج',
+                    ? L10n.current.msg8a171a40773a
+                    : L10n.current.msgaa03d5cb4d42,
               ),
             ),
           ),
@@ -479,7 +491,7 @@ class _ScanResultSheet extends StatelessWidget {
             width: double.infinity,
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(_ScanAction.cancel),
-              child: const Text('العودة للمسح'),
+              child: Text(L10n.current.msgfd6dbd8625c7),
             ),
           ),
         ],

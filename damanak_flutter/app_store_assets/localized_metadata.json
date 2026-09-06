@@ -1,0 +1,72 @@
+{
+  "ar-SA": {
+    "name": "Damanak - ضمانك",
+    "subtitle": "ضمانات متجرك في مكان واحد",
+    "description": "ضمانك يساعد المتاجر على تنظيم الضمانات وخدمة ما بعد البيع من مكان واحد.\n\nسجّل المنتجات والعملاء، وامسح الباركود أو أدخل الرقم التسلسلي يدوياً، ثم أصدر بطاقة ضمان رقمية قابلة للمشاركة. تابع المطالبات وحالتها والمسؤول عنها، ونظّم الفروع والمخزون ونقاط البيع وصلاحيات الفريق.\n\nاختر لغة الجهاز تلقائياً أو غيّر لغة العرض من التطبيق. تبقى بيانات عملائك وعملة متجرك كما هي. تختلف الحصص والمزايا حسب الخطة، وتأتي أسعار الاشتراك النهائية من App Store. يمكن استعادة المشتريات وإدارة الاشتراك من التطبيق.\n\nضمانك أداة لإدارة أعمال المتجر والضمانات، وليس متجراً لشراء السلع داخل التطبيق.",
+    "keywords": "ضمان,متجر,باركود,مطالبات,صيانة,مخزون,فريق,فروع",
+    "whatsNew": "دعم 10 لغات مع اختيار لغة الجهاز أو لغة يدوية، واتجاه عرض مناسب لكل لغة، وتحسين قراءة النصوص الطويلة."
+  },
+  "en-US": {
+    "name": "Damanak - Warranties",
+    "subtitle": "Your store, organised",
+    "description": "Damanak helps stores organise warranties and after-sales service in one place.\n\nAdd products and customers, scan a barcode or enter a serial number, then issue a shareable digital warranty card. Track claims, their status and assigned team members. Manage branches, inventory, points of sale and team permissions.\n\nFollow your device language or choose a display language in the app. Your customer data and store currency stay unchanged. Features and limits depend on your plan. Final subscription prices come from the App Store, with purchase restoration and subscription management available in the app.\n\nDamanak is a store-management and warranty tool, not an in-app marketplace for consumer goods.",
+    "keywords": "warranty,store,barcode,claims,service,inventory,team,retail",
+    "whatsNew": "Support for 10 languages, automatic device-language selection, a manual language picker, appropriate reading direction and improved long-text layouts."
+  },
+  "es-ES": {
+    "name": "Damanak - Garantías",
+    "subtitle": "Tu tienda, organizada",
+    "description": "Damanak ayuda a las tiendas a organizar las garantías y el servicio posventa en un solo lugar.\n\nRegistra productos y clientes, escanea un código de barras o introduce un número de serie y emite una garantía digital para compartir. Sigue las reclamaciones, su estado y su responsable. Gestiona sucursales, inventario, puntos de venta y permisos del equipo.\n\nUsa el idioma del dispositivo o elige otro en la aplicación, sin cambiar los datos de los clientes ni la moneda de la tienda. Las funciones y los límites dependen del plan. Los precios finales de las suscripciones proceden del App Store. Puedes restaurar compras y gestionar tu suscripción desde la aplicación.\n\nDamanak es una herramienta de gestión, no una tienda de productos para consumidores.",
+    "keywords": "garantía,tienda,inventario,reclamaciones,código,barras,equipo",
+    "whatsNew": "10 idiomas, selección automática o manual del idioma, dirección de lectura adecuada y mejoras para textos largos."
+  },
+  "fr-FR": {
+    "name": "Damanak - Garanties",
+    "subtitle": "Votre magasin, organisé",
+    "description": "Damanak aide les magasins à organiser les garanties et le service après-vente au même endroit.\n\nEnregistrez produits et clients, scannez un code-barres ou saisissez un numéro de série, puis créez une garantie numérique à partager. Suivez les réclamations, leur statut et leur responsable. Gérez les établissements, les stocks, les points de vente et les autorisations de votre équipe.\n\nUtilisez la langue de l’appareil ou choisissez celle de l’application sans modifier les données clients ni la devise du magasin. Les fonctions et les quotas dépendent de l’offre. Les prix définitifs des abonnements proviennent de l’App Store. La restauration des achats et la gestion de l’abonnement sont accessibles dans l’application.\n\nDamanak est un outil de gestion, pas une boutique de biens de consommation.",
+    "keywords": "garantie,magasin,stock,réclamation,équipe,code-barres,service",
+    "whatsNew": "10 langues, choix automatique ou manuel de la langue, sens de lecture adapté et meilleure présentation des textes longs."
+  },
+  "de-DE": {
+    "name": "Damanak - Garantien",
+    "subtitle": "Ihr Geschäft, gut organisiert",
+    "description": "Damanak hilft Geschäften, Garantien und den Kundendienst an einem Ort zu organisieren.\n\nErfassen Sie Produkte und Kunden, scannen Sie Barcodes oder geben Sie Seriennummern ein. Stellen Sie digitale Garantiekarten zum Teilen aus. Verfolgen Sie Garantiefälle, ihren Status und die zuständigen Teammitglieder. Verwalten Sie Filialen, Lagerbestände, Verkaufsstellen und Berechtigungen.\n\nNutzen Sie die Gerätesprache oder wählen Sie eine Sprache in der App. Kundendaten und Geschäftswährung bleiben unverändert. Funktionen und Kontingente hängen vom Tarif ab. Die endgültigen Abonnementpreise stammen aus dem App Store. Käufe lassen sich in der App wiederherstellen und Abonnements verwalten.\n\nDamanak ist ein Verwaltungswerkzeug, kein Marktplatz für Konsumgüter.",
+    "keywords": "Garantie,Geschäft,Inventar,Barcode,Kundendienst,Filialen,Team",
+    "whatsNew": "10 Sprachen, automatische oder manuelle Sprachauswahl, passende Leserichtung und verbesserte Darstellung langer Texte."
+  },
+  "pt-BR": {
+    "name": "Damanak - Garantias",
+    "subtitle": "Sua loja, organizada",
+    "description": "O Damanak ajuda lojas a organizar garantias e atendimento pós-venda em um só lugar.\n\nCadastre produtos e clientes, leia códigos de barras ou digite números de série e emita garantias digitais para compartilhar. Acompanhe solicitações, status e responsáveis. Gerencie filiais, estoque, pontos de venda e permissões da equipe.\n\nUse o idioma do aparelho ou escolha outro no aplicativo, sem alterar os dados dos clientes nem a moeda da loja. Os recursos e limites dependem do plano. Os preços finais das assinaturas vêm da App Store. Você pode restaurar compras e gerenciar a assinatura pelo aplicativo.\n\nO Damanak é uma ferramenta de gestão, não uma loja de bens de consumo.",
+    "keywords": "garantia,loja,estoque,atendimento,equipe,filiais,código,barras",
+    "whatsNew": "10 idiomas, escolha automática ou manual do idioma, direção de leitura adequada e melhor apresentação de textos longos."
+  },
+  "zh-Hans": {
+    "name": "Damanak - 保修管理",
+    "subtitle": "轻松管理门店保修与售后",
+    "description": "Damanak 帮助门店集中管理保修和售后服务。\n\n登记产品和客户，扫描条形码或手动输入序列号，然后开具可分享的电子保修凭证。跟进保修申请、处理状态和负责人，管理分店、库存、销售点及团队权限。\n\n自动使用设备语言，或在应用内选择显示语言。客户数据和门店货币保持不变。功能与额度因方案而异，最终订阅价格由 App Store 提供。您可以在应用内恢复购买和管理订阅。\n\nDamanak 是门店管理工具，并非面向消费者的商品交易平台。",
+    "keywords": "保修,门店,售后,库存,条形码,团队,分店,产品,客户",
+    "whatsNew": "新增 10 种语言支持，可自动跟随设备语言或手动选择。支持相应阅读方向，并优化长文本布局。"
+  },
+  "hi": {
+    "name": "Damanak - वारंटी",
+    "subtitle": "आपकी दुकान, व्यवस्थित",
+    "description": "Damanak दुकानों को वारंटी और बिक्री के बाद की सेवा एक जगह सँभालने में मदद करता है।\n\nउत्पाद और ग्राहक जोड़ें, बारकोड स्कैन करें या सीरियल नंबर दर्ज करें, फिर साझा करने योग्य डिजिटल वारंटी बनाएँ। दावों, उनकी स्थिति और ज़िम्मेदार सदस्यों पर नज़र रखें। शाखाएँ, स्टॉक, बिक्री केंद्र और टीम की अनुमतियाँ सँभालें।\n\nडिवाइस की भाषा अपनाएँ या ऐप में भाषा चुनें। ग्राहकों का डेटा और दुकान की मुद्रा नहीं बदलते। सुविधाएँ और सीमाएँ प्लान पर निर्भर करती हैं। सदस्यता की अंतिम कीमत App Store से मिलती है। ऐप में खरीदारी बहाल करने और सदस्यता प्रबंधित करने की सुविधा है।\n\nDamanak दुकान प्रबंधन का साधन है, उपभोक्ता सामान खरीदने का बाज़ार नहीं।",
+    "keywords": "वारंटी,दुकान,स्टॉक,बारकोड,ग्राहक,टीम,शाखा,सेवा",
+    "whatsNew": "10 भाषाएँ, डिवाइस के अनुसार या खुद भाषा चुनने की सुविधा, सही पढ़ने की दिशा और लंबे पाठ के लिए बेहतर लेआउट।"
+  },
+  "ja": {
+    "name": "Damanak - 保証管理",
+    "subtitle": "店舗の保証とアフターサービスを整理",
+    "description": "Damanakは、店舗の保証とアフターサービスをひとつの場所で管理するためのアプリです。\n\n商品と顧客を登録し、バーコードをスキャンするかシリアル番号を入力して、共有できるデジタル保証書を発行。保証申請の状況と担当者を確認し、支店、在庫、販売拠点、チームの権限を管理できます。\n\nデバイスの言語に合わせるほか、アプリ内で表示言語を選択できます。顧客データと店舗の通貨は変わりません。機能と利用枠はプランによって異なります。サブスクリプションの最終価格はApp Storeから提供されます。購入の復元とサブスクリプションの管理にも対応しています。\n\nDamanakは店舗管理ツールであり、消費者向けの商品販売アプリではありません。",
+    "keywords": "保証,店舗,在庫,バーコード,申請,チーム,支店,顧客,アフターサービス",
+    "whatsNew": "10言語に対応。デバイスに合わせた自動選択と手動の言語選択、言語に応じた表示方向、長いテキストのレイアウト改善。"
+  },
+  "ru": {
+    "name": "Damanak - Гарантии",
+    "subtitle": "Ваш магазин под контролем",
+    "description": "Damanak помогает магазинам организовать гарантии и послепродажное обслуживание в одном месте.\n\nДобавляйте товары и клиентов, сканируйте штрихкоды или вводите серийные номера и выдавайте цифровые гарантийные талоны, которыми можно поделиться. Следите за обращениями, их статусом и ответственными. Управляйте филиалами, запасами, точками продаж и правами команды.\n\nИспользуйте язык устройства или выберите язык в приложении. Данные клиентов и валюта магазина не меняются. Функции и лимиты зависят от плана. Окончательные цены подписок поступают из App Store. В приложении доступны восстановление покупок и управление подпиской.\n\nDamanak — инструмент управления магазином, а не торговая площадка для потребительских товаров.",
+    "keywords": "гарантия,магазин,склад,штрихкод,обращения,команда,филиалы,сервис",
+    "whatsNew": "10 языков, автоматический или ручной выбор языка, подходящее направление чтения и улучшенная компоновка длинных текстов."
+  }
+}

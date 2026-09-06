@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -7,12 +8,18 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:damanak/l10n/l10n.dart';
+import 'package:damanak/l10n/generated/app_localizations.dart';
+import 'store_screenshot_copy.dart';
 
 import 'package:damanak/core/app_theme.dart';
 import 'package:damanak/models/store_billing.dart';
+import 'package:damanak/models/account.dart';
+import 'package:damanak/models/product.dart';
 import 'package:damanak/screens/requests_screen.dart';
 import 'package:damanak/screens/shell_screen.dart';
-import 'package:damanak/screens/subscription_screen.dart';
+import 'package:damanak/screens/products_screen.dart';
 import 'package:damanak/screens/team_screen.dart';
 import 'package:damanak/screens/warranty_form_screen.dart';
 import 'package:damanak/services/store_billing_service.dart';
@@ -20,20 +27,41 @@ import 'package:damanak/state/app_controller.dart';
 import 'package:damanak/state/app_scope.dart';
 import 'package:damanak/widgets/brand_mark.dart';
 
-const _outputRoot = 'app_store_assets/ios';
+final _language = Platform.environment['DAMANAK_SCREENSHOT_LOCALE'] ?? 'ar';
+final _outputRoot = 'app_store_assets/ios/localized/${storeLocales[_language]}';
+String get _fontFamily => switch (_language) {
+  'zh' => 'StoreChinese',
+  'ja' => 'StoreJapanese',
+  'hi' => 'StoreHindi',
+  _ => 'StoreArabic',
+};
 
 void main() {
   setUpAll(() async {
+    if (!storeLocales.containsKey(_language)) throw ArgumentError(_language);
+    // This file is a flutter_test screenshot harness under tool/.
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({L10n.preferenceKey: _language});
+    await L10n.instance.initialize();
     await Future.wait([
       _loadFont('StoreArabic', 'C:/Windows/Fonts/segoeui.ttf'),
+      _loadFont('StoreChinese', 'C:/Windows/Fonts/msyh.ttc'),
+      _loadFont('StoreJapanese', 'C:/Windows/Fonts/YuGothR.ttc'),
+      _loadFont('StoreHindi', 'C:/Windows/Fonts/Nirmala.ttc'),
       _loadFont('MaterialIcons', _materialIconsPath()),
     ]);
   });
 
   for (final shot in _shots) {
     testWidgets('generates ${shot.slug} App Store screenshots', (tester) async {
-      await _renderShot(tester, shot, _CanvasKind.iPhone);
-      await _renderShot(tester, shot, _CanvasKind.iPad);
+      final previousShadows = debugDisableShadows;
+      debugDisableShadows = false;
+      try {
+        await _renderShot(tester, shot, _CanvasKind.iPhone);
+        await _renderShot(tester, shot, _CanvasKind.iPad);
+      } finally {
+        debugDisableShadows = previousShadows;
+      }
     });
   }
 }
@@ -69,10 +97,10 @@ const _shots = <_ShotSpec>[
   ),
   _ShotSpec(
     order: '05',
-    slug: 'manage-subscription',
-    title: 'إدارة الاشتراك',
-    subtitle: 'خطط واضحة وأسعار مباشرة من متجر جهازك.',
-    screen: _ScreenKind.subscription,
+    slug: 'manage-products',
+    title: 'منتجاتك تحت السيطرة',
+    subtitle: 'نظّم الكتالوج وتابع مخزون متجرك.',
+    screen: _ScreenKind.products,
   ),
 ];
 
@@ -96,16 +124,17 @@ Future<void> _renderShot(
       child: MaterialApp(
         key: ValueKey('${shot.slug}-${canvas.name}'),
         debugShowCheckedModeBanner: false,
-        locale: const Locale('ar'),
-        supportedLocales: const [Locale('ar')],
+        locale: Locale(_language),
+        supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
+          AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
         theme: _marketingTheme(),
         home: Directionality(
-          textDirection: TextDirection.rtl,
+          textDirection: L10n.isRtl ? TextDirection.rtl : TextDirection.ltr,
           child: RepaintBoundary(
             key: screenshotKey,
             child: _MarketingCanvas(
@@ -121,9 +150,9 @@ Future<void> _renderShot(
   await tester.pump(const Duration(milliseconds: 800));
 
   if (shot.screen == _ScreenKind.teamInvite) {
-    await tester.tap(find.text('دعوة عضو').last);
+    await tester.tap(find.text(L10n.knownLabel('دعوة عضو')).last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('إنشاء رابط الدعوة').last);
+    await tester.tap(find.text(L10n.knownLabel('إنشاء رابط الدعوة')).last);
     await tester.pumpAndSettle();
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
@@ -162,7 +191,7 @@ Widget _screenFor(_ScreenKind screen, _CanvasKind canvas) {
       onGenerateRoute: (_) =>
           MaterialPageRoute<void>(builder: (_) => const TeamScreen()),
     ),
-    _ScreenKind.subscription => const SubscriptionScreen(),
+    _ScreenKind.products => const Scaffold(body: ProductsScreen()),
   };
 }
 
@@ -223,7 +252,7 @@ class _MarketingCanvas extends StatelessWidget {
                   textAlign: TextAlign.start,
                   style: TextStyle(
                     color: label,
-                    fontFamily: 'StoreArabic',
+                    fontFamily: _fontFamily,
                     fontSize: isPhone ? (shot.title.length > 18 ? 30 : 36) : 64,
                     fontWeight: FontWeight.w800,
                     height: 1.08,
@@ -240,7 +269,7 @@ class _MarketingCanvas extends StatelessWidget {
                     textAlign: TextAlign.start,
                     style: TextStyle(
                       color: secondaryLabel,
-                      fontFamily: 'StoreArabic',
+                      fontFamily: _fontFamily,
                       fontSize: isPhone ? 15.5 : 28,
                       fontWeight: FontWeight.w600,
                       height: 1.35,
@@ -328,19 +357,20 @@ class _ShotSpec {
   const _ShotSpec({
     required this.order,
     required this.slug,
-    required this.title,
-    required this.subtitle,
+    required String title,
+    required String subtitle,
     required this.screen,
   });
 
   final String order;
   final String slug;
-  final String title;
-  final String subtitle;
+  String get title => storeScreenshotCopy[_language]![int.parse(order) - 1][0];
+  String get subtitle =>
+      storeScreenshotCopy[_language]![int.parse(order) - 1][1];
   final _ScreenKind screen;
 }
 
-enum _ScreenKind { home, warrantyForm, claims, teamInvite, subscription }
+enum _ScreenKind { home, warrantyForm, claims, teamInvite, products }
 
 enum _CanvasKind { iPhone, iPad }
 
@@ -440,19 +470,19 @@ String _materialIconsPath() {
 
 ThemeData _marketingTheme() {
   final theme = buildAppTheme(Brightness.light);
-  final textTheme = theme.textTheme.apply(fontFamily: 'StoreArabic');
+  final textTheme = theme.textTheme.apply(fontFamily: _fontFamily);
   final buttonTextStyle = WidgetStatePropertyAll<TextStyle?>(
     textTheme.labelLarge,
   );
   return theme.copyWith(
     textTheme: textTheme,
-    primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: 'StoreArabic'),
+    primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: _fontFamily),
     appBarTheme: theme.appBarTheme.copyWith(
       titleTextStyle: theme.appBarTheme.titleTextStyle?.copyWith(
-        fontFamily: 'StoreArabic',
+        fontFamily: _fontFamily,
       ),
       toolbarTextStyle: theme.appBarTheme.toolbarTextStyle?.copyWith(
-        fontFamily: 'StoreArabic',
+        fontFamily: _fontFamily,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -486,18 +516,79 @@ class _MarketingController extends AppController {
 
   @override
   bool get isDemo => false;
+
+  // Localized fictional catalogue for marketing, never customer data.
+  @override
+  UnmodifiableListView<Product> get products {
+    final originals = super.products;
+    if (_language == 'ar') return originals;
+    const names = {
+      'en': ['Coffee machine', 'Wireless headphones', 'Robot vacuum'],
+      'es': ['Cafetera', 'Auriculares inalámbricos', 'Robot aspirador'],
+      'fr': ['Machine à café', 'Casque sans fil', 'Aspirateur robot'],
+      'de': ['Kaffeemaschine', 'Funkkopfhörer', 'Saugroboter'],
+      'pt': ['Cafeteira', 'Fones sem fio', 'Robô aspirador'],
+      'zh': ['咖啡机', '无线耳机', '扫地机器人'],
+      'hi': ['कॉफ़ी मशीन', 'वायरलेस हेडफ़ोन', 'रोबोट वैक्यूम'],
+      'ja': ['コーヒーメーカー', 'ワイヤレスヘッドホン', 'ロボット掃除機'],
+      'ru': ['Кофемашина', 'Беспроводные наушники', 'Робот-пылесос'],
+    };
+    return UnmodifiableListView([
+      for (final product in originals)
+        Product(
+          id: product.id,
+          storeId: product.storeId,
+          name:
+              names[_language]![switch (product.sku) {
+                'COF-440' => 0,
+                'AUD-210' => 1,
+                _ => 2,
+              }],
+          brand: product.brand,
+          barcode: product.barcode,
+          sku: product.sku,
+          warrantyMonths: product.warrantyMonths,
+          salePrice: product.salePrice,
+          costPrice: product.costPrice,
+          trackInventory: product.trackInventory,
+          isSerialized: product.isSerialized,
+          reorderPoint: product.reorderPoint,
+          warrantyPolicy: product.warrantyPolicy,
+          warrantyExclusions: product.warrantyExclusions,
+          isActive: product.isActive,
+          createdAt: product.createdAt,
+        ),
+    ]);
+  }
+
+  // Fictional screenshot fixture only. Never rename a user's store at runtime.
+  @override
+  StoreWorkspace? get store {
+    final original = super.store;
+    if (original == null || _language == 'ar') return original;
+    const names = {
+      'en': 'Gulf Electronics',
+      'es': 'Electrónica del Golfo',
+      'fr': 'Électronique du Golfe',
+      'de': 'Gulf Elektronik',
+      'pt': 'Eletrônicos do Golfo',
+      'zh': '海湾电子',
+      'hi': 'गल्फ इलेक्ट्रॉनिक्स',
+      'ja': 'ガルフ電器',
+      'ru': 'Gulf Electronics',
+    };
+    return StoreWorkspace(
+      id: original.id,
+      name: names[_language]!,
+      phone: original.phone,
+      city: original.city,
+      countryCode: original.countryCode,
+      currencyCode: original.currencyCode,
+    );
+  }
 }
 
 class _MarketingBillingService implements StoreBillingService {
-  static const _prices = <String, double>{
-    'starter:monthly': 39.99,
-    'starter:yearly': 399.99,
-    'growth:monthly': 79.99,
-    'growth:yearly': 799.99,
-    'scale:monthly': 199.99,
-    'scale:yearly': 1999.99,
-  };
-
   @override
   Stream<List<StorePurchaseEvent>> get purchaseUpdates => const Stream.empty();
 
@@ -505,28 +596,10 @@ class _MarketingBillingService implements StoreBillingService {
   Future<StoreProductLoadResult> loadProducts({
     required String accountId,
   }) async {
-    final offers = _prices.entries.map((entry) {
-      final parts = entry.key.split(':');
-      final planId = parts.first;
-      final cycle = parts.last == 'monthly'
-          ? BillingCycle.monthly
-          : BillingCycle.yearly;
-      return StoreProductOffer(
-        key: entry.key,
-        planId: planId,
-        cycle: cycle,
-        productId: DamanakStoreCatalog.appleProductId(planId, cycle),
-        title: planId,
-        description: '',
-        localizedPrice: '${entry.value.toStringAsFixed(2)} ر.ق',
-        rawPrice: entry.value,
-        currencyCode: 'QAR',
-      );
-    }).toList();
-    return StoreProductLoadResult(
+    return const StoreProductLoadResult(
       available: true,
       platform: StoreBillingPlatform.appStore,
-      offers: offers,
+      offers: [],
     );
   }
 

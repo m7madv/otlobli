@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -27,6 +28,7 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final colors = context.colors;
     final allWarranties = controller.warranties;
@@ -63,13 +65,13 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
                         autocorrect: false,
                         enableSuggestions: false,
                         decoration: InputDecoration(
-                          labelText: 'بحث سريع',
-                          hintText: 'رقم الجوال أو التسلسلي أو رقم الضمان',
+                          labelText: L10n.current.msg1812652ef981,
+                          hintText: L10n.current.msg330614ae4275,
                           prefixIcon: const Icon(Icons.search_rounded),
                           suffixIcon: _searchController.text.isEmpty
                               ? null
                               : IconButton(
-                                  tooltip: 'مسح البحث',
+                                  tooltip: L10n.current.msg2e58b72edf70,
                                   onPressed: () {
                                     _searchController.clear();
                                     setState(() {});
@@ -84,7 +86,9 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
                         child: Row(
                           children: [
                             _FilterChip(
-                              label: 'الكل ${allWarranties.length}',
+                              label: L10n.current.msgbcda95d71da1(
+                                allWarranties.length,
+                              ),
                               selected: _filter == null,
                               onSelected: () => setState(() => _filter = null),
                             ),
@@ -108,8 +112,11 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
                       const SizedBox(height: 13),
                       Text(
                         warranties.length == allWarranties.length
-                            ? '${warranties.length} ضماناً في السجل المحمّل'
-                            : '${warranties.length} نتيجة ضمن ${allWarranties.length} محمّلة',
+                            ? L10n.current.msgc79378f26f35(warranties.length)
+                            : L10n.current.msg3a30dd12ec9a(
+                                warranties.length,
+                                allWarranties.length,
+                              ),
                         style: TextStyle(
                           color: colors.onSurfaceVariant,
                           fontSize: 12,
@@ -175,9 +182,9 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
   }
 
   String _shortStatusLabel(WarrantyStatus status) => switch (status) {
-    WarrantyStatus.active => 'ساري',
-    WarrantyStatus.expiringSoon => 'قريب',
-    WarrantyStatus.expired => 'منتهي',
+    WarrantyStatus.active => L10n.current.msge7e4a3bf3fb7,
+    WarrantyStatus.expiringSoon => L10n.current.msg027ea1355212,
+    WarrantyStatus.expired => L10n.current.msg6217883aee8e,
   };
 }
 
@@ -196,13 +203,14 @@ class _WarrantyPaginationFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Column(
       children: [
         Text(
           hasMore
-              ? 'تم تحميل $loadedCount ضماناً حتى الآن.'
-              : 'تم عرض جميع الضمانات ($loadedCount).',
+              ? L10n.current.msg05851e111cba(loadedCount)
+              : L10n.current.msg403694008d29(loadedCount),
           textAlign: TextAlign.center,
           style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
         ),
@@ -220,7 +228,11 @@ class _WarrantyPaginationFooter extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.expand_more_rounded),
-            label: Text(loading ? 'جاري تحميل المزيد…' : 'عرض المزيد'),
+            label: Text(
+              loading
+                  ? L10n.current.msgf769bd53e821
+                  : L10n.current.msgdbcc30d597f2,
+            ),
           ),
         ],
       ],
@@ -235,14 +247,18 @@ class _ScreenHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('الضمانات', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          L10n.current.msgc47227163f19,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 5),
         Text(
-          'اعثر على بطاقة العميل وأصدر ضماناً جديداً بسرعة.',
+          L10n.current.msg48be88443098,
           style: TextStyle(
             color: colors.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -254,7 +270,7 @@ class _ScreenHeader extends StatelessWidget {
       key: const ValueKey('warranties-create-button'),
       onPressed: onCreate,
       icon: const Icon(Icons.add_rounded),
-      label: const Text('إصدار ضمان'),
+      label: Text(L10n.current.msg92cb3a8b07d2),
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -289,6 +305,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return ChoiceChip(
       label: Text(label),
@@ -316,6 +333,7 @@ class _EmptyWarranties extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -332,14 +350,16 @@ class _EmptyWarranties extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                hasFilters ? 'لا توجد نتائج مطابقة' : 'لا توجد ضمانات بعد',
+                hasFilters
+                    ? L10n.current.msgee6d68a794bb
+                    : L10n.current.msgabb7c836381f,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 5),
               Text(
                 hasFilters
-                    ? 'تحقق من الرقم أو اختر حالة أخرى.'
-                    : 'ابدأ بإصدار أول ضمان للعميل.',
+                    ? L10n.current.msg0235e42eca52
+                    : L10n.current.msg94bea9dd8ac6,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
@@ -348,7 +368,7 @@ class _EmptyWarranties extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onCreate,
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('إصدار ضمان'),
+                  label: Text(L10n.current.msg92cb3a8b07d2),
                 ),
               ],
             ],

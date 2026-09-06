@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -67,18 +68,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('أرشفة المنتج؟'),
-        content: const Text(
-          'سيختفي المنتج من الكتالوج والمسح، وستبقى الضمانات السابقة محفوظة.',
-        ),
+        title: Text(L10n.current.msg9ed97dc7f3a4),
+        content: Text(L10n.current.msg1fc12cdc21c7),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('أرشفة المنتج'),
+            child: Text(L10n.current.msg10d4b0e1336c),
           ),
         ],
       ),
@@ -103,6 +102,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final colors = context.colors;
     final canManage = controller.membership!.role.canManageTeam;
@@ -115,7 +115,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ? FloatingActionButton.extended(
               onPressed: _addProduct,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('منتج جديد'),
+              label: Text(L10n.current.msg5f93d58f33e3),
             )
           : null,
       body: Align(
@@ -134,13 +134,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              'المنتجات',
+                              L10n.current.msgc8775206b252,
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                           ),
                           if (canManage)
                             IconButton(
-                              tooltip: 'استيراد منتجات CSV',
+                              tooltip: L10n.current.msg4b948f5006d1,
                               onPressed: _importProducts,
                               icon: const Icon(Icons.upload_file_outlined),
                             ),
@@ -148,7 +148,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '${controller.products.length} منتج • اضغط على أي منتج لتعديله',
+                        L10n.current.msgf82a12967eb6(
+                          controller.products.length,
+                        ),
                         style: TextStyle(
                           color: colors.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
@@ -161,10 +163,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         onChanged: (_) => setState(() {}),
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
-                          hintText: 'اسم المنتج أو الباركود…',
+                          hintText: L10n.current.msgd1198387ad69,
                           prefixIcon: const Icon(Icons.search_rounded),
                           suffixIcon: IconButton(
-                            tooltip: 'مسح باركود',
+                            tooltip: L10n.current.msgef037f26c21d,
                             onPressed: _scan,
                             icon: const Icon(Icons.qr_code_scanner_rounded),
                           ),
@@ -230,6 +232,7 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: InkWell(
@@ -283,7 +286,9 @@ class _ProductCard extends StatelessWidget {
                         ),
                         if (product.trackInventory)
                           Text(
-                            'المتوفر ${_numberText(available ?? 0)}',
+                            L10n.current.msg9d8f17d53ab6(
+                              _numberText(available ?? 0),
+                            ),
                             style: TextStyle(
                               color: (available ?? 0) <= product.reorderPoint
                                   ? colors.error
@@ -293,8 +298,10 @@ class _ProductCard extends StatelessWidget {
                           ),
                         Text(
                           product.warrantyMonths == 0
-                              ? 'بلا ضمان'
-                              : 'ضمان ${product.warrantyMonths} شهر',
+                              ? L10n.current.msg2086605a1a6e
+                              : L10n.current.msgb03d6bc93521(
+                                  product.warrantyMonths,
+                                ),
                           style: TextStyle(color: colors.onSurfaceVariant),
                         ),
                       ],
@@ -304,17 +311,17 @@ class _ProductCard extends StatelessWidget {
               ),
               if (onEdit != null && onArchive != null)
                 PopupMenuButton<_ProductAction>(
-                  tooltip: 'إدارة المنتج',
+                  tooltip: L10n.current.msga8f571f81f05,
                   onSelected: (action) => switch (action) {
                     _ProductAction.edit => onEdit!(),
                     _ProductAction.archive => onArchive!(),
                   },
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(
                       value: _ProductAction.edit,
                       child: ListTile(
                         leading: Icon(Icons.edit_outlined),
-                        title: Text('تعديل المنتج'),
+                        title: Text(L10n.current.msgf952513ba85f),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
@@ -322,7 +329,7 @@ class _ProductCard extends StatelessWidget {
                       value: _ProductAction.archive,
                       child: ListTile(
                         leading: Icon(Icons.archive_outlined),
-                        title: Text('أرشفة المنتج'),
+                        title: Text(L10n.current.msg10d4b0e1336c),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
@@ -355,6 +362,7 @@ class _EmptyProducts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -368,14 +376,16 @@ class _EmptyProducts extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              hasQuery ? 'لا يوجد منتج مطابق' : 'الكتالوج فارغ',
+              hasQuery
+                  ? L10n.current.msgc5ca157dad01
+                  : L10n.current.msg83998fd1b792,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 5),
             Text(
               hasQuery
-                  ? 'جرّب اسماً أو باركوداً آخر.'
-                  : 'أضف المنتجات التي تبيعها لتسريع إصدار الضمان.',
+                  ? L10n.current.msgceedff773256
+                  : L10n.current.msgdf4187af8e73,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.onSurfaceVariant),
             ),
@@ -384,7 +394,7 @@ class _EmptyProducts extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('إضافة أول منتج'),
+                label: Text(L10n.current.msgeb40ed688722),
               ),
             ],
           ],

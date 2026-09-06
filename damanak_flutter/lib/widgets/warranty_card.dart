@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -19,11 +20,15 @@ class WarrantyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final status = warranty.statusAt();
     final colors = context.colors;
     return Semantics(
       button: true,
-      label: 'ضمان ${warranty.productName} للعميل ${warranty.customerName}',
+      label: L10n.current.msgcb8b766ae349(
+        warranty.productName,
+        warranty.customerName,
+      ),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -84,7 +89,9 @@ class WarrantyCard extends StatelessWidget {
                           children: [
                             _Meta(
                               icon: Icons.event_available_outlined,
-                              text: 'حتى ${formatDate(warranty.expiryDate)}',
+                              text: L10n.current.msg97e6291e54eb(
+                                formatDate(warranty.expiryDate),
+                              ),
                             ),
                             _Meta(
                               icon: Icons.badge_outlined,
@@ -124,6 +131,7 @@ class _Meta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,

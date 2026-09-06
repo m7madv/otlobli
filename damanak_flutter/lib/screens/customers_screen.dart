@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -23,6 +24,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final query = _search.text;
     final customers = controller.customers
@@ -35,10 +37,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('دليل العملاء'),
+        title: Text(L10n.current.msg8f965fa8332e),
         actions: [
           IconButton(
-            tooltip: 'إضافة عميل',
+            tooltip: L10n.current.msgbf5ecb5e2537,
             onPressed: controller.busy ? null : () => _editCustomer(),
             icon: const Icon(Icons.person_add_alt_1_outlined),
           ),
@@ -62,12 +64,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           controller: _search,
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            labelText: 'ابحث بالاسم أو الجوال أو البريد',
+                            labelText: L10n.current.msg72cd9e69b93e,
                             prefixIcon: const Icon(Icons.search_rounded),
                             suffixIcon: query.isEmpty
                                 ? null
                                 : IconButton(
-                                    tooltip: 'مسح البحث',
+                                    tooltip: L10n.current.msg2e58b72edf70,
                                     onPressed: () {
                                       _search.clear();
                                       setState(() {});
@@ -81,7 +83,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'العملاء المسجلون',
+                                L10n.current.msg3b446588152c,
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                             ),
@@ -126,7 +128,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: controller.busy ? null : () => _editCustomer(),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('عميل جديد'),
+        label: Text(L10n.current.msg9f73e063ae8d),
       ),
     );
   }
@@ -160,6 +162,7 @@ class _CustomerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: ListTile(
@@ -168,7 +171,11 @@ class _CustomerTile extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: colors.primaryContainer,
           foregroundColor: colors.onPrimaryContainer,
-          child: Text(customer.name.trim().isEmpty ? '؟' : customer.name[0]),
+          child: Text(
+            customer.name.trim().isEmpty
+                ? L10n.current.msg7d06b69aad65
+                : customer.name[0],
+          ),
         ),
         title: Text(
           customer.name,
@@ -179,7 +186,7 @@ class _CustomerTile extends StatelessWidget {
           children: [
             const SizedBox(height: 3),
             Text(customer.phone, textDirection: TextDirection.ltr),
-            Text('$warrantyCount ضمان مسجل'),
+            Text(L10n.current.msgcda60f94083b(warrantyCount)),
           ],
         ),
         trailing: const Icon(Icons.edit_outlined),
@@ -224,8 +231,13 @@ class _CustomerEditorState extends State<_CustomerEditor> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return AlertDialog(
-      title: Text(widget.customer == null ? 'عميل جديد' : 'تعديل العميل'),
+      title: Text(
+        widget.customer == null
+            ? L10n.current.msg9f73e063ae8d
+            : L10n.current.msgd21f656a885f,
+      ),
       content: SizedBox(
         width: 460,
         child: Form(
@@ -237,9 +249,11 @@ class _CustomerEditorState extends State<_CustomerEditor> {
                 TextFormField(
                   controller: _name,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'اسم العميل'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg70771eb8320f,
+                  ),
                   validator: (value) => value == null || value.trim().length < 2
-                      ? 'أدخل اسم العميل'
+                      ? L10n.current.msg149beb2779d5
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -248,9 +262,11 @@ class _CustomerEditorState extends State<_CustomerEditor> {
                   keyboardType: TextInputType.phone,
                   textDirection: TextDirection.ltr,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'رقم الجوال'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg6dbe8474b01b,
+                  ),
                   validator: (value) => (value?.trim().length ?? 0) < 7
-                      ? 'أدخل رقم جوال صحيحاً'
+                      ? L10n.current.msg1635df2532a1
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -259,8 +275,8 @@ class _CustomerEditorState extends State<_CustomerEditor> {
                   keyboardType: TextInputType.emailAddress,
                   textDirection: TextDirection.ltr,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'البريد الإلكتروني (اختياري)',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg58d4f0f4cb39,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -268,8 +284,8 @@ class _CustomerEditorState extends State<_CustomerEditor> {
                   controller: _notes,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظات (اختياري)',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg651b7866185a,
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -281,7 +297,7 @@ class _CustomerEditorState extends State<_CustomerEditor> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('إلغاء'),
+          child: Text(L10n.current.msg9a30dc2a96b8),
         ),
         FilledButton(
           onPressed: () {
@@ -296,7 +312,7 @@ class _CustomerEditorState extends State<_CustomerEditor> {
               ),
             );
           },
-          child: const Text('حفظ العميل'),
+          child: Text(L10n.current.msgc68629028b85),
         ),
       ],
     );
@@ -324,6 +340,7 @@ class _EmptyCustomers extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -332,12 +349,12 @@ class _EmptyCustomers extends StatelessWidget {
           children: [
             Icon(Icons.people_outline_rounded, color: colors.onSurfaceVariant),
             const SizedBox(height: 10),
-            const Text('لا يوجد عميل مطابق.'),
+            Text(L10n.current.msg6df30df80b8a),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: onCreate,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('إضافة عميل'),
+              label: Text(L10n.current.msgbf5ecb5e2537),
             ),
           ],
         ),

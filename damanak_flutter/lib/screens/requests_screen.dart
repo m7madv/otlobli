@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -43,6 +44,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final requests = controller.requests;
     final visible = requests.where((request) {
@@ -79,12 +81,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'مركز المطالبات',
+                      L10n.current.msg081f4ef7ed4f,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'راجع الطلب، عيّن المسؤول، واتخذ القرار حتى تسليم المنتج.',
+                      L10n.current.msg25831c564495,
                       style: TextStyle(
                         color: context.colors.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
@@ -110,14 +112,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       onChanged: (_) => setState(() {}),
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
-                        labelText: 'ابحث في المطالبات',
-                        hintText:
-                            'رقم المطالبة، المنتج، العميل أو الرقم التسلسلي',
+                        labelText: L10n.current.msg4f3a5a119750,
+                        hintText: L10n.current.msgec3418a47ed0,
                         prefixIcon: const Icon(Icons.search_rounded),
                         suffixIcon: _searchController.text.isEmpty
                             ? null
                             : IconButton(
-                                tooltip: 'مسح البحث',
+                                tooltip: L10n.current.msg2e58b72edf70,
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() {});
@@ -131,7 +132,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            '${visible.length} مطالبة',
+                            L10n.current.msgc88d23dcd675(visible.length),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -139,7 +140,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           TextButton(
                             onPressed: () =>
                                 setState(() => _filter = _ClaimFilter.all),
-                            child: const Text('عرض الكل'),
+                            child: Text(L10n.current.msgcc52200ebc71),
                           ),
                       ],
                     ),
@@ -232,26 +233,27 @@ class _ScopeSelector extends StatelessWidget {
   final _ClaimScope value;
   final ValueChanged<_ClaimScope> onChanged;
 
-  static const _segments = [
+  static List<ButtonSegment<_ClaimScope>> get _segments => [
     ButtonSegment(
       value: _ClaimScope.team,
       icon: Icon(Icons.groups_outlined),
-      label: Text('كل الفريق'),
+      label: Text(L10n.knownLabel('كل الفريق')),
     ),
     ButtonSegment(
       value: _ClaimScope.mine,
       icon: Icon(Icons.person_outline_rounded),
-      label: Text('عملي'),
+      label: Text(L10n.knownLabel('عملي')),
     ),
     ButtonSegment(
       value: _ClaimScope.unassigned,
       icon: Icon(Icons.person_off_outlined),
-      label: Text('غير معيّن'),
+      label: Text(L10n.knownLabel('غير معيّن')),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final textScaler = MediaQuery.textScalerOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -260,8 +262,8 @@ class _ScopeSelector extends StatelessWidget {
             key: ValueKey(value),
             initialValue: value,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'نطاق العمل',
+            decoration: InputDecoration(
+              labelText: L10n.current.msg247e564e696f,
               prefixIcon: Icon(Icons.filter_alt_outlined),
             ),
             items: _ClaimScope.values
@@ -288,9 +290,9 @@ class _ScopeSelector extends StatelessWidget {
 
 extension on _ClaimScope {
   String get label => switch (this) {
-    _ClaimScope.team => 'كل الفريق',
-    _ClaimScope.mine => 'عملي',
-    _ClaimScope.unassigned => 'غير معيّن',
+    _ClaimScope.team => L10n.current.msg28e2637a22f8,
+    _ClaimScope.mine => L10n.current.msgad4bb1745fef,
+    _ClaimScope.unassigned => L10n.current.msg3eed0035cf5d,
   };
 }
 
@@ -313,6 +315,7 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = (constraints.maxWidth - 10) / 2;
@@ -322,7 +325,7 @@ class _SummaryGrid extends StatelessWidget {
           children: [
             _SummaryCard(
               width: width,
-              label: 'مفتوحة',
+              label: L10n.current.msg7c0267827a67,
               value: open,
               icon: Icons.inbox_outlined,
               selected: selected == _ClaimFilter.open,
@@ -330,7 +333,7 @@ class _SummaryGrid extends StatelessWidget {
             ),
             _SummaryCard(
               width: width,
-              label: 'تحتاج إجراء',
+              label: L10n.current.msg1c3a81f7a25c,
               value: needsAction,
               icon: Icons.bolt_outlined,
               selected: selected == _ClaimFilter.needsAction,
@@ -338,7 +341,7 @@ class _SummaryGrid extends StatelessWidget {
             ),
             _SummaryCard(
               width: width,
-              label: 'متأخرة',
+              label: L10n.current.msg05fa56b7d10b,
               value: overdue,
               icon: Icons.warning_amber_rounded,
               selected: selected == _ClaimFilter.overdue,
@@ -347,7 +350,7 @@ class _SummaryGrid extends StatelessWidget {
             ),
             _SummaryCard(
               width: width,
-              label: 'مغلقة',
+              label: L10n.current.msgca7e1dec1654,
               value: closed,
               icon: Icons.task_alt_rounded,
               selected: selected == _ClaimFilter.closed,
@@ -381,6 +384,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final foreground = isWarning ? colors.error : colors.onSurface;
     final background = isWarning
@@ -391,7 +395,7 @@ class _SummaryCard extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: '$label، $value',
+      label: L10n.current.msg4dfbe865820e(label, value),
       child: SizedBox(
         width: width,
         child: Material(
@@ -407,25 +411,35 @@ class _SummaryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             child: Padding(
               padding: const EdgeInsets.all(15),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, color: isWarning ? colors.error : colors.primary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: foreground,
-                        fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Icon(
+                        icon,
+                        color: isWarning ? colors.error : colors.primary,
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '$value',
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
                   Text(
-                    '$value',
+                    label,
                     style: TextStyle(
                       color: foreground,
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -453,6 +467,7 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: InkWell(
@@ -517,7 +532,7 @@ class _RequestCard extends StatelessWidget {
                   ),
                   _CardMeta(
                     icon: Icons.person_outline_rounded,
-                    label: assigneeName ?? 'غير معيّن',
+                    label: assigneeName ?? L10n.current.msg3eed0035cf5d,
                   ),
                   _CardMeta(
                     icon: Icons.calendar_today_outlined,
@@ -527,7 +542,7 @@ class _RequestCard extends StatelessWidget {
                   if (request.isOverdue)
                     _CardMeta(
                       icon: Icons.warning_amber_rounded,
-                      label: 'متأخرة',
+                      label: L10n.current.msg05fa56b7d10b,
                       color: colors.error,
                     ),
                 ],
@@ -555,6 +570,7 @@ class _CardMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final foreground = color ?? context.colors.onSurfaceVariant;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -576,6 +592,7 @@ class _EmptyRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -598,12 +615,12 @@ class _EmptyRequests extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'لا توجد مطالبات ضمان',
+                L10n.current.msg59d8e21cd1c0,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 6),
               Text(
-                'تُسجل المطالبة من بطاقة الضمان، وستظهر هنا للمتابعة والتعيين.',
+                L10n.current.msgc30a30f991ed,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
@@ -622,6 +639,7 @@ class _NoResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -630,13 +648,13 @@ class _NoResults extends StatelessWidget {
             const Icon(Icons.search_off_rounded, size: 34),
             const SizedBox(height: 10),
             Text(
-              'لا توجد مطالبة تطابق البحث',
+              L10n.current.msg7bd179b36d19,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: onReset,
-              child: const Text('عرض كل المطالبات'),
+              child: Text(L10n.current.msg4df7f86c6928),
             ),
           ],
         ),

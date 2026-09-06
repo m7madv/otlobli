@@ -1740,7 +1740,7 @@ class DemoDamanakRepository implements DamanakRepository {
   }) async {
     return StoreInvite(
       code:
-          'DMN-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+          'DMN-${_uuid.v4().replaceAll('-', '').substring(0, 10).toUpperCase()}',
       role: role,
       expiresAt: DateTime.now().add(const Duration(days: 2)),
       maxUses: maxUses,

@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -28,10 +29,11 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final preview = _preview;
     final validCount = preview?.validRows.length ?? 0;
     return Scaffold(
-      appBar: AppBar(title: const Text('استيراد المنتجات')),
+      appBar: AppBar(title: Text(L10n.current.msg7da25370ad4d)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -44,12 +46,12 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'أضف الكتالوج دفعة واحدة',
+                      L10n.current.msgc7132683d675,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'اختر ملف CSV، راجع الأخطاء، ثم احفظ الصفوف السليمة فقط. لن نحذف أو نعدّل منتجاتك الحالية.',
+                      L10n.current.msg2ff93e9e5a5a,
                       style: TextStyle(color: context.colors.onSurfaceVariant),
                     ),
                     const SizedBox(height: 16),
@@ -68,25 +70,25 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                                   icon: const Icon(Icons.upload_file_outlined),
                                   label: Text(
                                     preview == null
-                                        ? 'اختيار ملف CSV'
-                                        : 'اختيار ملف آخر',
+                                        ? L10n.current.msg22282be709e3
+                                        : L10n.current.msg4f00cfb1a90e,
                                   ),
                                 ),
                                 FilledButton.tonalIcon(
                                   onPressed: _loading ? null : _pickAiDocument,
                                   icon: const Icon(Icons.auto_awesome_outlined),
-                                  label: const Text('تحليل PDF أو صورة'),
+                                  label: Text(L10n.current.msgd0be8058de1b),
                                 ),
                                 OutlinedButton.icon(
                                   onPressed: _shareTemplate,
                                   icon: const Icon(Icons.download_outlined),
-                                  label: const Text('قالب جاهز'),
+                                  label: Text(L10n.current.msg88935eec0c25),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              'استخدم التحليل للكتالوجات غير الشخصية فقط. لا ترفع فواتير تحتوي أسماء عملاء أو أرقام هواتف؛ ستراجع كل بند قبل حفظه.',
+                              L10n.current.msgdab883505768,
                               style: TextStyle(
                                 color: context.colors.onSurfaceVariant,
                                 fontSize: 12,
@@ -130,7 +132,7 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'المعاينة',
+                        L10n.current.msg0a40c58ac7c3,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
@@ -142,7 +144,7 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Text(
-                            'تم عرض أول 50 صفاً. سيُفحص الملف كاملاً عند الاستيراد.',
+                            L10n.current.msg6c25eb2e88bd,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: context.colors.onSurfaceVariant,
@@ -165,14 +167,14 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
                             : const Icon(Icons.inventory_2_outlined),
                         label: Text(
                           _loading
-                              ? 'جارٍ الاستيراد…'
-                              : 'استيراد $validCount منتج',
+                              ? L10n.current.msg2116a0b32a96
+                              : L10n.current.msg961c99a8347a(validCount),
                         ),
                       ),
                       if (_imported + _failed > 0) ...[
                         const SizedBox(height: 10),
                         Text(
-                          'تمت إضافة $_imported، وتعذر $_failed.',
+                          L10n.current.msg40b95a7c5c2c(_imported, _failed),
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
@@ -219,9 +221,7 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
       if (mounted) setState(() => _error = _friendlyCsvError(error.message));
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error = 'تعذر قراءة الملف. اختر ملف CSV محفوظاً بترميز UTF-8.',
-        );
+        setState(() => _error = L10n.current.msgafb4d430799e);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -272,12 +272,12 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
         final errors = <String>[];
         final barcode = item.barcode.trim().toUpperCase();
         if (item.confidence < 0.55) {
-          errors.add('الثقة منخفضة؛ راجع هذا البند وأضفه يدوياً');
+          errors.add(L10n.current.msgfcd45e8640a7);
         }
         if (barcode.isNotEmpty && existing.contains(barcode)) {
-          errors.add('الباركود موجود في الكتالوج');
+          errors.add(L10n.current.msg05ffcc50bae0);
         } else if (barcode.isNotEmpty && !seen.add(barcode)) {
-          errors.add('الباركود مكرر في المستند');
+          errors.add(L10n.current.msgddd221288b42);
         }
         rows.add(
           ProductImportRow(
@@ -315,10 +315,7 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _error =
-              'تعذر تحليل المستند الآن. حاول بصورة أوضح أو استخدم CSV.',
-        );
+        setState(() => _error = L10n.current.msgdbd7edea4ea9);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -358,14 +355,12 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('تمت إضافة $_imported منتج إلى الكتالوج.')),
+      SnackBar(content: Text(L10n.current.msge7ff83434b7d(_imported))),
     );
   }
 
   Future<void> _shareTemplate() async {
-    const template =
-        '\ufeffاسم المنتج,الشركة,الفئة,الباركود,رمز المخزون,مدة الضمان,سعر البيع,سعر التكلفة,تسلسلي\r\n'
-        'هاتف تجريبي,الشركة,هواتف,1234567890123,PHONE-01,12,1000,800,نعم\r\n';
+    final template = L10n.current.msg718514128473;
     final bytes = Uint8List.fromList(utf8.encode(template));
     final file = XFile.fromData(
       bytes,
@@ -377,7 +372,7 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
       ShareParams(
         files: [file],
         fileNameOverrides: [file.name],
-        subject: 'قالب استيراد منتجات ضمانك',
+        subject: L10n.current.msgf3c60f9cbf5d,
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
@@ -386,41 +381,40 @@ class _ProductImportScreenState extends State<ProductImportScreen> {
   }
 
   String _friendlyCsvError(String code) => switch (code) {
-    'CSV_FILE_TOO_LARGE' => 'حجم الملف أكبر من 2 MB.',
-    'CSV_TOO_MANY_ROWS' => 'الملف أكبر من 500 منتج. قسّمه إلى ملفين.',
-    'CSV_EMPTY' || 'CSV_NO_DATA_ROWS' => 'الملف لا يحتوي على منتجات.',
-    'CSV_NAME_HEADER_REQUIRED' =>
-      'أضف عمود «اسم المنتج» أو استخدم القالب الجاهز.',
-    _ => 'تعذر فهم الملف. استخدم القالب الجاهز ثم حاول مجدداً.',
+    'CSV_FILE_TOO_LARGE' => L10n.current.msg7236f4dda039,
+    'CSV_TOO_MANY_ROWS' => L10n.current.msg2e9dd57261c9,
+    'CSV_EMPTY' || 'CSV_NO_DATA_ROWS' => L10n.current.msg62bc11b3b73c,
+    'CSV_NAME_HEADER_REQUIRED' => L10n.current.msg1a5d40ae08ae,
+    _ => L10n.current.msgc64f37dc61c0,
   };
 
   String _friendlyAiError(String code) {
     final normalized = code.toUpperCase();
     if (normalized.contains('AI_FILE_TOO_LARGE')) {
-      return 'حجم المستند أكبر من 8 MB.';
+      return L10n.current.msg99211b25b807;
     }
     if (normalized.contains('AI_IMPORT_DAILY_SAFETY_LIMIT')) {
-      return 'وصل المتجر إلى حد 25 تحليلاً اليوم. أكمل غداً أو استخدم CSV.';
+      return L10n.current.msg42a260cf8095;
     }
     if (normalized.contains('AI_IMPORT_MONTHLY_LIMIT')) {
-      return 'استهلك المتجر تحليلات الذكاء الاصطناعي المشمولة هذا الشهر. استخدم CSV أو انتظر بداية الشهر التالي.';
+      return L10n.current.msgad749680dd69;
     }
     if (normalized.contains('AI_IMPORT_DAILY_SAFETY_LIMIT')) {
-      return 'تم إيقاف التحليل مؤقتاً لحماية الحساب من الاستخدام غير المعتاد. حاول غداً أو استخدم CSV.';
+      return L10n.current.msg72f71bb6d71f;
     }
     if (normalized.contains('AI_IMPORT_NOT_INCLUDED')) {
-      return 'تحليل الملفات غير مشمول في الخطة الحالية. ما زال استيراد CSV متاحاً.';
+      return L10n.current.msgf9cecf4ef620;
     }
     if (normalized.contains('AI_PROVIDER_NOT_CONFIGURED')) {
-      return 'خدمة الذكاء الاصطناعي غير مهيأة على الخادم بعد.';
+      return L10n.current.msg1b71cdc2146e;
     }
     if (normalized.contains('AI_NO_PRODUCTS')) {
-      return 'لم نعثر على بنود منتجات واضحة في المستند.';
+      return L10n.current.msg6bd24b889ef4;
     }
     if (normalized.contains('MANAGER_REQUIRED')) {
-      return 'تحليل المستندات متاح للمالك أو المدير فقط.';
+      return L10n.current.msg879aa43acd89;
     }
-    return 'تعذر تحليل المستند. استخدم صورة أو PDF واضحاً ثم حاول مجدداً.';
+    return L10n.current.msg3d7a16d199ea;
   }
 
   String? _mimeType(String? extension) => switch (extension?.toLowerCase()) {
@@ -439,17 +433,18 @@ class _AiUsageNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final cost = usage.estimatedCostUsd;
     final quota = usage.monthlyLimit > 0
-        ? ' • ${usage.monthlyUsed}/${usage.monthlyLimit} هذا الشهر'
+        ? L10n.current.msg08d7e5b813b5(usage.monthlyUsed, usage.monthlyLimit)
         : '';
     final provider = usage.providerLabel;
-    final fallback = usage.fallbackUsed ? ' بعد التحويل التلقائي' : '';
+    final fallback = usage.fallbackUsed ? L10n.current.msg34a42928114a : '';
     final costText = usage.isFreeProvider
-        ? 'دون تكلفة مزود حالياً'
+        ? L10n.current.msg484a070a0d97
         : cost == null
-        ? 'التكلفة غير متاحة'
-        : 'تكلفة تقريبية \$${cost.toStringAsFixed(4)}';
+        ? L10n.current.msgba3ff8cf94fb
+        : L10n.current.msg16fa83c9c867(cost.toStringAsFixed(4));
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -463,7 +458,7 @@ class _AiUsageNote extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              'اقتراح من $provider$fallback — $costText$quota. راجع كل بند قبل الحفظ.',
+              L10n.current.msg3dad50574322(provider, fallback, costText, quota),
               style: TextStyle(
                 color: context.colors.onPrimaryContainer,
                 fontWeight: FontWeight.w600,
@@ -489,6 +484,7 @@ class _ImportSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -497,18 +493,18 @@ class _ImportSummary extends StatelessWidget {
           runSpacing: 8,
           children: [
             Text(
-              '$total صف',
+              L10n.current.msg1031703cb9b9(total),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             Text(
-              '$valid جاهز',
+              L10n.current.msg6a210a2d210e(valid),
               style: TextStyle(
                 color: context.colors.primary,
                 fontWeight: FontWeight.w700,
               ),
             ),
             Text(
-              '$invalid يحتاج مراجعة',
+              L10n.current.msgbf6ab67c7f6a(invalid),
               style: TextStyle(
                 color: invalid == 0
                     ? context.colors.onSurfaceVariant
@@ -530,6 +526,7 @@ class _ImportRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       color: row.isValid ? colors.surface : colors.errorContainer,
@@ -548,7 +545,9 @@ class _ImportRowCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    row.name.isEmpty ? 'صف ${row.rowNumber}' : row.name,
+                    row.name.isEmpty
+                        ? L10n.current.msgfc7eba5345b4(row.rowNumber)
+                        : row.name,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 3),
@@ -556,18 +555,21 @@ class _ImportRowCard extends StatelessWidget {
                     [
                       if (row.brand.isNotEmpty) row.brand,
                       if (row.barcode.isNotEmpty) row.barcode,
-                      '${row.warrantyMonths} شهر',
-                      if (row.quantity > 1) 'الكمية ${row.quantity}',
+                      L10n.current.msgb2f6a21fe6bd(row.warrantyMonths),
+                      if (row.quantity > 1)
+                        L10n.current.msg894d7bfa79b9(row.quantity),
                       if (row.confidence != null)
-                        'ثقة ${(row.confidence! * 100).round()}%',
+                        L10n.current.msg5e7f0a12ab07(
+                          (row.confidence! * 100).round(),
+                        ),
                     ].join(' • '),
-                    textDirection: TextDirection.rtl,
+                    textDirection: Directionality.of(context),
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   if (row.sourceText.isNotEmpty) ...[
                     const SizedBox(height: 5),
                     Text(
-                      'من المستند: ${row.sourceText}',
+                      L10n.current.msgc35f42fce649(row.sourceText),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -579,7 +581,7 @@ class _ImportRowCard extends StatelessWidget {
                   if (row.errors.isNotEmpty) ...[
                     const SizedBox(height: 7),
                     Text(
-                      row.errors.join('، '),
+                      row.errors.join(L10n.current.msg11735aabd336),
                       style: TextStyle(
                         color: colors.onErrorContainer,
                         fontWeight: FontWeight.w600,

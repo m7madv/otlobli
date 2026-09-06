@@ -1,0 +1,1613 @@
+[
+  {
+    "id": "msge3c015738ac5",
+    "text": "الريال السعودي",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 455,
+    "length": 16,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الريال السعودي'"
+  },
+  {
+    "id": "msgfeafe34f5add",
+    "text": "ر.س",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 485,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'ر.س'"
+  },
+  {
+    "id": "msgfa13090f419f",
+    "text": "الدرهم الإماراتي",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 562,
+    "length": 18,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الدرهم الإماراتي'"
+  },
+  {
+    "id": "msgf0250dc87517",
+    "text": "د.إ",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 594,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'د.إ'"
+  },
+  {
+    "id": "msg1a813e54e35c",
+    "text": "الدينار الكويتي",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 671,
+    "length": 17,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الدينار الكويتي'"
+  },
+  {
+    "id": "msg0ba7425c4cd1",
+    "text": "د.ك",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 702,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'د.ك'"
+  },
+  {
+    "id": "msg803b65775220",
+    "text": "الريال القطري",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 779,
+    "length": 15,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الريال القطري'"
+  },
+  {
+    "id": "msg0db1d6d43800",
+    "text": "ر.ق",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 808,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'ر.ق'"
+  },
+  {
+    "id": "msg18713c7eb0c4",
+    "text": "الدينار البحريني",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 885,
+    "length": 18,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الدينار البحريني'"
+  },
+  {
+    "id": "msg05b09ee451bb",
+    "text": "د.ب",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 917,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'د.ب'"
+  },
+  {
+    "id": "msg43e9e1f7954f",
+    "text": "الريال العُماني",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 994,
+    "length": 17,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الريال العُماني'"
+  },
+  {
+    "id": "msgd510cc034489",
+    "text": "ر.ع",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 1025,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'ر.ع'"
+  },
+  {
+    "id": "msgb3a007a34c09",
+    "text": "الدولار الأمريكي",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 1102,
+    "length": 18,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الدولار الأمريكي'"
+  },
+  {
+    "id": "msga54c3973b1bf",
+    "text": "الليرة السورية",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 1210,
+    "length": 16,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name: 'الليرة السورية'"
+  },
+  {
+    "id": "msgf00ff40fed12",
+    "text": "ل.س",
+    "arguments": [],
+    "file": "../../lib/core/currency.dart",
+    "offset": 1240,
+    "length": 5,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "symbol: 'ل.س'"
+  },
+  {
+    "id": "msge7139553cc0c",
+    "text": "بطاقة ضمان موثّقة",
+    "arguments": [],
+    "file": "../../lib/models/account.dart",
+    "offset": 1651,
+    "length": 19,
+    "parents": [
+      "DefaultFormalParameterImpl",
+      "FormalParameterListImpl",
+      "ConstructorDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "this.customerPortalTitle = 'بطاقة ضمان موثّقة'"
+  },
+  {
+    "id": "msge7139553cc0c",
+    "text": "بطاقة ضمان موثّقة",
+    "arguments": [],
+    "file": "../../lib/models/account.dart",
+    "offset": 3245,
+    "length": 19,
+    "parents": [
+      "BinaryExpressionImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl",
+      "ConstructorDeclarationImpl"
+    ],
+    "source": "json['customer_portal_title'] as String? ?? 'بطاقة ضمان موثّقة'"
+  },
+  {
+    "id": "msg05c6541036fe",
+    "text": "مستخدم ضمانك",
+    "arguments": [],
+    "file": "../../lib/models/account.dart",
+    "offset": 4681,
+    "length": 14,
+    "parents": [
+      "BinaryExpressionImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl",
+      "ConstructorDeclarationImpl"
+    ],
+    "source": "json['full_name'] as String? ?? profile['full_name'] as String? ?? 'مستخدم ضمانك'"
+  },
+  {
+    "id": "msg0a3db79bc10d",
+    "text": "عميل نقدي",
+    "arguments": [],
+    "file": "../../lib/models/sale.dart",
+    "offset": 4745,
+    "length": 11,
+    "parents": [
+      "BinaryExpressionImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ExpressionFunctionBodyImpl",
+      "ConstructorDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "json['customer_name'] as String? ?? 'عميل نقدي'"
+  },
+  {
+    "id": "msg2a01836e5452",
+    "text": "متجر ضمانك",
+    "arguments": [],
+    "file": "../../lib/models/store_profile.dart",
+    "offset": 402,
+    "length": 12,
+    "parents": [
+      "ConstructorFieldInitializerImpl",
+      "ConstructorDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "name = 'متجر ضمانك'"
+  },
+  {
+    "id": "msg2a01836e5452",
+    "text": "متجر ضمانك",
+    "arguments": [],
+    "file": "../../lib/models/store_profile.dart",
+    "offset": 1453,
+    "length": 12,
+    "parents": [
+      "BinaryExpressionImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl",
+      "ConstructorDeclarationImpl"
+    ],
+    "source": "json['name'] as String? ?? 'متجر ضمانك'"
+  },
+  {
+    "id": "msg216cd1992604",
+    "text": "للمتجر الفردي الذي يبدأ إصدار ضماناته",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 706,
+    "length": 39,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "audience: 'للمتجر الفردي الذي يبدأ إصدار ضماناته'"
+  },
+  {
+    "id": "msg016538bc395c",
+    "text": "فرع واحد",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 764,
+    "length": 10,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "branchLabel: 'فرع واحد'"
+  },
+  {
+    "id": "msgea4ca83a8b30",
+    "text": "20 ضماناً تتجدد تلقائياً كل شهر",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 824,
+    "length": 33,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['20 ضماناً تتجدد تلقائياً كل شهر', 'بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msg443c5d6c51fb",
+    "text": "بطاقة ضمان رقمية برمز QR",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 865,
+    "length": 26,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['20 ضماناً تتجدد تلقائياً كل شهر', 'بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msge567a6c6442f",
+    "text": "رابط مشاركة آمن للضمان",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 899,
+    "length": 24,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['20 ضماناً تتجدد تلقائياً كل شهر', 'بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msg6a868640b0ca",
+    "text": "مطالبات وصور ومستندات العميل",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 931,
+    "length": 30,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['20 ضماناً تتجدد تلقائياً كل شهر', 'بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msga575ff3d0457",
+    "text": "للمتجر الذي يبدأ تنظيم ضماناته رقمياً",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1033,
+    "length": 39,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "audience: 'للمتجر الذي يبدأ تنظيم ضماناته رقمياً'"
+  },
+  {
+    "id": "msg1e853ae9c9d4",
+    "text": "مناسب لفرع واحد",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1091,
+    "length": 17,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "branchLabel: 'مناسب لفرع واحد'"
+  },
+  {
+    "id": "msg443c5d6c51fb",
+    "text": "بطاقة ضمان رقمية برمز QR",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1158,
+    "length": 26,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'سجل ضمانات قابل للبحث', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msge567a6c6442f",
+    "text": "رابط مشاركة آمن للضمان",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1192,
+    "length": 24,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'سجل ضمانات قابل للبحث', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msge2544e97c701",
+    "text": "سجل ضمانات قابل للبحث",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1224,
+    "length": 23,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'سجل ضمانات قابل للبحث', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msg6a868640b0ca",
+    "text": "مطالبات وصور ومستندات العميل",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1255,
+    "length": 30,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['بطاقة ضمان رقمية برمز QR', 'رابط مشاركة آمن للضمان', 'سجل ضمانات قابل للبحث', 'مطالبات وصور ومستندات العميل']"
+  },
+  {
+    "id": "msgcd34ade6e924",
+    "text": "لفريق يدير الضمانات والمتابعة يومياً",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1356,
+    "length": 38,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "audience: 'لفريق يدير الضمانات والمتابعة يومياً'"
+  },
+  {
+    "id": "msg1c35fbf3c4d5",
+    "text": "مناسب حتى 3 فروع",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1413,
+    "length": 18,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "branchLabel: 'مناسب حتى 3 فروع'"
+  },
+  {
+    "id": "msg005df5421b44",
+    "text": "كل مزايا بداية",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1481,
+    "length": 16,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا بداية', 'فريق بأدوار مستقلة', 'الفروع والمخزون ونقطة البيع', 'تقارير وتصدير CSV', 'هوية المتجر والفروع']"
+  },
+  {
+    "id": "msg66a8ed147065",
+    "text": "فريق بأدوار مستقلة",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1505,
+    "length": 20,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا بداية', 'فريق بأدوار مستقلة', 'الفروع والمخزون ونقطة البيع', 'تقارير وتصدير CSV', 'هوية المتجر والفروع']"
+  },
+  {
+    "id": "msg45389c7a942d",
+    "text": "الفروع والمخزون ونقطة البيع",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1533,
+    "length": 29,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا بداية', 'فريق بأدوار مستقلة', 'الفروع والمخزون ونقطة البيع', 'تقارير وتصدير CSV', 'هوية المتجر والفروع']"
+  },
+  {
+    "id": "msg3a5897f98bdb",
+    "text": "تقارير وتصدير CSV",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1570,
+    "length": 19,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا بداية', 'فريق بأدوار مستقلة', 'الفروع والمخزون ونقطة البيع', 'تقارير وتصدير CSV', 'هوية المتجر والفروع']"
+  },
+  {
+    "id": "msga99ca9824c85",
+    "text": "هوية المتجر والفروع",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1597,
+    "length": 21,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا بداية', 'فريق بأدوار مستقلة', 'الفروع والمخزون ونقطة البيع', 'تقارير وتصدير CSV', 'هوية المتجر والفروع']"
+  },
+  {
+    "id": "msg98cc994f7a96",
+    "text": "لسلاسل الفروع والعمليات ذات الحجم الكبير",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1711,
+    "length": 42,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "audience: 'لسلاسل الفروع والعمليات ذات الحجم الكبير'"
+  },
+  {
+    "id": "msg934f32075c93",
+    "text": "حتى 20 فرعاً",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1772,
+    "length": 14,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "branchLabel: 'حتى 20 فرعاً'"
+  },
+  {
+    "id": "msg26aef5ada297",
+    "text": "كل مزايا نمو",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1837,
+    "length": 14,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا نمو', 'API بصلاحيات قابلة للتحديد', 'Webhooks موقعة للمطالبات', 'حصص أعلى للضمانات والتحليل', 'سجل نشاط للمالك والمدير']"
+  },
+  {
+    "id": "msg6a9af3451785",
+    "text": "API بصلاحيات قابلة للتحديد",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1859,
+    "length": 28,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا نمو', 'API بصلاحيات قابلة للتحديد', 'Webhooks موقعة للمطالبات', 'حصص أعلى للضمانات والتحليل', 'سجل نشاط للمالك والمدير']"
+  },
+  {
+    "id": "msg6263ca388edc",
+    "text": "Webhooks موقعة للمطالبات",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1895,
+    "length": 26,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا نمو', 'API بصلاحيات قابلة للتحديد', 'Webhooks موقعة للمطالبات', 'حصص أعلى للضمانات والتحليل', 'سجل نشاط للمالك والمدير']"
+  },
+  {
+    "id": "msg01b718eb26f8",
+    "text": "حصص أعلى للضمانات والتحليل",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1929,
+    "length": 28,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا نمو', 'API بصلاحيات قابلة للتحديد', 'Webhooks موقعة للمطالبات', 'حصص أعلى للضمانات والتحليل', 'سجل نشاط للمالك والمدير']"
+  },
+  {
+    "id": "msg084e5909cb0d",
+    "text": "سجل نشاط للمالك والمدير",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 1965,
+    "length": 25,
+    "parents": [
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl"
+    ],
+    "source": "['كل مزايا نمو', 'API بصلاحيات قابلة للتحديد', 'Webhooks موقعة للمطالبات', 'حصص أعلى للضمانات والتحليل', 'سجل نشاط للمالك والمدير']"
+  },
+  {
+    "id": "msge38ddb73a959",
+    "text": "خطة مخصصة لاحتياج المتجر",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 2063,
+    "length": 26,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "audience: 'خطة مخصصة لاحتياج المتجر'"
+  },
+  {
+    "id": "msgf93d9d66716e",
+    "text": "الفروع بحسب الخطة",
+    "arguments": [],
+    "file": "../../lib/models/subscription.dart",
+    "offset": 2108,
+    "length": 19,
+    "parents": [
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl"
+    ],
+    "source": "branchLabel: 'الفروع بحسب الخطة'"
+  },
+  {
+    "id": "msg0bdd40a9e689",
+    "text": " • متسلسل",
+    "arguments": [],
+    "file": "../../lib/screens/inventory_screen.dart",
+    "offset": 11022,
+    "length": 11,
+    "parents": [
+      "ConditionalExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl"
+    ],
+    "source": "product.isSerialized ? ' • متسلسل' : ''"
+  },
+  {
+    "id": "msg9b286307f684",
+    "text": "مورد",
+    "arguments": [],
+    "file": "../../lib/screens/procurement_screen.dart",
+    "offset": 7865,
+    "length": 6,
+    "parents": [
+      "BinaryExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl"
+    ],
+    "source": "supplier?.name ?? 'مورد'"
+  },
+  {
+    "id": "msg46ea59915eec",
+    "text": "مفتوح",
+    "arguments": [],
+    "file": "../../lib/screens/register_screen.dart",
+    "offset": 3736,
+    "length": 7,
+    "parents": [
+      "ConditionalExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl"
+    ],
+    "source": "open ? 'مفتوح' : 'مغلق'"
+  },
+  {
+    "id": "msge655261f9c96",
+    "text": "مغلق",
+    "arguments": [],
+    "file": "../../lib/screens/register_screen.dart",
+    "offset": 3746,
+    "length": 6,
+    "parents": [
+      "ConditionalExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl"
+    ],
+    "source": "open ? 'مفتوح' : 'مغلق'"
+  },
+  {
+    "id": "msg28e2637a22f8",
+    "text": "كل الفريق",
+    "arguments": [],
+    "file": "../../lib/screens/requests_screen.dart",
+    "offset": 9150,
+    "length": 11,
+    "parents": [
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl"
+    ],
+    "source": "('كل الفريق')"
+  },
+  {
+    "id": "msgad4bb1745fef",
+    "text": "عملي",
+    "arguments": [],
+    "file": "../../lib/screens/requests_screen.dart",
+    "offset": 9287,
+    "length": 6,
+    "parents": [
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl"
+    ],
+    "source": "('عملي')"
+  },
+  {
+    "id": "msg3eed0035cf5d",
+    "text": "غير معيّن",
+    "arguments": [],
+    "file": "../../lib/screens/requests_screen.dart",
+    "offset": 9422,
+    "length": 11,
+    "parents": [
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "ListLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl"
+    ],
+    "source": "('غير معيّن')"
+  },
+  {
+    "id": "msg1f95822cfb7d",
+    "text": "السعودية",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19774,
+    "length": 10,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'SA' : 'السعودية'"
+  },
+  {
+    "id": "msgdd3c0e93e763",
+    "text": "الإمارات",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19794,
+    "length": 10,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'AE' : 'الإمارات'"
+  },
+  {
+    "id": "msg3c35f06de352",
+    "text": "الكويت",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19814,
+    "length": 8,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'KW' : 'الكويت'"
+  },
+  {
+    "id": "msg8305ce4b9abd",
+    "text": "قطر",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19832,
+    "length": 5,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'QA' : 'قطر'"
+  },
+  {
+    "id": "msg5cd57d0c88af",
+    "text": "البحرين",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19847,
+    "length": 9,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'BH' : 'البحرين'"
+  },
+  {
+    "id": "msg0686c80527f1",
+    "text": "عُمان",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19866,
+    "length": 7,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'OM' : 'عُمان'"
+  },
+  {
+    "id": "msgcf3be6cf396b",
+    "text": "سوريا",
+    "arguments": [],
+    "file": "../../lib/screens/settings_screen.dart",
+    "offset": 19883,
+    "length": 7,
+    "parents": [
+      "MapLiteralEntryImpl",
+      "SetOrMapLiteralImpl",
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "TopLevelVariableDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "'SY' : 'سوريا'"
+  },
+  {
+    "id": "msgd9987da5d3f5",
+    "text": "فعّال",
+    "arguments": [],
+    "file": "../../lib/screens/team_screen.dart",
+    "offset": 15894,
+    "length": 7,
+    "parents": [
+      "ConditionalExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl"
+    ],
+    "source": "active ? 'فعّال' : 'موقوف'"
+  },
+  {
+    "id": "msge858894dedb7",
+    "text": "موقوف",
+    "arguments": [],
+    "file": "../../lib/screens/team_screen.dart",
+    "offset": 15904,
+    "length": 7,
+    "parents": [
+      "ConditionalExpressionImpl",
+      "InterpolationExpressionImpl",
+      "StringInterpolationImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl",
+      "NamedExpressionImpl",
+      "ArgumentListImpl",
+      "MethodInvocationImpl"
+    ],
+    "source": "active ? 'فعّال' : 'موقوف'"
+  },
+  {
+    "id": "msga79e304d96a1",
+    "text": "المنتج",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4622,
+    "length": 8,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'المنتج'"
+  },
+  {
+    "id": "msg2554e5e66315",
+    "text": "اسمالمنتج",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4634,
+    "length": 11,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'اسمالمنتج'"
+  },
+  {
+    "id": "msg9ee7213d2258",
+    "text": "الشركة",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4693,
+    "length": 8,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl"
+    ],
+    "source": "'الشركة'"
+  },
+  {
+    "id": "msg7e4b853d2722",
+    "text": "العلامة",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4709,
+    "length": 9,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'العلامة'"
+  },
+  {
+    "id": "msg271fc9d3d3af",
+    "text": "العلامةالتجارية",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4726,
+    "length": 17,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'العلامةالتجارية'"
+  },
+  {
+    "id": "msgff61fb213ffc",
+    "text": "الفئة",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4774,
+    "length": 7,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'الفئة'"
+  },
+  {
+    "id": "msg3a7c87ed0100",
+    "text": "التصنيف",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4785,
+    "length": 9,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'التصنيف'"
+  },
+  {
+    "id": "msg501881931acd",
+    "text": "الباركود",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4827,
+    "length": 10,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'الباركود'"
+  },
+  {
+    "id": "msg615d221d2f65",
+    "text": "رمزالمخزون",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4880,
+    "length": 12,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'رمزالمخزون'"
+  },
+  {
+    "id": "msg399591c71051",
+    "text": "مدةالضمان",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4949,
+    "length": 11,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'مدةالضمان'"
+  },
+  {
+    "id": "msg56c68af7eaf1",
+    "text": "أشهرالضمان",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 4968,
+    "length": 12,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'أشهرالضمان'"
+  },
+  {
+    "id": "msga09cf69e1667",
+    "text": "سعرالبيع",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5032,
+    "length": 10,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'سعرالبيع'"
+  },
+  {
+    "id": "msg259862e8b313",
+    "text": "السعر",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5046,
+    "length": 7,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'السعر'"
+  },
+  {
+    "id": "msg46cf5f747630",
+    "text": "سعرالتكلفة",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5099,
+    "length": 12,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'سعرالتكلفة'"
+  },
+  {
+    "id": "msg4d5bcf198d93",
+    "text": "التكلفة",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5115,
+    "length": 9,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'التكلفة'"
+  },
+  {
+    "id": "msgdb0dce293888",
+    "text": "تسلسلي",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5187,
+    "length": 8,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl"
+    ],
+    "source": "'تسلسلي'"
+  },
+  {
+    "id": "msg32b6e8aec6a5",
+    "text": "لهرقمتسلسلي",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5203,
+    "length": 13,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ReturnStatementImpl",
+      "BlockImpl",
+      "BlockFunctionBodyImpl"
+    ],
+    "source": "'لهرقمتسلسلي'"
+  },
+  {
+    "id": "msg4b2d2c65d365",
+    "text": "نعم",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5578,
+    "length": 5,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ExpressionFunctionBodyImpl",
+      "FunctionExpressionImpl"
+    ],
+    "source": "'نعم'"
+  },
+  {
+    "id": "msgb6331eb5c6bb",
+    "text": "صح",
+    "arguments": [],
+    "file": "../../lib/services/product_csv_import.dart",
+    "offset": 5587,
+    "length": 4,
+    "parents": [
+      "ConstantPatternImpl",
+      "LogicalOrPatternImpl",
+      "GuardedPatternImpl",
+      "SwitchExpressionCaseImpl",
+      "SwitchExpressionImpl",
+      "ExpressionFunctionBodyImpl",
+      "FunctionExpressionImpl",
+      "FunctionDeclarationImpl"
+    ],
+    "source": "'صح'"
+  },
+  {
+    "id": "msg4ccb9ea66c6e",
+    "text": "جارٍ التحقق من إيصال متجر سابق. انتظر اكتمال التحقق قبل بدء شراء أو استعادة أخرى.",
+    "arguments": [],
+    "file": "../../lib/state/app_controller.dart",
+    "offset": 1188,
+    "length": 83,
+    "parents": [
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "_billingVerificationInProgressMessage = 'جارٍ التحقق من إيصال متجر سابق. انتظر اكتمال التحقق قبل بدء شراء أو استعادة أخرى.'"
+  },
+  {
+    "id": "msg5db24c7f3adb",
+    "text": "تغيّرت حالة الاشتراك أثناء الفحص. لم نفتح الدفع؛ أعد المحاولة لتأكيد الحالة الجديدة أولاً.",
+    "arguments": [],
+    "file": "../../lib/state/app_controller.dart",
+    "offset": 1346,
+    "length": 92,
+    "parents": [
+      "VariableDeclarationImpl",
+      "VariableDeclarationListImpl",
+      "FieldDeclarationImpl",
+      "BlockClassBodyImpl",
+      "ClassDeclarationImpl",
+      "CompilationUnitImpl"
+    ],
+    "source": "_billingStateChangedDuringPreflightMessage = 'تغيّرت حالة الاشتراك أثناء الفحص. لم نفتح الدفع؛ أعد المحاولة لتأكيد الحالة الجديدة أولاً.'"
+  }
+]

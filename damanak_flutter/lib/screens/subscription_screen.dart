@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -62,6 +63,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final subscription = controller.subscription;
     final membership = controller.membership;
@@ -141,7 +143,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.requiredActivation ? 'تفعيل المتجر' : 'الاشتراك'),
+        title: Text(
+          widget.requiredActivation
+              ? L10n.current.msge766399ece5b
+              : L10n.current.msg103acd5c93ee,
+        ),
         actions: [
           if (widget.requiredActivation)
             IconButton(
@@ -152,7 +158,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         builder: (_) => const _InitialPaymentAccountScreen(),
                       ),
                     ),
-              tooltip: 'الحساب',
+              tooltip: L10n.current.msg66dcee1f4616,
               icon: const Icon(Icons.account_circle_outlined),
             ),
         ],
@@ -188,12 +194,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               const SizedBox(height: 22),
               Text(
-                hasCurrentPlan ? 'الباقات والترقية' : 'اختر الباقة',
+                hasCurrentPlan
+                    ? L10n.current.msgb376597c34c6
+                    : L10n.current.msg5cf9073413f5,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
-                'الأسعار والعملات من ${controller.storeBillingPlatform.label}.',
+                L10n.current.msgb1dfc2e286f5(
+                  controller.storeBillingPlatform.label,
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 14),
@@ -266,26 +276,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     required bool canManage,
     required bool providerConflict,
   }) {
-    if (!canManage) return 'متاح لمالك المتجر فقط';
-    if (providerConflict) return 'أدر الاشتراك من متجره الحالي';
+    if (!canManage) return L10n.current.msgeaa3b00e46f5;
+    if (providerConflict) return L10n.current.msge9fec950706e;
     if (state == StoreBillingState.purchasing) {
-      return 'جارٍ فتح متجر التطبيقات…';
+      return L10n.current.msge876367a763a;
     }
-    if (state == StoreBillingState.pending) return 'بانتظار تأكيد المتجر';
-    if (plan == null) return 'اختر باقة';
-    if (offer == null) return 'السعر غير متاح';
-    if (decision == null) return 'اختر باقة';
+    if (state == StoreBillingState.pending) return L10n.current.msgbc9db4c6f5eb;
+    if (plan == null) return L10n.current.msgd4b182a0f958;
+    if (offer == null) return L10n.current.msg678577473255;
+    if (decision == null) return L10n.current.msgd4b182a0f958;
     return switch (decision.kind) {
-      SubscriptionDecisionKind.start => 'الاشتراك في ${plan.name}',
-      SubscriptionDecisionKind.upgrade => 'الترقية إلى ${plan.name}',
-      SubscriptionDecisionKind.cycleChange =>
-        'التغيير إلى ${offer.cycle.label}',
+      SubscriptionDecisionKind.start => L10n.current.msg5c34e3c083b9(
+        plan.displayName,
+      ),
+      SubscriptionDecisionKind.upgrade => L10n.current.msgd3601ea818cf(
+        plan.displayName,
+      ),
+      SubscriptionDecisionKind.cycleChange => L10n.current.msga47cd0ae4df5(
+        offer.cycle.label,
+      ),
       SubscriptionDecisionKind.blocked => switch (decision.blockedReason) {
-        SubscriptionBlockReason.alreadyActive => 'باقتك الحالية',
-        SubscriptionBlockReason.downgrade => 'الباقة غير متاحة',
+        SubscriptionBlockReason.alreadyActive => L10n.current.msgd66e0f6edc99,
+        SubscriptionBlockReason.downgrade => L10n.current.msgcfbed5399f0d,
         SubscriptionBlockReason.providerConflict =>
-          'أدر الاشتراك من متجره الحالي',
-        SubscriptionBlockReason.stateUnknown || null => 'تعذر التحقق من الباقة',
+          L10n.current.msge9fec950706e,
+        SubscriptionBlockReason.stateUnknown ||
+        null => L10n.current.msgb136d0c77e68,
       },
     };
   }
@@ -329,26 +345,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           targetPlan.monthlyWarranties,
         );
     final title = switch (decision.kind) {
-      SubscriptionDecisionKind.upgrade => 'تأكيد الترقية',
-      SubscriptionDecisionKind.cycleChange => 'تأكيد تغيير الفوترة',
-      _ => 'تأكيد الاشتراك',
+      SubscriptionDecisionKind.upgrade => L10n.current.msg88755786919e,
+      SubscriptionDecisionKind.cycleChange => L10n.current.msg3f14b8ece2cc,
+      _ => L10n.current.msg0da307b52c2d,
     };
     final description = switch (decision.kind) {
-      SubscriptionDecisionKind.upgrade =>
-        'يرتفع حد هذا الشهر من ${subscription.plan.monthlyWarranties} إلى '
-            '${targetPlan.monthlyWarranties} ضماناً. استخدمت '
-            '${subscription.usedWarranties}، فيصبح المتاح '
-            '$remainingAfterUpgrade. لا تُجمع حصص الباقات.',
-      SubscriptionDecisionKind.cycleChange =>
-        'تتغير دورة فوترة باقة ${targetPlan.name} إلى ${offer.cycle.label}. '
-            'تبقى الحصة واستخدام هذا الشهر كما هما، ويحدد المتجر موعد تطبيق '
-            'التغيير النهائي.',
-      _ => 'سيعرض المتجر تفاصيل الاشتراك النهائية قبل التأكيد.',
+      SubscriptionDecisionKind.upgrade => L10n.current.msg84110a460c6a(
+        subscription.plan.monthlyWarranties,
+        targetPlan.monthlyWarranties,
+        subscription.usedWarranties,
+        remainingAfterUpgrade,
+      ),
+      SubscriptionDecisionKind.cycleChange => L10n.current.msg7d18cef28c3a(
+        targetPlan.name,
+        offer.cycle.label,
+      ),
+      _ => L10n.current.msg215ae57cc5f8,
     };
     final actionLabel = switch (decision.kind) {
-      SubscriptionDecisionKind.upgrade => 'المتابعة للترقية',
-      SubscriptionDecisionKind.cycleChange => 'متابعة تغيير الفوترة',
-      _ => 'المتابعة للاشتراك',
+      SubscriptionDecisionKind.upgrade => L10n.current.msg92d3f5042c3b,
+      SubscriptionDecisionKind.cycleChange => L10n.current.msg3beba1a51a10,
+      _ => L10n.current.msg73e066ea7fb2,
     };
     return showModalBottomSheet<bool>(
       context: context,
@@ -371,8 +388,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             Text(description),
             const SizedBox(height: 10),
             Text(
-              '${offer.localizedPrice} من ${platform.label}. '
-              'ستظهر الرسوم وموعد التطبيق النهائي في نافذة المتجر.',
+              L10n.current.msg4474a560188a(
+                offer.localizedPrice,
+                platform.label,
+              ),
               style: Theme.of(sheetContext).textTheme.bodySmall,
             ),
             const SizedBox(height: 18),
@@ -382,7 +401,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(sheetContext, false),
-              child: const Text('رجوع'),
+              child: Text(L10n.current.msgcb822418a29d),
             ),
           ],
         ),
@@ -416,9 +435,13 @@ class _SubscriptionLoadingScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(requiredActivation ? 'تفعيل المتجر' : 'الاشتراك'),
+      title: Text(
+        requiredActivation
+            ? L10n.current.msge766399ece5b
+            : L10n.current.msg103acd5c93ee,
+      ),
     ),
-    body: const SafeArea(
+    body: SafeArea(
       child: Center(
         key: ValueKey('subscription-state-loading'),
         child: Column(
@@ -426,7 +449,7 @@ class _SubscriptionLoadingScaffold extends StatelessWidget {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 14),
-            Text('جارٍ تحميل حالة الاشتراك…'),
+            Text(L10n.current.msga28b8d2b660e),
           ],
         ),
       ),
@@ -449,22 +472,22 @@ class _SubscriptionSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final hasCurrentPlan =
         subscription.isUsable || subscription.hasUnexpiredStorePeriod;
     if (!hasCurrentPlan) {
       final title = activationRequired && canManage
-          ? 'ابدأ باشتراك مدفوع'
-          : 'لا يوجد اشتراك فعّال';
+          ? L10n.current.msg16aef52fbd2e
+          : L10n.current.msg2cf98821e8a1;
       final hasPreviousRecord = !subscription.isAwaitingSubscription;
       return Semantics(
         key: const ValueKey('subscription-current-summary'),
         container: true,
         label: [
           title,
-          'لا توجد باقة مفعّلة',
-          if (hasPreviousRecord)
-            'ضماناتك السابقة محفوظة، ويتوقف إصدار ضمانات جديدة فقط',
+          L10n.current.msg79c263619656,
+          if (hasPreviousRecord) L10n.current.msg33ba77066dc5,
         ].join('. '),
         child: Container(
           padding: const EdgeInsets.all(18),
@@ -491,20 +514,20 @@ class _SubscriptionSummary extends StatelessWidget {
               ),
               const SizedBox(height: 7),
               Text(
-                'لا توجد باقة مفعّلة',
+                L10n.current.msg79c263619656,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 3),
               Text(
                 canManage
-                    ? 'اختر باقة أدناه، أو استعد مشترياتك إذا سبق أن اشتركت.'
-                    : 'يمكن لمالك المتجر اختيار باقة أو استعادة المشتريات.',
+                    ? L10n.current.msgc43f90428dcc
+                    : L10n.current.msgd46a5510a201,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               if (hasPreviousRecord) ...[
                 const SizedBox(height: 9),
                 Text(
-                  'ضماناتك السابقة محفوظة؛ يتوقف إصدار ضمانات جديدة فقط.',
+                  L10n.current.msg52d88dcf6db7,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colors.onPrimaryContainer,
                     fontWeight: FontWeight.w600,
@@ -519,26 +542,31 @@ class _SubscriptionSummary extends StatelessWidget {
 
     final cycleLabel = switch (subscription.billingCycle) {
       _ when !subscription.isStoreSubscription => null,
-      'monthly' => 'شهري',
-      'yearly' => 'سنوي',
+      'monthly' => L10n.current.msg9c677bb93912,
+      'yearly' => L10n.current.msg1beeff0b0fec,
       _ => null,
     };
     final statusLabel = switch (subscription.status) {
-      _ when subscription.isFreeAccess => 'مفعّلة',
-      'trialing' => 'مفعّل مؤقتاً',
-      'active' => subscription.autoRenews ? 'فعّال ويتجدد' : 'فعّال',
-      'past_due' => 'تحتاج الفوترة إلى مراجعة',
-      _ => 'غير فعّال',
+      _ when subscription.isFreeAccess => L10n.current.msg11dbdea40ec3,
+      'trialing' => L10n.current.msg5f7d9e7d61b9,
+      'active' =>
+        subscription.autoRenews
+            ? L10n.current.msgfc1f775371cf
+            : L10n.current.msgd9987da5d3f5,
+      'past_due' => L10n.current.msgc89bb494c86b,
+      _ => L10n.current.msg1e2d2dc37f60,
     };
-    final periodLabel = subscription.autoRenews ? 'التجديد' : 'الانتهاء';
+    final periodLabel = subscription.autoRenews
+        ? L10n.current.msg828a77d08cb3
+        : L10n.current.msgb7463e893610;
     final usageRatio = subscription.plan.monthlyWarranties == 0
         ? 0.0
         : (subscription.usedWarranties / subscription.plan.monthlyWarranties)
               .clamp(0.0, 1.0);
     final metadata = [
       if (subscription.isFreeAccess) ...[
-        '${subscription.plan.monthlyWarranties} ضماناً شهرياً',
-        'تثبيت محمي واحد',
+        L10n.current.msgd89c4330e58a(subscription.plan.monthlyWarranties),
+        L10n.current.msg4f7f10468891,
       ],
       if (subscription.isStoreSubscription) ?cycleLabel,
       if (subscription.isStoreSubscription) ?platform?.label,
@@ -559,7 +587,9 @@ class _SubscriptionSummary extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              subscription.isFreeAccess ? 'خطتك المجانية' : 'باقتك الحالية',
+              subscription.isFreeAccess
+                  ? L10n.current.msg0745b4bb01c2
+                  : L10n.current.msgd66e0f6edc99,
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 3),
@@ -569,7 +599,7 @@ class _SubscriptionSummary extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
-                  subscription.plan.name,
+                  subscription.plan.displayName,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 Container(
@@ -602,8 +632,10 @@ class _SubscriptionSummary extends StatelessWidget {
                 subscription.plan.monthlyWarranties > 0) ...[
               const SizedBox(height: 16),
               Text(
-                '${subscription.remainingWarranties} ضماناً متبقياً من '
-                '${subscription.plan.monthlyWarranties}',
+                L10n.current.msg90cbf3d83b42(
+                  subscription.remainingWarranties,
+                  subscription.plan.monthlyWarranties,
+                ),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -618,7 +650,7 @@ class _SubscriptionSummary extends StatelessWidget {
               if (subscription.isFreeAccess) ...[
                 const SizedBox(height: 9),
                 Text(
-                  'تبدأ الحصة من جديد تلقائياً مع بداية كل شهر، من دون اشتراك في App Store أو Google Play.',
+                  L10n.current.msg96422645630a,
                   key: const ValueKey('free-plan-monthly-reset'),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -678,6 +710,7 @@ class _SubscriptionStatusNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final content = _content();
     if (content == null) return const SizedBox.shrink();
     final colors = context.colors;
@@ -748,7 +781,7 @@ class _SubscriptionStatusNotice extends StatelessWidget {
                           foregroundColor: foreground,
                           padding: EdgeInsets.zero,
                         ),
-                        child: const Text('إعادة المحاولة'),
+                        child: Text(L10n.current.msg14d5786f2e64),
                       ),
                     ],
                   ],
@@ -757,7 +790,7 @@ class _SubscriptionStatusNotice extends StatelessWidget {
               if (content.dismissible)
                 IconButton(
                   onPressed: onDismiss,
-                  tooltip: 'إغلاق الرسالة',
+                  tooltip: L10n.current.msg5f9e78696d67,
                   icon: Icon(Icons.close_rounded, color: foreground, size: 19),
                 ),
             ],
@@ -770,11 +803,8 @@ class _SubscriptionStatusNotice extends StatelessWidget {
   _StatusContent? _content() {
     if (errorMessage != null) {
       return _StatusContent(
-        title: 'تعذر إكمال العملية',
-        detail: _safeMessage(
-          errorMessage!,
-          'لم تبدأ دفعة جديدة. تحقق من حساب المتجر ثم أعد المحاولة.',
-        ),
+        title: L10n.current.msgbf4bbec69b0f,
+        detail: _safeMessage(errorMessage!, L10n.current.msg4c0852f71512),
         icon: Icons.error_outline_rounded,
         error: true,
         dismissible: true,
@@ -782,8 +812,8 @@ class _SubscriptionStatusNotice extends StatelessWidget {
     }
     if (noticeMessage != null) {
       return _StatusContent(
-        title: 'تم تحديث الاشتراك',
-        detail: _safeMessage(noticeMessage!, 'اكتملت العملية بنجاح.'),
+        title: L10n.current.msg44a8a7f9d37d,
+        detail: _safeMessage(noticeMessage!, L10n.current.msg7dc8ed9c9150),
         icon: Icons.check_circle_outline_rounded,
         success: true,
         dismissible: true,
@@ -791,9 +821,10 @@ class _SubscriptionStatusNotice extends StatelessWidget {
     }
     if (providerConflict) {
       return _StatusContent(
-        title: 'اشتراكك عبر ${currentProvider?.label ?? 'متجر آخر'}',
-        detail:
-            'استخدم المتجر نفسه لإدارة الاشتراك أو استعادته، كي لا تبدأ اشتراكاً ثانياً.',
+        title: L10n.current.msgb76d8725f4ba(
+          currentProvider?.label ?? L10n.current.msgdcc6ecc738c5,
+        ),
+        detail: L10n.current.msg504dbbfef9df,
         icon: Icons.storefront_outlined,
       );
     }
@@ -801,7 +832,7 @@ class _SubscriptionStatusNotice extends StatelessWidget {
       final detail = _safeMessageOrNull(billingMessage!);
       if (detail != null) {
         return _StatusContent(
-          title: 'حالة الاشتراك',
+          title: L10n.current.msg5c21ea9a3e1c,
           detail: detail,
           icon: Icons.info_outline_rounded,
         );
@@ -809,38 +840,38 @@ class _SubscriptionStatusNotice extends StatelessWidget {
     }
     return switch (state) {
       StoreBillingState.ready => null,
-      StoreBillingState.loading => const _StatusContent(
-        title: 'جارٍ تحميل أسعار المتجر…',
+      StoreBillingState.loading => _StatusContent(
+        title: L10n.current.msg3d1fed843fb3,
         icon: Icons.storefront_outlined,
         loading: true,
       ),
-      StoreBillingState.purchasing => const _StatusContent(
-        title: 'أكمل العملية في نافذة المتجر',
-        detail: 'لن تتفعّل الباقة قبل وصول تأكيد موثّق.',
+      StoreBillingState.purchasing => _StatusContent(
+        title: L10n.current.msg8031d214cc62,
+        detail: L10n.current.msge9b8eda60b87,
         icon: Icons.storefront_outlined,
         loading: true,
       ),
-      StoreBillingState.restoring => const _StatusContent(
-        title: 'جارٍ استعادة مشترياتك…',
-        detail: 'قد يستغرق التحقق لحظات.',
+      StoreBillingState.restoring => _StatusContent(
+        title: L10n.current.msga1c8ad141b06,
+        detail: L10n.current.msg41c0a7f4b3af,
         icon: Icons.restore_rounded,
         loading: true,
       ),
-      StoreBillingState.pending => const _StatusContent(
-        title: 'بانتظار تأكيد المتجر',
-        detail: 'لن تتفعّل الباقة قبل أن يؤكد المتجر الدفعة.',
+      StoreBillingState.pending => _StatusContent(
+        title: L10n.current.msgbc9db4c6f5eb,
+        detail: L10n.current.msg498e71877132,
         icon: Icons.schedule_rounded,
       ),
       StoreBillingState.unavailable => _StatusContent(
-        title: 'تعذر تحميل أسعار ${platform.label}',
-        detail: 'تحقق من اتصالك وحساب المتجر ثم أعد المحاولة.',
+        title: L10n.current.msg118e790a095e(platform.label),
+        detail: L10n.current.msg36a2f2d38e17,
         icon: Icons.error_outline_rounded,
         error: true,
         retry: true,
       ),
-      StoreBillingState.idle => const _StatusContent(
-        title: 'أسعار المتجر غير محمّلة',
-        detail: 'حمّل الأسعار قبل اختيار الاشتراك.',
+      StoreBillingState.idle => _StatusContent(
+        title: L10n.current.msg0d7d7eeb995d,
+        detail: L10n.current.msg86acc2ec62e4,
         icon: Icons.storefront_outlined,
         retry: true,
       ),
@@ -895,9 +926,15 @@ class _BillingCyclePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SegmentedButton<BillingCycle>(
     key: const ValueKey('subscription-cycle-picker'),
-    segments: const [
-      ButtonSegment(value: BillingCycle.monthly, label: Text('شهري')),
-      ButtonSegment(value: BillingCycle.yearly, label: Text('سنوي')),
+    segments: [
+      ButtonSegment(
+        value: BillingCycle.monthly,
+        label: Text(L10n.current.msg9c677bb93912),
+      ),
+      ButtonSegment(
+        value: BillingCycle.yearly,
+        label: Text(L10n.current.msg1beeff0b0fec),
+      ),
     ],
     selected: {cycle},
     onSelectionChanged: (selection) => onChanged(selection.first),
@@ -927,6 +964,7 @@ class _PlanChoiceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final children = <Widget>[];
     for (var index = 0; index < plans.length; index++) {
       final plan = plans[index];
@@ -977,6 +1015,7 @@ class _PlanChoiceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final blocked = !decision.allowed;
     final blockedReason = decision.blockedReason;
@@ -984,31 +1023,33 @@ class _PlanChoiceTile extends StatelessWidget {
     final downgrade = blockedReason == SubscriptionBlockReason.downgrade;
     final canSelect = decision.allowed && offer != null;
     final statusLabel = switch (decision.kind) {
-      SubscriptionDecisionKind.start => selected ? 'مختارة' : null,
-      SubscriptionDecisionKind.upgrade => 'ترقية',
-      SubscriptionDecisionKind.cycleChange => 'تغيير الدورة',
+      SubscriptionDecisionKind.start =>
+        selected ? L10n.current.msg6311b5052358 : null,
+      SubscriptionDecisionKind.upgrade => L10n.current.msgdd4fb886e84d,
+      SubscriptionDecisionKind.cycleChange => L10n.current.msg28a847422d0f,
       SubscriptionDecisionKind.blocked => switch (blockedReason) {
-        SubscriptionBlockReason.alreadyActive => 'الحالية',
-        SubscriptionBlockReason.providerConflict => 'من متجر آخر',
+        SubscriptionBlockReason.alreadyActive => L10n.current.msg58d0e21f45f8,
+        SubscriptionBlockReason.providerConflict =>
+          L10n.current.msg43cde9e0ff7d,
         SubscriptionBlockReason.downgrade ||
         SubscriptionBlockReason.stateUnknown ||
-        null => 'غير متاحة',
+        null => L10n.current.msgdd79f34f0c70,
       },
     };
-    final price = offer?.localizedPrice ?? 'السعر غير متاح';
+    final price = offer?.localizedPrice ?? L10n.current.msg678577473255;
     final visibleFeatures = plan.features;
     final semanticStatus = switch (decision.kind) {
-      SubscriptionDecisionKind.start => selected ? 'مختارة' : 'متاحة',
-      SubscriptionDecisionKind.upgrade => 'متاحة للترقية',
-      SubscriptionDecisionKind.cycleChange => 'متاحة لتغيير دورة الفوترة',
+      SubscriptionDecisionKind.start =>
+        selected ? L10n.current.msg6311b5052358 : L10n.current.msgbc4f4501a2b6,
+      SubscriptionDecisionKind.upgrade => L10n.current.msg4de775db9e46,
+      SubscriptionDecisionKind.cycleChange => L10n.current.msg14116023a937,
       SubscriptionDecisionKind.blocked => switch (blockedReason) {
-        SubscriptionBlockReason.alreadyActive => 'الباقة الحالية',
-        SubscriptionBlockReason.downgrade =>
-          'غير متاحة لأنها أقل من باقتك الحالية',
+        SubscriptionBlockReason.alreadyActive => L10n.current.msgd4365edd3437,
+        SubscriptionBlockReason.downgrade => L10n.current.msg6e5bcbfd097d,
         SubscriptionBlockReason.providerConflict =>
-          'غير متاحة على متجر التطبيقات الحالي',
+          L10n.current.msgf193a3d02f59,
         SubscriptionBlockReason.stateUnknown ||
-        null => 'غير متاحة لتعذر التحقق من حالة الاشتراك',
+        null => L10n.current.msgf6da56ccd675,
       },
     };
     return Semantics(
@@ -1016,11 +1057,15 @@ class _PlanChoiceTile extends StatelessWidget {
       button: canSelect,
       selected: selected,
       enabled: canSelect,
-      label:
-          '${plan.name}. $price، ${cycle.label}. '
-          '${plan.monthlyWarranties} ضمان شهرياً، حتى '
-          '${plan.maxMembers} للفريق. ${visibleFeatures.join('. ')}. '
-          '$semanticStatus.',
+      label: L10n.current.msgadec648d2e99(
+        plan.displayName,
+        price,
+        cycle.label,
+        plan.monthlyWarranties,
+        plan.maxMembers,
+        visibleFeatures.join('. '),
+        semanticStatus,
+      ),
       child: ExcludeSemantics(
         child: Material(
           color: selected ? colors.primaryContainer : colors.surface,
@@ -1056,7 +1101,7 @@ class _PlanChoiceTile extends StatelessWidget {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
-                              plan.name,
+                              plan.displayName,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             if (statusLabel != null)
@@ -1111,9 +1156,15 @@ class _PlanChoiceTile extends StatelessWidget {
                           runSpacing: 5,
                           children: [
                             _PlanFact(
-                              text: '${plan.monthlyWarranties} ضمان شهرياً',
+                              text: L10n.current.msg5a1ec88d684f(
+                                plan.monthlyWarranties,
+                              ),
                             ),
-                            _PlanFact(text: 'حتى ${plan.maxMembers} للفريق'),
+                            _PlanFact(
+                              text: L10n.current.msg9948c401d46e(
+                                plan.maxMembers,
+                              ),
+                            ),
                             _PlanFact(text: plan.branchLabel),
                           ],
                         ),
@@ -1158,8 +1209,8 @@ class _PlanChoiceTile extends StatelessWidget {
                           const SizedBox(height: 7),
                           Text(
                             downgrade
-                                ? 'لا يمكن اختيار باقة أقل أثناء سريان اشتراكك.'
-                                : 'تعذر إتاحة هذه الباقة بأمان حالياً.',
+                                ? L10n.current.msg44eaa5508e08
+                                : L10n.current.msg7888de885f80,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -1191,6 +1242,7 @@ class _PlanSelectionIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     if (blocked) {
       return SizedBox.square(
         dimension: 44,
@@ -1252,7 +1304,7 @@ class _EmptyPlansNotice extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: context.colors.outlineVariant),
     ),
-    child: const Text('تعذر تحميل الباقات. أعد المحاولة بعد قليل.'),
+    child: Text(L10n.current.msg46b24e9204a8),
   );
 }
 
@@ -1277,6 +1329,7 @@ class _SubscriptionActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Material(
       color: colors.surface,
@@ -1316,7 +1369,9 @@ class _SubscriptionActionBar extends StatelessWidget {
                         )
                       : const Icon(Icons.restore_rounded, size: 19),
                   label: Text(
-                    restoreBusy ? 'جارٍ الاستعادة…' : 'استعادة المشتريات',
+                    restoreBusy
+                        ? L10n.current.msg87fd032c94fc
+                        : L10n.current.msg51f37abd4118,
                   ),
                 ),
               ),
@@ -1326,7 +1381,7 @@ class _SubscriptionActionBar extends StatelessWidget {
                   child: TextButton.icon(
                     onPressed: onManage,
                     icon: const Icon(Icons.settings_outlined, size: 19),
-                    label: const Text('إدارة الاشتراك'),
+                    label: Text(L10n.current.msg432651e0ceb3),
                   ),
                 ),
             ],
@@ -1365,6 +1420,7 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final account = controller.account;
     final store = controller.store;
@@ -1374,11 +1430,11 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
     }
     final colors = context.colors;
     final displayName = account.fullName.trim().isEmpty
-        ? 'مستخدم ضمانك'
+        ? L10n.current.msg05c6541036fe
         : account.fullName.trim();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('بيانات الحساب')),
+      appBar: AppBar(title: Text(L10n.current.msgf65a3a124b56)),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -1442,7 +1498,7 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'لحماية بيانات المتجر، تقتصر هذه الصفحة على إدارة الحساب حتى تفعيل الاشتراك.',
+                L10n.current.msgbb3c05a18b00,
                 style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
               ),
               const SizedBox(height: 20),
@@ -1452,7 +1508,7 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
                     : () => _signOutAndClearRoutes(context),
                 style: OutlinedButton.styleFrom(foregroundColor: colors.error),
                 icon: const Icon(Icons.logout_rounded),
-                label: const Text('تسجيل الخروج'),
+                label: Text(L10n.current.msg21f474427638),
               ),
               if (!controller.isDemo) ...[
                 const SizedBox(height: 8),
@@ -1462,7 +1518,7 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
                       : () => _confirmDelete(context),
                   style: TextButton.styleFrom(foregroundColor: colors.error),
                   icon: const Icon(Icons.delete_forever_outlined),
-                  label: const Text('حذف الحساب نهائياً'),
+                  label: Text(L10n.current.msg0e37703ffce0),
                 ),
               ],
             ],
@@ -1484,17 +1540,15 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         scrollable: true,
-        title: const Text('حذف الحساب نهائياً؟'),
+        title: Text(L10n.current.msg938d8775ee84),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
-            ),
+            Text(L10n.current.msg932dd1b45205),
             const SizedBox(height: 12),
             Text(
-              'تنبيه: حذف حساب ضمانك لا يلغي أي اشتراك قائم أو يوقف الفوترة لدى App Store أو Google Play. ألغِ التجديد من المتجر لتجنب رسوم لاحقة.',
+              L10n.current.msg3eb18334c2cc,
               style: TextStyle(
                 color: Theme.of(dialogContext).colorScheme.error,
                 fontWeight: FontWeight.w700,
@@ -1506,14 +1560,14 @@ class _InitialPaymentAccountScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
-            child: const Text('حذف نهائي'),
+            child: Text(L10n.current.msgcd6f896cc0ee),
           ),
         ],
       ),
@@ -1542,7 +1596,7 @@ class _BillingTerms extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'يعرض متجر التطبيقات السعر والعملة وموعد التطبيق النهائي قبل التأكيد. يتجدد الاشتراك تلقائياً حتى الإلغاء.',
+        L10n.current.msgb2e6b535ba38,
         style: Theme.of(context).textTheme.bodySmall,
       ),
       const SizedBox(height: 4),
@@ -1552,11 +1606,11 @@ class _BillingTerms extends StatelessWidget {
         children: [
           TextButton(
             onPressed: () => _openLegalPage(context, _termsUri),
-            child: const Text('شروط الاستخدام'),
+            child: Text(L10n.current.msg7598879d58a2),
           ),
           TextButton(
             onPressed: () => _openLegalPage(context, _privacyUri),
-            child: const Text('سياسة الخصوصية'),
+            child: Text(L10n.current.msg23a13bc51d58),
           ),
         ],
       ),
@@ -1578,9 +1632,9 @@ class _BillingTerms extends StatelessWidget {
       opened = false;
     }
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر فتح الصفحة. حاول مرة أخرى.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg29ac7d2d6fc6)));
     }
   }
 }

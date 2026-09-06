@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,15 +21,18 @@ class ClaimDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final request = controller.requestById(requestId);
     final warranty = request == null
         ? null
         : controller.warrantyById(request.warrantyId);
     if (request == null || warranty == null) {
-      return const Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(body: Center(child: Text('لم تعد المطالبة موجودة.'))),
+      return Directionality(
+        textDirection: Directionality.of(context),
+        child: Scaffold(
+          body: Center(child: Text(L10n.current.msg47609a0036a9)),
+        ),
       );
     }
 
@@ -40,13 +44,13 @@ class ClaimDetailScreen extends StatelessWidget {
     final aiReview = controller.claimAiReview(request.id);
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       child: Scaffold(
         appBar: AppBar(
           title: Text(request.displayNumber),
           actions: [
             IconButton(
-              tooltip: 'تعديل تفاصيل المطالبة',
+              tooltip: L10n.current.msg289a4e72f188,
               onPressed: controller.busy
                   ? null
                   : () => Navigator.of(context).push(
@@ -84,7 +88,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _Section(
-                      title: 'العميل والمنتج',
+                      title: L10n.current.msg5c4fd79b730c,
                       trailing: TextButton(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -92,30 +96,30 @@ class ClaimDetailScreen extends StatelessWidget {
                                 WarrantyDetailScreen(warrantyId: warranty.id),
                           ),
                         ),
-                        child: const Text('فتح الضمان'),
+                        child: Text(L10n.current.msg45f73d63ecda),
                       ),
                       children: [
                         _DetailLine(
-                          label: 'المنتج',
+                          label: L10n.current.msga79e304d96a1,
                           value: warranty.productName,
                         ),
                         _DetailLine(
-                          label: 'العميل',
+                          label: L10n.current.msga042411e90be,
                           value: warranty.customerName,
                         ),
                         _DetailLine(
-                          label: 'الهاتف',
+                          label: L10n.current.msg94b59a5125fb,
                           value: warranty.customerPhone,
                           ltr: true,
                         ),
                         if (warranty.serialNumber.isNotEmpty)
                           _DetailLine(
-                            label: 'الرقم التسلسلي',
+                            label: L10n.current.msg5789f0fed61c,
                             value: warranty.serialNumber,
                             ltr: true,
                           ),
                         _DetailLine(
-                          label: 'نهاية الضمان',
+                          label: L10n.current.msgc246f9ec82e0,
                           value: formatDate(warranty.expiryDate),
                           ltr: true,
                         ),
@@ -123,33 +127,38 @@ class ClaimDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _Section(
-                      title: 'تفاصيل المطالبة',
+                      title: L10n.current.msg3122792d13c3,
                       children: [
-                        _DetailLine(label: 'المشكلة', value: request.issue),
                         _DetailLine(
-                          label: 'الفئة',
+                          label: L10n.current.msg9099527b2932,
+                          value: request.issue,
+                        ),
+                        _DetailLine(
+                          label: L10n.current.msgff61fb213ffc,
                           value: request.category.label,
                         ),
                         _DetailLine(
-                          label: 'الأولوية',
+                          label: L10n.current.msg4c3e5a87f1e4,
                           value: request.priority.label,
                         ),
                         _DetailLine(
-                          label: 'المصدر',
+                          label: L10n.current.msg64660bb87d89,
                           value: request.channel.label,
                         ),
                         _DetailLine(
-                          label: 'المسؤول',
-                          value: assignee?.fullName ?? 'غير معيّن',
+                          label: L10n.current.msg5087bf126a06,
+                          value:
+                              assignee?.fullName ??
+                              L10n.current.msg3eed0035cf5d,
                         ),
                         _DetailLine(
-                          label: 'فرع الخدمة',
-                          value: branch?.name ?? 'غير محدد',
+                          label: L10n.current.msg7a9ca70461f9,
+                          value: branch?.name ?? L10n.current.msg5a0374f3ff5a,
                         ),
                         _DetailLine(
-                          label: 'موعد الاستجابة',
+                          label: L10n.current.msg25dad1fc33ec,
                           value: request.slaDueAt == null
-                              ? 'غير محدد'
+                              ? L10n.current.msg5a0374f3ff5a
                               : formatDate(request.slaDueAt!),
                           ltr: request.slaDueAt != null,
                         ),
@@ -174,31 +183,31 @@ class ClaimDetailScreen extends StatelessWidget {
                     if (_hasServiceDetails(request)) ...[
                       const SizedBox(height: 12),
                       _Section(
-                        title: 'المعالجة والقرار',
+                        title: L10n.current.msgf4222866fc4f,
                         children: [
                           if (request.diagnosis.isNotEmpty)
                             _DetailLine(
-                              label: 'التشخيص',
+                              label: L10n.current.msg490dfdf55a4d,
                               value: request.diagnosis,
                             ),
                           if (request.resolution != ClaimResolution.none)
                             _DetailLine(
-                              label: 'القرار',
+                              label: L10n.current.msga881a87897ba,
                               value: request.resolution.label,
                             ),
                           if (request.resolutionNotes.isNotEmpty)
                             _DetailLine(
-                              label: 'تفاصيل التنفيذ',
+                              label: L10n.current.msg5f7bb20a6096,
                               value: request.resolutionNotes,
                             ),
                           if (request.decisionReason.isNotEmpty)
                             _DetailLine(
-                              label: 'سبب القرار',
+                              label: L10n.current.msg3a1f67eb3acd,
                               value: request.decisionReason,
                             ),
                           if (request.customerNotes.isNotEmpty)
                             _DetailLine(
-                              label: 'ظاهر للعميل',
+                              label: L10n.current.msg187e287ce6a2,
                               value: request.customerNotes,
                             ),
                           if (request.internalNotes.isNotEmpty)
@@ -208,27 +217,29 @@ class ClaimDetailScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 12),
                     _Section(
-                      title: 'السجل',
+                      title: L10n.current.msg9dca2d96d1fb,
                       children: [
                         _TimelineItem(
-                          title: 'تم تسجيل المطالبة',
+                          title: L10n.current.msgff42cb797bed,
                           date: request.createdAt,
                           active: true,
                         ),
                         if (request.approvedAt != null)
                           _TimelineItem(
-                            title: 'تم قبول المطالبة',
+                            title: L10n.current.msge8b8e1ebd4c9,
                             date: request.approvedAt!,
                             active: true,
                           ),
                         if (request.completedAt != null)
                           _TimelineItem(
-                            title: 'تم إكمال المطالبة',
+                            title: L10n.current.msg87dcc5eac968,
                             date: request.completedAt!,
                             active: true,
                           ),
                         _TimelineItem(
-                          title: 'آخر تحديث: ${request.status.label}',
+                          title: L10n.current.msg272095a56e1a(
+                            request.status.label,
+                          ),
                           date: request.updatedAt,
                           active: !request.status.isClosed,
                         ),
@@ -261,35 +272,31 @@ class ClaimDetailScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('مساعد فرز المطالبة'),
+          title: Text(L10n.current.msg6c8cfd0ad30c),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'سيُرسل وصف المشكلة واسم المنتج إلى OpenAI دون اسم العميل أو هاتفه. النتيجة اقتراح للموظف ولا تقبل المطالبة أو ترفضها.',
-              ),
+              Text(L10n.current.msg38f2b4b43147),
               const SizedBox(height: 12),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: includeAttachments,
                 onChanged: (value) =>
                     setDialogState(() => includeAttachments = value),
-                title: const Text('تحليل أول ملفين أيضاً'),
-                subtitle: const Text(
-                  'قد تحتوي الملفات على بيانات شخصية وتزيد التكلفة. اتركه مغلقاً إن لم تكن الصور ضرورية.',
-                ),
+                title: Text(L10n.current.msg37034d66e11b),
+                subtitle: Text(L10n.current.msgc27e8c37d669),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
+              child: Text(L10n.current.msg9a30dc2a96b8),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('تحليل الآن'),
+              child: Text(L10n.current.msg925fb72780c9),
             ),
           ],
         ),
@@ -304,7 +311,7 @@ class ClaimDetailScreen extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          AppScope.of(context).errorMessage ?? 'تعذر تحليل المطالبة الآن.',
+          AppScope.of(context).errorMessage ?? L10n.current.msg9487432c9fff,
         ),
       ),
     );
@@ -318,18 +325,21 @@ class ClaimDetailScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('استخدام الاقتراح؟'),
+        title: Text(L10n.current.msg1e02dc8d7a10),
         content: Text(
-          'سيُحدّث التصنيف إلى «${review.suggestedCategory.label}» والأولوية إلى «${review.suggestedPriority.label}». لن تتغير حالة المطالبة.',
+          L10n.current.msgd67a5f3bc0a6(
+            review.suggestedCategory.label,
+            review.suggestedPriority.label,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('رجوع'),
+            child: Text(L10n.current.msgcb822418a29d),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('تطبيق بعد المراجعة'),
+            child: Text(L10n.current.msg43db76ef30fb),
           ),
         ],
       ),
@@ -372,7 +382,7 @@ class ClaimDetailScreen extends StatelessWidget {
     await SharePlus.instance.share(
       ShareParams(
         text: message,
-        subject: 'تحديث المطالبة ${request.displayNumber}',
+        subject: L10n.current.msgf1930614c4d7(request.displayNumber),
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
@@ -383,16 +393,16 @@ class ClaimDetailScreen extends StatelessWidget {
   Future<void> _callCustomer(BuildContext context, Warranty warranty) async {
     final phone = warranty.customerPhone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد رقم هاتف مسجل لهذا العميل.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg596ce1253414)));
       return;
     }
     final opened = await launchUrl(Uri(scheme: 'tel', path: phone));
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('تعذر فتح تطبيق الاتصال.')));
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg25a522457d01)));
     }
   }
 
@@ -404,23 +414,22 @@ class ClaimDetailScreen extends StatelessWidget {
     final nextLine = switch (request.status) {
       MaintenanceStatus.waitingForCustomer =>
         request.customerNotes.isEmpty
-            ? 'نحتاج منك معلومات إضافية لإكمال المعالجة.'
-            : 'نحتاج منك: ${request.customerNotes}',
-      MaintenanceStatus.readyForPickup =>
-        'المنتج جاهز للاستلام. تواصل مع المحل لتأكيد الموعد.',
-      MaintenanceStatus.completed => 'اكتملت معالجة المطالبة.',
+            ? L10n.current.msgfa1249723b2f
+            : L10n.current.msg124a5c699fda(request.customerNotes),
+      MaintenanceStatus.readyForPickup => L10n.current.msgeae0b27e6196,
+      MaintenanceStatus.completed => L10n.current.msg68816aa17db1,
       MaintenanceStatus.rejected =>
         request.decisionReason.isEmpty
-            ? 'تم اتخاذ قرار بشأن المطالبة. راجع الرابط للتفاصيل.'
-            : 'القرار: ${request.decisionReason}',
-      _ => 'سنبلغك عند انتقال المطالبة إلى الخطوة التالية.',
+            ? L10n.current.msgb69362a124f3
+            : L10n.current.msg7784bea7df92(request.decisionReason),
+      _ => L10n.current.msg294f46432382,
     };
     return [
-      'مرحباً ${warranty.customerName}،',
-      'تحديث المطالبة ${request.displayNumber} للمنتج ${warranty.productName}.',
-      'الحالة: ${request.status.label}',
+      L10n.current.msg650293d55384(warranty.customerName),
+      L10n.current.msg53e7b570927c(request.displayNumber, warranty.productName),
+      L10n.current.msge93630401caa(request.status.label),
       nextLine,
-      if (link != null) 'تابع المطالبة وأرسل الملفات من هنا:\n$link',
+      if (link != null) L10n.current.msg8982e1b5df75(link),
     ].join('\n\n');
   }
 
@@ -453,9 +462,9 @@ class ClaimDetailScreen extends StatelessWidget {
     if (next == MaintenanceStatus.rejected) {
       final reason = await _askForText(
         context,
-        title: 'رفض المطالبة',
-        label: 'سبب الرفض الظاهر في السجل',
-        action: 'تأكيد الرفض',
+        title: L10n.current.msgbfd935693039,
+        label: L10n.current.msg81821da6baa6,
+        action: L10n.current.msgb5170558cd41,
       );
       if (reason == null || !context.mounted) return;
       updated = updated.copyWith(
@@ -473,7 +482,9 @@ class ClaimDetailScreen extends StatelessWidget {
     if (!context.mounted) return;
     final error = AppScope.of(context).errorMessage;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error ?? 'تم نقل المطالبة إلى «${next.label}».')),
+      SnackBar(
+        content: Text(error ?? L10n.current.msg30b901c9e93a(next.label)),
+      ),
     );
   }
 
@@ -499,7 +510,7 @@ class ClaimDetailScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء'),
+              child: Text(L10n.current.msg9a30dc2a96b8),
             ),
             FilledButton(
               onPressed: text.length < 3
@@ -525,7 +536,7 @@ class ClaimDetailScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'كيف أُغلقت المطالبة؟',
+                L10n.current.msg5a3aee566b06,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
@@ -609,12 +620,11 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final request = controller.requestById(widget.requestId);
     if (request == null) {
-      return const Scaffold(
-        body: Center(child: Text('لم تعد المطالبة موجودة.')),
-      );
+      return Scaffold(body: Center(child: Text(L10n.current.msg47609a0036a9)));
     }
     _initialize(request);
     final activeTeam = controller.team
@@ -625,14 +635,14 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
         .toList();
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('إدارة المطالبة'),
+          title: Text(L10n.current.msg55c952196d59),
           actions: [
             TextButton(
               onPressed: controller.busy ? null : () => _save(request),
-              child: const Text('حفظ'),
+              child: Text(L10n.current.msgddfcaf9d0144),
             ),
           ],
         ),
@@ -643,13 +653,15 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
               children: [
                 Text(
-                  'التصنيف والمسؤول',
+                  L10n.current.msg5e1ee5296293,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<ClaimCategory>(
                   initialValue: _category,
-                  decoration: const InputDecoration(labelText: 'فئة المشكلة'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg4ca027e90eec,
+                  ),
                   items: ClaimCategory.values
                       .map(
                         (item) => DropdownMenuItem(
@@ -663,7 +675,9 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<ClaimPriority>(
                   initialValue: _priority,
-                  decoration: const InputDecoration(labelText: 'الأولوية'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg4c3e5a87f1e4,
+                  ),
                   items: ClaimPriority.values
                       .map(
                         (item) => DropdownMenuItem(
@@ -680,13 +694,13 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                       activeTeam.any((member) => member.userId == _assignedTo)
                       ? _assignedTo!
                       : '',
-                  decoration: const InputDecoration(
-                    labelText: 'الموظف المسؤول',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg998f15a5fe62,
                   ),
                   items: [
-                    const DropdownMenuItem<String>(
+                    DropdownMenuItem<String>(
                       value: '',
-                      child: Text('غير معيّن'),
+                      child: Text(L10n.current.msg3eed0035cf5d),
                     ),
                     ...activeTeam.map(
                       (member) => DropdownMenuItem<String>(
@@ -707,11 +721,13 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                       serviceBranches.any((branch) => branch.id == _branchId)
                       ? _branchId!
                       : '',
-                  decoration: const InputDecoration(labelText: 'فرع الخدمة'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg7a9ca70461f9,
+                  ),
                   items: [
-                    const DropdownMenuItem<String>(
+                    DropdownMenuItem<String>(
                       value: '',
-                      child: Text('غير محدد'),
+                      child: Text(L10n.current.msg5a0374f3ff5a),
                     ),
                     ...serviceBranches.map(
                       (branch) => DropdownMenuItem<String>(
@@ -732,26 +748,31 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                   icon: const Icon(Icons.event_outlined),
                   label: Text(
                     _slaDueAt == null
-                        ? 'تحديد موعد الاستجابة'
-                        : 'موعد الاستجابة: ${formatDate(_slaDueAt!)}',
+                        ? L10n.current.msgffc4a70a2e55
+                        : L10n.current.msgcc99d577732a(formatDate(_slaDueAt!)),
                   ),
                 ),
                 const SizedBox(height: 28),
-                Text('المعالجة', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  L10n.current.msg6423b630e42d,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _diagnosis,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'التشخيص',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg490dfdf55a4d,
                     alignLabelWithHint: true,
                   ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<ClaimResolution>(
                   initialValue: _resolution,
-                  decoration: const InputDecoration(labelText: 'القرار'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msga881a87897ba,
+                  ),
                   items: ClaimResolution.values
                       .map(
                         (item) => DropdownMenuItem(
@@ -767,8 +788,8 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                   controller: _resolutionNotes,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'تفاصيل الإصلاح أو الاستبدال',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg55819d8e482e,
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -777,9 +798,9 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                   controller: _customerNotes,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظة تظهر للعميل',
-                    helperText: 'لا تكتب هنا معلومات داخلية أو حساسة.',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msgb8b4ea8855db,
+                    helperText: L10n.current.msg8a2f45135daa,
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -788,9 +809,9 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                   controller: _internalNotes,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظة داخلية للفريق',
-                    helperText: 'لن تظهر للعميل في البوابة أو الرسائل.',
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msgd314b2cf9e37,
+                    helperText: L10n.current.msgfcd7430fe5b8,
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -803,7 +824,7 @@ class _ClaimEditScreenState extends State<ClaimEditScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.check_rounded),
-                  label: const Text('حفظ تفاصيل المطالبة'),
+                  label: Text(L10n.current.msg7946854a61d8),
                 ),
               ],
             ),
@@ -858,6 +879,7 @@ class _ClaimHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -884,7 +906,7 @@ class _ClaimHeader extends StatelessWidget {
               children: [
                 _MetaPill(
                   icon: Icons.flag_outlined,
-                  label: 'أولوية ${request.priority.label}',
+                  label: L10n.current.msg3faa17b063fb(request.priority.label),
                 ),
                 _MetaPill(
                   icon: Icons.category_outlined,
@@ -893,7 +915,7 @@ class _ClaimHeader extends StatelessWidget {
                 if (request.isOverdue)
                   _MetaPill(
                     icon: Icons.warning_amber_rounded,
-                    label: 'متأخرة عن الموعد',
+                    label: L10n.current.msg7c83012b2845,
                     foreground: colors.error,
                     background: colors.errorContainer,
                   ),
@@ -919,6 +941,7 @@ class _WorkflowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final actions = _actions();
     if (actions.isEmpty) return const SizedBox.shrink();
     return Card(
@@ -928,12 +951,12 @@ class _WorkflowCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'الإجراء التالي',
+              L10n.current.msg1e6f7259e388,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 5),
             Text(
-              'حدّث الحالة فور تنفيذ الإجراء ليعرف الفريق أين وصلت المطالبة.',
+              L10n.current.msg67d310d7fe93,
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
@@ -964,81 +987,105 @@ class _WorkflowCard extends StatelessWidget {
     );
   }
 
-  List<(MaintenanceStatus, String, IconData)> _actions() => switch (request
-      .status) {
-    MaintenanceStatus.newRequest => [
-      (
-        MaintenanceStatus.needsReview,
-        'بدء مراجعة المطالبة',
-        Icons.fact_check_outlined,
-      ),
-      if (canDecide)
-        (MaintenanceStatus.approved, 'قبول المطالبة', Icons.verified_outlined),
-    ],
-    MaintenanceStatus.needsReview => [
-      if (canDecide)
-        (MaintenanceStatus.approved, 'قبول المطالبة', Icons.verified_outlined),
-      (
-        MaintenanceStatus.waitingForCustomer,
-        'طلب معلومات من العميل',
-        Icons.question_answer_outlined,
-      ),
-      if (canDecide)
-        (MaintenanceStatus.rejected, 'رفض المطالبة', Icons.block_outlined),
-    ],
-    MaintenanceStatus.approved => [
-      (MaintenanceStatus.inProgress, 'بدء المعالجة', Icons.build_outlined),
-      (
-        MaintenanceStatus.waitingForCustomer,
-        'بانتظار العميل',
-        Icons.hourglass_top_rounded,
-      ),
-    ],
-    MaintenanceStatus.inProgress => [
-      (
-        MaintenanceStatus.readyForPickup,
-        'تجهيزها للاستلام',
-        Icons.inventory_2_outlined,
-      ),
-      (
-        MaintenanceStatus.waitingForCustomer,
-        'بانتظار العميل',
-        Icons.hourglass_top_rounded,
-      ),
-      (MaintenanceStatus.completed, 'إكمال المطالبة', Icons.task_alt_rounded),
-    ],
-    MaintenanceStatus.waitingForCustomer => [
-      (
-        MaintenanceStatus.inProgress,
-        'استئناف المعالجة',
-        Icons.play_arrow_rounded,
-      ),
-    ],
-    MaintenanceStatus.readyForPickup => [
-      (
-        MaintenanceStatus.completed,
-        'تأكيد التسليم والإكمال',
-        Icons.task_alt_rounded,
-      ),
-      (MaintenanceStatus.inProgress, 'إعادتها للمعالجة', Icons.build_outlined),
-    ],
-    MaintenanceStatus.completed => [
-      if (canDecide)
-        (
-          MaintenanceStatus.inProgress,
-          'إعادة فتح المطالبة',
-          Icons.replay_rounded,
-        ),
-    ],
-    MaintenanceStatus.rejected || MaintenanceStatus.cancelled => [
-      if (canDecide)
-        (
-          MaintenanceStatus.needsReview,
-          'إعادة فتح للمراجعة',
-          Icons.replay_rounded,
-        ),
-    ],
-  };
+  List<(MaintenanceStatus, String, IconData)> _actions() =>
+      switch (request.status) {
+        MaintenanceStatus.newRequest => [
+          (
+            MaintenanceStatus.needsReview,
+            L10n.current.msgc21b0e6e74dd,
+            Icons.fact_check_outlined,
+          ),
+          if (canDecide)
+            (
+              MaintenanceStatus.approved,
+              L10n.current.msg338a6e3f6418,
+              Icons.verified_outlined,
+            ),
+        ],
+        MaintenanceStatus.needsReview => [
+          if (canDecide)
+            (
+              MaintenanceStatus.approved,
+              L10n.current.msg338a6e3f6418,
+              Icons.verified_outlined,
+            ),
+          (
+            MaintenanceStatus.waitingForCustomer,
+            L10n.current.msgaa54e8581470,
+            Icons.question_answer_outlined,
+          ),
+          if (canDecide)
+            (
+              MaintenanceStatus.rejected,
+              L10n.current.msgbfd935693039,
+              Icons.block_outlined,
+            ),
+        ],
+        MaintenanceStatus.approved => [
+          (
+            MaintenanceStatus.inProgress,
+            L10n.current.msg4a80c8f233d4,
+            Icons.build_outlined,
+          ),
+          (
+            MaintenanceStatus.waitingForCustomer,
+            L10n.current.msg7c4b128da66a,
+            Icons.hourglass_top_rounded,
+          ),
+        ],
+        MaintenanceStatus.inProgress => [
+          (
+            MaintenanceStatus.readyForPickup,
+            L10n.current.msg2050aebbb97f,
+            Icons.inventory_2_outlined,
+          ),
+          (
+            MaintenanceStatus.waitingForCustomer,
+            L10n.current.msg7c4b128da66a,
+            Icons.hourglass_top_rounded,
+          ),
+          (
+            MaintenanceStatus.completed,
+            L10n.current.msga9d4e8c51205,
+            Icons.task_alt_rounded,
+          ),
+        ],
+        MaintenanceStatus.waitingForCustomer => [
+          (
+            MaintenanceStatus.inProgress,
+            L10n.current.msg5fac64e31dbc,
+            Icons.play_arrow_rounded,
+          ),
+        ],
+        MaintenanceStatus.readyForPickup => [
+          (
+            MaintenanceStatus.completed,
+            L10n.current.msg9288c5b199d6,
+            Icons.task_alt_rounded,
+          ),
+          (
+            MaintenanceStatus.inProgress,
+            L10n.current.msg47bddbd85cb4,
+            Icons.build_outlined,
+          ),
+        ],
+        MaintenanceStatus.completed => [
+          if (canDecide)
+            (
+              MaintenanceStatus.inProgress,
+              L10n.current.msg247abd28fa31,
+              Icons.replay_rounded,
+            ),
+        ],
+        MaintenanceStatus.rejected || MaintenanceStatus.cancelled => [
+          if (canDecide)
+            (
+              MaintenanceStatus.needsReview,
+              L10n.current.msgca1904f3e709,
+              Icons.replay_rounded,
+            ),
+        ],
+      };
 }
 
 class _ContactCard extends StatelessWidget {
@@ -1054,6 +1101,7 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -1062,12 +1110,12 @@ class _ContactCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'تواصل مع العميل',
+              L10n.current.msg2e933f0f15e9,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 5),
             Text(
-              'يرسل ضمانك حالة المطالبة ورابط المتابعة بصياغة جاهزة.',
+              L10n.current.msg645e646e9931,
               style: TextStyle(color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: 14),
@@ -1078,12 +1126,12 @@ class _ContactCard extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: busy ? null : onWhatsApp,
                   icon: const Icon(Icons.chat_outlined),
-                  label: const Text('إرسال عبر واتساب'),
+                  label: Text(L10n.current.msg8378428d3fd2),
                 ),
                 OutlinedButton.icon(
                   onPressed: onCall,
                   icon: const Icon(Icons.call_outlined),
-                  label: const Text('اتصال'),
+                  label: Text(L10n.current.msg606af07c67cb),
                 ),
               ],
             ),
@@ -1109,6 +1157,7 @@ class _AiReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final value = review;
     final colors = context.colors;
     return Card(
@@ -1123,7 +1172,7 @@ class _AiReviewCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'مساعد فرز المطالبة',
+                    L10n.current.msg6c8cfd0ad30c,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -1132,12 +1181,16 @@ class _AiReviewCard extends StatelessWidget {
             const SizedBox(height: 10),
             FilledButton.tonal(
               onPressed: busy ? null : onAnalyze,
-              child: Text(value == null ? 'تحليل' : 'إعادة التحليل'),
+              child: Text(
+                value == null
+                    ? L10n.current.msg698fbdcd6041
+                    : L10n.current.msgea3f993611e0,
+              ),
             ),
             const SizedBox(height: 10),
             if (value == null)
               Text(
-                'يلخص وصف العميل ويقترح فئة وأولوية وأسئلة ناقصة. لا يتخذ قراراً ولا يغيّر المطالبة تلقائياً.',
+                L10n.current.msg5b26587358fe,
                 style: TextStyle(color: colors.onSurfaceVariant),
               )
             else ...[
@@ -1147,15 +1200,33 @@ class _AiReviewCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  Chip(label: Text('فئة: ${value.suggestedCategory.label}')),
-                  Chip(label: Text('أولوية: ${value.suggestedPriority.label}')),
-                  Chip(label: Text('ثقة ${(value.confidence * 100).round()}%')),
+                  Chip(
+                    label: Text(
+                      L10n.current.msg34d6e570eb34(
+                        value.suggestedCategory.label,
+                      ),
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      L10n.current.msg7d3942248372(
+                        value.suggestedPriority.label,
+                      ),
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      L10n.current.msg5e7f0a12ab07(
+                        (value.confidence * 100).round(),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               if (value.missingInformation.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text(
-                  'معلومات يُفضّل طلبها',
+                Text(
+                  L10n.current.msg05217dcdcd72,
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 5),
@@ -1165,7 +1236,9 @@ class _AiReviewCard extends StatelessWidget {
               if (value.signals.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'إشارات في الوصف: ${value.signals.join('، ')}',
+                  L10n.current.msg81ba469a03ce(
+                    value.signals.join(L10n.current.msg11735aabd336),
+                  ),
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               ],
@@ -1174,9 +1247,14 @@ class _AiReviewCard extends StatelessWidget {
                 [
                   value.disclaimer,
                   if (value.usage.estimatedCostUsd != null)
-                    'التكلفة التقريبية: \$${value.usage.estimatedCostUsd!.toStringAsFixed(4)}',
-                  '${value.usage.monthlyUsed}/${value.usage.monthlyLimit} هذا الشهر',
-                  if (value.includedAttachments) 'شمل أول ملفين',
+                    L10n.current.msg38874c5d26da(
+                      value.usage.estimatedCostUsd!.toStringAsFixed(4),
+                    ),
+                  L10n.current.msg358b2fe4d59b(
+                    value.usage.monthlyUsed,
+                    value.usage.monthlyLimit,
+                  ),
+                  if (value.includedAttachments) L10n.current.msgbe2a9d82914d,
                 ].join(' • '),
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
@@ -1184,7 +1262,7 @@ class _AiReviewCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: busy ? null : onApply,
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('استخدام التصنيف والأولوية بعد المراجعة'),
+                label: Text(L10n.current.msg34f0233acfe7),
               ),
             ],
           ],
@@ -1203,6 +1281,7 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -1269,6 +1348,7 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return FutureBuilder<List<ClaimAttachment>>(
       future: _attachments,
       builder: (context, snapshot) {
@@ -1276,10 +1356,10 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
           return Padding(
             padding: const EdgeInsets.only(top: 12),
             child: _Section(
-              title: 'ملفات العميل',
+              title: L10n.current.msg5c0e56a68d71,
               children: [
                 Semantics(
-                  label: 'جاري تحميل ملفات المطالبة',
+                  label: L10n.current.msg5a1e4eb1db5e,
                   child: const LinearProgressIndicator(),
                 ),
               ],
@@ -1290,10 +1370,10 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
           return Padding(
             padding: const EdgeInsets.only(top: 12),
             child: _Section(
-              title: 'ملفات العميل',
+              title: L10n.current.msg5c0e56a68d71,
               children: [
                 Text(
-                  'تعذر عرض الملفات الآن. بيانات المطالبة ما زالت محفوظة.',
+                  L10n.current.msgd449fde59c1b,
                   style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
@@ -1302,7 +1382,7 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
                   child: TextButton.icon(
                     onPressed: _reload,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('إعادة المحاولة'),
+                    label: Text(L10n.current.msg14d5786f2e64),
                   ),
                 ),
               ],
@@ -1314,7 +1394,7 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
         return Padding(
           padding: const EdgeInsets.only(top: 12),
           child: _Section(
-            title: 'ملفات العميل (${attachments.length})',
+            title: L10n.current.msgd30fcea255a6(attachments.length),
             children: [
               for (var index = 0; index < attachments.length; index++) ...[
                 _AttachmentTile(
@@ -1343,11 +1423,9 @@ class _AttachmentsSectionState extends State<_AttachmentsSection> {
       if (!opened) throw StateError('CLAIM_ATTACHMENT_OPEN_FAILED');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تعذر فتح الملف. تحقق من الاتصال ثم حاول مرة أخرى.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msg63c84e95aaf4)));
     } finally {
       if (mounted) setState(() => _openingId = null);
     }
@@ -1367,13 +1445,18 @@ class _AttachmentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final source = attachment.uploadedByType == 'customer'
-        ? 'أرسله العميل'
-        : 'أضافه الفريق';
+        ? L10n.current.msg374c0387e1ae
+        : L10n.current.msge06f2fcdb931;
     return Semantics(
       button: true,
-      label: 'فتح ${attachment.originalName}، ${attachment.sizeLabel}، $source',
+      label: L10n.current.msg4470a29e2903(
+        attachment.originalName,
+        attachment.sizeLabel,
+        source,
+      ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         minVerticalPadding: 10,
@@ -1423,6 +1506,7 @@ class _DetailLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -1431,7 +1515,7 @@ class _DetailLine extends StatelessWidget {
           final largeText = MediaQuery.textScalerOf(context).scale(14) >= 20;
           final valueText = Text(
             value,
-            textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
+            textDirection: ltr ? TextDirection.ltr : Directionality.of(context),
             textAlign: ltr ? TextAlign.end : TextAlign.start,
             style: const TextStyle(fontWeight: FontWeight.w600),
           );
@@ -1469,6 +1553,7 @@ class _PrivateNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -1486,7 +1571,7 @@ class _PrivateNote extends StatelessWidget {
             color: colors.onSurfaceVariant,
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text('ملاحظة داخلية\n$value')),
+          Expanded(child: Text(L10n.current.msg2624f3008a34(value))),
         ],
       ),
     );
@@ -1506,6 +1591,7 @@ class _TimelineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -1559,6 +1645,7 @@ class _MetaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final color = foreground ?? colors.onSurfaceVariant;
     return Container(

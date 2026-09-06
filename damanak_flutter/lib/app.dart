@@ -1,5 +1,7 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/generated/app_localizations.dart';
 
 import 'core/app_theme.dart';
 import 'models/account.dart';
@@ -43,6 +45,11 @@ class _DamanakAppState extends State<DamanakApp> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeLocales(List<Locale>? locales) {
+    L10n.instance.deviceLocalesChanged();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -50,6 +57,7 @@ class _DamanakAppState extends State<DamanakApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return AppScope(
       controller: widget.controller,
       child: const DamanakAppFrame(home: _AppGate()),
@@ -65,20 +73,25 @@ class DamanakAppFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'ضمانك للأعمال',
-      locale: const Locale('ar'),
-      supportedLocales: const [Locale('ar')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: buildAppTheme(),
-      darkTheme: buildAppTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
-      home: Directionality(textDirection: TextDirection.rtl, child: home),
+    L10n.watch(context);
+    return ListenableBuilder(
+      listenable: L10n.instance,
+      builder: (context, child) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: L10n.current.msg3493ba48d2a7,
+        locale: L10n.instance.locale,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: buildAppTheme(),
+        darkTheme: buildAppTheme(Brightness.dark),
+        themeMode: ThemeMode.system,
+        home: home,
+      ),
     );
   }
 }
@@ -88,6 +101,7 @@ class _AppGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final requiresFirstSubscription =
         controller.stage == AppStage.ready &&

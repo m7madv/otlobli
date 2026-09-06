@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -11,15 +12,16 @@ class BranchesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final canEdit = controller.membership!.role.canManageTeam;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('الفروع ونقاط البيع'),
+        title: Text(L10n.current.msg8c556bfb0756),
         actions: [
           if (canEdit)
             IconButton(
-              tooltip: 'إضافة فرع',
+              tooltip: L10n.current.msg46dadab0f9e2,
               onPressed: controller.busy ? null : () => _editBranch(context),
               icon: const Icon(Icons.add_business_outlined),
             ),
@@ -35,7 +37,7 @@ class BranchesScreen extends StatelessWidget {
               children: [
                 const MessageBanner(),
                 Text(
-                  'اربط كل ضمان بالفرع الذي نفّذ البيع حتى تصبح التقارير دقيقة.',
+                  L10n.current.msg6b1d45c15935,
                   style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
@@ -104,7 +106,7 @@ class BranchesScreen extends StatelessWidget {
           ? FloatingActionButton.extended(
               onPressed: controller.busy ? null : () => _editBranch(context),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('فرع جديد'),
+              label: Text(L10n.current.msgb8a7ef94ffca),
             )
           : null,
     );
@@ -209,9 +211,14 @@ class _BranchEditorState extends State<_BranchEditor> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.branch == null ? 'فرع جديد' : 'تعديل الفرع'),
+        title: Text(
+          widget.branch == null
+              ? L10n.current.msgb8a7ef94ffca
+              : L10n.current.msgee0d3a650c5f,
+        ),
       ),
       body: SafeArea(
         child: Align(
@@ -228,15 +235,15 @@ class _BranchEditorState extends State<_BranchEditor> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'هوية الفرع',
+                          L10n.current.msg0ef8d53ae2b2,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _name,
                           textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'اسم الفرع',
+                          decoration: InputDecoration(
+                            labelText: L10n.current.msgfa431491b7a8,
                           ),
                           validator: _required,
                         ),
@@ -249,8 +256,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                                 textCapitalization:
                                     TextCapitalization.characters,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'رمز الفرع',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg260829cfeb20,
                                   hintText: 'RUH-01',
                                 ),
                                 validator: _codeValidator,
@@ -260,8 +267,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                             Expanded(
                               child: DropdownButtonFormField<BranchType>(
                                 initialValue: _type,
-                                decoration: const InputDecoration(
-                                  labelText: 'نوع الموقع',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msge51245b5152d,
                                 ),
                                 items: BranchType.values
                                     .map(
@@ -280,8 +287,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                         const SizedBox(height: 10),
                         TextFormField(
                           controller: _managerName,
-                          decoration: const InputDecoration(
-                            labelText: 'مدير الفرع أو المسؤول',
+                          decoration: InputDecoration(
+                            labelText: L10n.current.msg84e569af1e6e,
                           ),
                         ),
                       ],
@@ -296,15 +303,15 @@ class _BranchEditorState extends State<_BranchEditor> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'العنوان والتواصل',
+                          L10n.current.msgcab45709e6ba,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _city,
                           textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'المدينة',
+                          decoration: InputDecoration(
+                            labelText: L10n.current.msg23ee0d351c7b,
                           ),
                           validator: _required,
                         ),
@@ -313,8 +320,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                           controller: _address,
                           minLines: 2,
                           maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'العنوان التفصيلي',
+                          decoration: InputDecoration(
+                            labelText: L10n.current.msg491712d63cd1,
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -325,8 +332,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                                 controller: _phone,
                                 keyboardType: TextInputType.phone,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'رقم الفرع',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg3c0031ace174,
                                 ),
                               ),
                             ),
@@ -336,8 +343,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                                 controller: _email,
                                 keyboardType: TextInputType.emailAddress,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'بريد الفرع',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msgec3a5f9412b2,
                                 ),
                               ),
                             ),
@@ -355,7 +362,7 @@ class _BranchEditorState extends State<_BranchEditor> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'نقطة البيع وساعات العمل',
+                          L10n.current.msg1a11da492906,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 12),
@@ -367,8 +374,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                                 textCapitalization:
                                     TextCapitalization.characters,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'بادئة الإيصال',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg4a0906708044,
                                   hintText: 'RUH',
                                 ),
                                 validator: _prefixValidator,
@@ -379,8 +386,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                               child: TextFormField(
                                 controller: _timezone,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'المنطقة الزمنية',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg2d25557e7c23,
                                 ),
                                 validator: _required,
                               ),
@@ -394,8 +401,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                               child: TextFormField(
                                 controller: _opensAt,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'يفتح',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msgabb44169515c,
                                   hintText: '09:00',
                                 ),
                                 validator: _timeValidator,
@@ -406,8 +413,8 @@ class _BranchEditorState extends State<_BranchEditor> {
                               child: TextFormField(
                                 controller: _closesAt,
                                 textDirection: TextDirection.ltr,
-                                decoration: const InputDecoration(
-                                  labelText: 'يغلق',
+                                decoration: InputDecoration(
+                                  labelText: L10n.current.msg4ce6227a817d,
                                   hintText: '23:00',
                                 ),
                                 validator: _timeValidator,
@@ -418,30 +425,24 @@ class _BranchEditorState extends State<_BranchEditor> {
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
                           value: _acceptsSales,
-                          title: const Text('يقبل عمليات البيع'),
-                          subtitle: const Text(
-                            'يظهر ضمن نقاط البيع ويمكن فتح صندوق له.',
-                          ),
+                          title: Text(L10n.current.msgfc7781df53df),
+                          subtitle: Text(L10n.current.msgafbf92c0b73f),
                           onChanged: (value) =>
                               setState(() => _acceptsSales = value),
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
                           value: _handlesService,
-                          title: const Text('يستقبل الصيانة والضمان'),
-                          subtitle: const Text(
-                            'يمكن ربط طلبات الخدمة بهذا الموقع.',
-                          ),
+                          title: Text(L10n.current.msg58605069537a),
+                          subtitle: Text(L10n.current.msge4cdcaa94b2d),
                           onChanged: (value) =>
                               setState(() => _handlesService = value),
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
                           value: _isMain,
-                          title: const Text('الفرع الرئيسي'),
-                          subtitle: const Text(
-                            'يصبح الاختيار الافتراضي للعمليات.',
-                          ),
+                          title: Text(L10n.current.msg811cbd5eca36),
+                          subtitle: Text(L10n.current.msg5d8a25c67cc5),
                           onChanged: (value) => setState(() => _isMain = value),
                         ),
                       ],
@@ -452,7 +453,7 @@ class _BranchEditorState extends State<_BranchEditor> {
                 FilledButton.icon(
                   onPressed: _save,
                   icon: const Icon(Icons.save_outlined),
-                  label: const Text('حفظ الفرع ونقطة البيع'),
+                  label: Text(L10n.current.msg77794a2275a1),
                 ),
               ],
             ),
@@ -489,18 +490,19 @@ class _BranchEditorState extends State<_BranchEditor> {
   String? _codeValidator(String? value) =>
       RegExp(r'^[A-Za-z0-9-]{2,12}$').hasMatch(value?.trim() ?? '')
       ? null
-      : 'استخدم 2–12 حرفاً أو رقماً لاتينياً';
+      : L10n.current.msg0cc91d6f1184;
   String? _prefixValidator(String? value) =>
       RegExp(r'^[A-Za-z0-9]{2,8}$').hasMatch(value?.trim() ?? '')
       ? null
-      : 'استخدم 2–8 أحرف أو أرقام';
+      : L10n.current.msg2c0cdc3271c1;
   String? _timeValidator(String? value) =>
       RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(value?.trim() ?? '')
       ? null
-      : 'استخدم صيغة 09:00';
+      : L10n.current.msg2b690da096a1;
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? L10n.current.msgd5a02f880a17
+      : null;
 }
 
 class _BranchDraft {
@@ -544,6 +546,7 @@ class _MainBranchBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -552,7 +555,7 @@ class _MainBranchBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        'رئيسي',
+        L10n.current.msgcd07cc117801,
         style: TextStyle(
           color: colors.onPrimaryContainer,
           fontSize: 11,
@@ -571,6 +574,7 @@ class _EmptyBranches extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -578,13 +582,13 @@ class _EmptyBranches extends StatelessWidget {
           children: [
             const Icon(Icons.store_mall_directory_outlined),
             const SizedBox(height: 10),
-            const Text('لم يُسجل أي فرع بعد.'),
+            Text(L10n.current.msg75647d3eeb9c),
             if (canEdit) ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onCreate,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('إضافة الفرع الأول'),
+                label: Text(L10n.current.msg4aa207644a8d),
               ),
             ],
           ],

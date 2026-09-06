@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -13,8 +14,9 @@ import 'services/store_billing_service.dart';
 import 'services/trial_device_claim_service.dart';
 import 'screens/startup_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await L10n.instance.initialize();
   runApp(const _DamanakBootstrap());
 }
 
@@ -52,14 +54,14 @@ class _DamanakBootstrapState extends State<_DamanakBootstrap> {
     } on Object {
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            'تعذّر تجهيز التطبيق. تحقق من الاتصال ثم حاول مرة أخرى.';
+        _errorMessage = L10n.current.msg6b6613da51be;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = _controller;
     if (controller != null) return DamanakApp(controller: controller);
 

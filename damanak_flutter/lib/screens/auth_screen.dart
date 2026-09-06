@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -12,9 +13,11 @@ class AuthScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final inviteReady = controller.pendingInvitationCode != null;
     return Scaffold(
+      appBar: AppBar(actions: const [LanguagePicker()]),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -71,6 +74,7 @@ class _AuthPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final appleFirst = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     final showApple = kIsWeb || defaultTargetPlatform == TargetPlatform.iOS;
@@ -96,16 +100,18 @@ class _AuthPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            inviteReady ? 'دعوتك جاهزة' : 'الدخول إلى ضمانك',
+            inviteReady
+                ? L10n.current.msgb1afed756408
+                : L10n.current.msg2837eb878bb4,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 7),
           Text(
             inviteReady
                 ? showApple
-                      ? 'اختر حساب Apple أو Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
-                      : 'اختر حساب Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
-                : 'استخدم حسابك الموجود على جهازك. لا كلمة مرور جديدة ولا جلسة مشتركة بين الموظفين.',
+                      ? L10n.current.msg6c4394b5c8de
+                      : L10n.current.msg433779b5949c
+                : L10n.current.msgbc960abda0c4,
             style: TextStyle(color: colors.onSurfaceVariant),
           ),
           if (inviteReady) ...[
@@ -126,7 +132,7 @@ class _AuthPanel extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'سيبقى رابط الدعوة محفوظاً أثناء تسجيل الدخول.',
+                      L10n.current.msgf96ed34f8982,
                       style: TextStyle(
                         color: colors.onPrimaryContainer,
                         fontWeight: FontWeight.w600,
@@ -151,7 +157,7 @@ class _AuthPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'جارٍ تسجيل الدخول بأمان…',
+                  L10n.current.msg78fd957e44f0,
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               ],
@@ -159,7 +165,7 @@ class _AuthPanel extends StatelessWidget {
           ],
           const SizedBox(height: 18),
           Text(
-            'بالمتابعة، يطّلع ضمانك فقط على الاسم والبريد اللذين يرسلهما مزوّد الحساب. يمكنك حذف حسابك من داخل التطبيق.',
+            L10n.current.msgd98d709d9821,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -176,15 +182,16 @@ class _GoogleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Semantics(
       button: true,
-      label: 'المتابعة باستخدام Google',
+      label: L10n.current.msgf8402c2a1011,
       child: SizedBox(
         width: double.infinity,
         height: 54,
         child: OutlinedButton(
           onPressed: busy ? null : () => onPressed(SocialAuthProvider.google),
-          child: const Row(
+          child: Row(
             children: [
               SizedBox(
                 width: 28,
@@ -201,7 +208,7 @@ class _GoogleButton extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'المتابعة باستخدام Google',
+                  L10n.current.msgf8402c2a1011,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -222,12 +229,13 @@ class _AppleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final foreground = dark ? Colors.black : Colors.white;
     final background = dark ? Colors.white : Colors.black;
     return Semantics(
       button: true,
-      label: 'المتابعة باستخدام Apple',
+      label: L10n.current.msg6bdd85157847,
       child: SizedBox(
         width: double.infinity,
         height: 54,
@@ -239,12 +247,12 @@ class _AppleButton extends StatelessWidget {
             disabledForegroundColor: foreground.withValues(alpha: 0.72),
           ),
           onPressed: busy ? null : () => onPressed(SocialAuthProvider.apple),
-          child: const Row(
+          child: Row(
             children: [
               SizedBox(width: 28, child: Icon(Icons.apple_rounded, size: 23)),
               Expanded(
                 child: Text(
-                  'المتابعة باستخدام Apple',
+                  L10n.current.msg6bdd85157847,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -262,19 +270,20 @@ class _AuthStory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
         color: AppColors.ink,
         borderRadius: BorderRadius.circular(28),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           BrandMark(onDark: true),
           Spacer(),
           Text(
-            'حسابك لك،\nوصلاحيتك واضحة.',
+            L10n.current.msgd43e32c57516,
             style: TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -284,7 +293,7 @@ class _AuthStory extends StatelessWidget {
           ),
           SizedBox(height: 14),
           Text(
-            'المالك يدعو الفريق، وكل موظف يدخل بحساب Apple أو Google مستقل من دون مشاركة كلمة المرور.',
+            L10n.current.msgb4b1b15b2668,
             style: TextStyle(color: Color(0xFFBDD0CD), height: 1.65),
           ),
           SizedBox(height: 28),
@@ -302,6 +311,7 @@ class _TrustStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final color = onDark
         ? Colors.white.withValues(alpha: 0.82)
@@ -313,19 +323,19 @@ class _TrustStrip extends StatelessWidget {
       children: [
         _TrustItem(
           icon: Icons.person_outline_rounded,
-          text: 'حساب فردي',
+          text: L10n.current.msg1914dae89043,
           color: color,
           iconColor: iconColor,
         ),
         _TrustItem(
           icon: Icons.shield_outlined,
-          text: 'صلاحيات مستقلة',
+          text: L10n.current.msg81538c5a6b52,
           color: color,
           iconColor: iconColor,
         ),
         _TrustItem(
           icon: Icons.link_rounded,
-          text: 'دعوة برابط واحد',
+          text: L10n.current.msgfc933a60701c,
           color: color,
           iconColor: iconColor,
         ),
@@ -349,6 +359,7 @@ class _TrustItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

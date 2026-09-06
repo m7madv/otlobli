@@ -1,3 +1,5 @@
+import 'package:damanak/l10n/l10n.dart';
+
 enum PurchaseOrderStatus {
   draft,
   ordered,
@@ -8,11 +10,11 @@ enum PurchaseOrderStatus {
 
 extension PurchaseOrderStatusText on PurchaseOrderStatus {
   String get label => switch (this) {
-    PurchaseOrderStatus.draft => 'مسودة',
-    PurchaseOrderStatus.ordered => 'مرسل للمورد',
-    PurchaseOrderStatus.partiallyReceived => 'مستلم جزئياً',
-    PurchaseOrderStatus.received => 'مستلم',
-    PurchaseOrderStatus.cancelled => 'ملغي',
+    PurchaseOrderStatus.draft => L10n.current.msg552aec56f591,
+    PurchaseOrderStatus.ordered => L10n.current.msgd35cb9f02c2d,
+    PurchaseOrderStatus.partiallyReceived => L10n.current.msgba3b8f66fad5,
+    PurchaseOrderStatus.received => L10n.current.msg66febe964420,
+    PurchaseOrderStatus.cancelled => L10n.current.msg616d302cb016,
   };
 
   static PurchaseOrderStatus fromValue(String? value) => switch (value) {

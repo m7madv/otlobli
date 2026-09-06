@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -815,7 +816,7 @@ ProductDetailsResponse googleSubscriptionProductResponse({
             code: response.responseCode.name,
             message:
                 response.billingResult.debugMessage ??
-                'تعذر جلب اشتراكات Google Play.',
+                L10n.current.msg39e05ec475f1,
             details: {
               'subResponseCode': response.billingResult.subResponseCode,
               'unfetchedProductIds': unfetchedIds.toList()..sort(),
@@ -879,18 +880,12 @@ String appleCatalogUnavailableMessage(String? storefrontCountryCode) {
   if (countryCode != null &&
       countryCode.isNotEmpty &&
       !_gulfStorefrontCountryCodes.contains(countryCode)) {
-    return 'متجر Apple المستخدم للمشتريات هو $countryCode، بينما خطط ضمانك '
-        'متاحة في دول الخليج فقط. غيّر بلد حساب App Store إلى قطر ثم أعد المحاولة. '
-        'رمز التشخيص: APPLE-STOREFRONT-$countryCode.';
+    return L10n.current.msg663f5201a2b5(countryCode, countryCode);
   }
   if (countryCode == null || countryCode.isEmpty) {
-    return 'لم يحدد App Store بلد حساب المشتريات، ولم يُرجع أي خطة. تحقق من '
-        'تسجيل الدخول إلى الوسائط والمشتريات ثم أعد المحاولة. '
-        'رمز التشخيص: APPLE-STOREFRONT-UNKNOWN.';
+    return L10n.current.msg35e6d94ac59f;
   }
-  return 'اتصل التطبيق بمتجر Apple في $countryCode، لكن المتجر أعاد 0 من 6 '
-      'خطط. تحقق من حساب الوسائط والمشتريات ثم أعد المحاولة. '
-      'رمز التشخيص: APPLE-CATALOG-0-$countryCode.';
+  return L10n.current.msgb59954ed6b47(countryCode, countryCode);
 }
 
 abstract interface class StoreBillingService {
@@ -939,11 +934,11 @@ class UnavailableStoreBillingService implements StoreBillingService {
   @override
   Future<StoreProductLoadResult> loadProducts({
     required String accountId,
-  }) async => const StoreProductLoadResult(
+  }) async => StoreProductLoadResult(
     available: false,
     platform: StoreBillingPlatform.unavailable,
     offers: [],
-    errorMessage: 'تتوفر الاشتراكات داخل تطبيق Android أو iPhone فقط.',
+    errorMessage: L10n.current.msg2c9f52cf3f78,
   );
 
   @override
@@ -1055,11 +1050,11 @@ class PlatformStoreBillingService implements StoreBillingService {
     required String accountId,
   }) async {
     if (platform == StoreBillingPlatform.unavailable) {
-      return const StoreProductLoadResult(
+      return StoreProductLoadResult(
         available: false,
         platform: StoreBillingPlatform.unavailable,
         offers: [],
-        errorMessage: 'تتوفر الاشتراكات داخل تطبيق Android أو iPhone فقط.',
+        errorMessage: L10n.current.msg2c9f52cf3f78,
       );
     }
     try {
@@ -1071,7 +1066,7 @@ class PlatformStoreBillingService implements StoreBillingService {
           available: false,
           platform: platform,
           offers: const [],
-          errorMessage: 'تعذر الاتصال بـ${platform.label}.',
+          errorMessage: L10n.current.msg59869fa52f29(platform.label),
         );
       }
 
@@ -1123,15 +1118,14 @@ class PlatformStoreBillingService implements StoreBillingService {
         offers: offers,
         missingProductIds: response.notFoundIDs,
         errorMessage: response.error != null
-            ? 'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى. '
-                  'رمز المتجر: ${response.error!.code}.'
+            ? L10n.current.msg6a4c814dc5ad(platform.label, response.error!.code)
             : platform == StoreBillingPlatform.appStore && offers.isEmpty
             ? appleCatalogUnavailableMessage(storefrontCountryCode)
             : platform == StoreBillingPlatform.googlePlay && offers.isEmpty
-            ? 'اتصل التطبيق بـGoogle Play، لكن المتجر لم يُرجع أي خطة. '
-                  'رمز التشخيص: GOOGLE-CATALOG-'
-                  '${response.productDetails.length}-'
-                  '${response.notFoundIDs.length}.'
+            ? L10n.current.msg237199bb91b5(
+                response.productDetails.length,
+                response.notFoundIDs.length,
+              )
             : null,
       );
     } on TimeoutException {
@@ -1139,17 +1133,14 @@ class PlatformStoreBillingService implements StoreBillingService {
         available: false,
         platform: platform,
         offers: const [],
-        errorMessage:
-            'استغرق ${platform.label} وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
+        errorMessage: L10n.current.msg3fbeae73a3a0(platform.label),
       );
     } on PlatformException catch (error) {
       return StoreProductLoadResult(
         available: false,
         platform: platform,
         offers: const [],
-        errorMessage:
-            'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى. '
-            'رمز المتجر: ${error.code}.',
+        errorMessage: L10n.current.msg6a4c814dc5ad(platform.label, error.code),
       );
     }
   }
@@ -1190,7 +1181,7 @@ class PlatformStoreBillingService implements StoreBillingService {
         error: IAPError(
           source: 'app_store',
           code: error.code,
-          message: error.message ?? 'تعذر جلب أسعار App Store.',
+          message: error.message ?? L10n.current.msga782f16b2e97,
           details: error.details,
         ),
       );

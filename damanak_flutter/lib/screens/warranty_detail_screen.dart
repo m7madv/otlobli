@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -33,29 +34,34 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final warranty = controller.warrantyById(widget.warrantyId);
 
     if (warranty == null) {
       return Directionality(
-        textDirection: TextDirection.rtl,
+        textDirection: Directionality.of(context),
         child: Scaffold(
           appBar: AppBar(),
-          body: const Center(child: Text('لم تعد بطاقة الضمان موجودة.')),
+          body: Center(child: Text(L10n.current.msg9edf4b8f634f)),
         ),
       );
     }
 
     final requests = controller.requestsForWarranty(warranty.id);
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: Directionality.of(context),
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.justCreated ? 'تم إصدار الضمان' : 'تفاصيل الضمان'),
+          title: Text(
+            widget.justCreated
+                ? L10n.current.msgc7a6e0fdfb63
+                : L10n.current.msgeaf7dd727edb,
+          ),
           actions: controller.membership!.role.canManageTeam
               ? [
                   IconButton(
-                    tooltip: 'حذف الضمان',
+                    tooltip: L10n.current.msg0d505fe3d181,
                     onPressed: () => _confirmDelete(warranty),
                     icon: const Icon(Icons.delete_outline_rounded),
                   ),
@@ -93,7 +99,9 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                                   )
                                 : const Icon(Icons.ios_share_rounded),
                             label: Text(
-                              _sharing ? 'جارٍ تجهيز الرابط…' : 'مشاركة الضمان',
+                              _sharing
+                                  ? L10n.current.msgbef58a3f774f
+                                  : L10n.current.msgb884b4ed524c,
                             ),
                           ),
                         ),
@@ -101,12 +109,12 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                         Semantics(
                           button: true,
                           label: _showQr
-                              ? 'إخفاء رمز التحقق'
-                              : 'عرض رمز التحقق',
+                              ? L10n.current.msg6a1ac0e46c80
+                              : L10n.current.msg39b324587aad,
                           child: Tooltip(
                             message: _showQr
-                                ? 'إخفاء رمز التحقق'
-                                : 'عرض رمز التحقق',
+                                ? L10n.current.msg6a1ac0e46c80
+                                : L10n.current.msg39b324587aad,
                             child: OutlinedButton(
                               onPressed: _sharing
                                   ? null
@@ -142,14 +150,14 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            'مطالبات الضمان',
+                            L10n.current.msg0678c3efbff7,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
                         TextButton.icon(
                           onPressed: () => _openMaintenanceDialog(warranty),
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('مطالبة جديدة'),
+                          label: Text(L10n.current.msg946f0256003d),
                         ),
                       ],
                     ),
@@ -212,31 +220,32 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
       profile.name,
       profile.city,
     ].where((value) => value.trim().isNotEmpty).join(' - ');
-    final text =
-        '''
-بطاقة ضمان من $storeLine
-
-المنتج: ${warranty.productName}
-العميل: ${warranty.customerName}
-رقم الضمان: ${warranty.displayNumber}
-رقم الإيصال: ${warranty.invoiceNumber.isEmpty ? 'تلقائي' : warranty.invoiceNumber}
-تاريخ الشراء: ${formatDate(warranty.purchaseDate)}
-صالح حتى: ${formatDate(warranty.expiryDate)}
-الحالة: ${warranty.statusAt().label}
-الإجمالي: ${formatMoney(warranty.saleTotal, warranty.currencyCode)}
-طريقة الدفع: ${warranty.paymentMethod.label}
-${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
-${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:\n$link'}
-
-احتفظ بهذه الرسالة للرجوع إليها عند طلب الصيانة.
-'''
-            .trim();
+    final text = L10n.current
+        .msg7449b113696b(
+          storeLine,
+          warranty.productName,
+          warranty.customerName,
+          warranty.displayNumber,
+          warranty.invoiceNumber.isEmpty
+              ? L10n.current.msgc190381bd30c
+              : warranty.invoiceNumber,
+          formatDate(warranty.purchaseDate),
+          formatDate(warranty.expiryDate),
+          warranty.statusAt().label,
+          formatMoney(warranty.saleTotal, warranty.currencyCode),
+          warranty.paymentMethod.label,
+          warranty.notes.isEmpty
+              ? ''
+              : L10n.current.msg36310b3301dc(warranty.notes),
+          link == null ? '' : L10n.current.msg16a4cd7b6137(link),
+        )
+        .trim();
     final box = context.findRenderObject() as RenderBox?;
     try {
       await SharePlus.instance.share(
         ShareParams(
           text: text,
-          subject: 'بطاقة ضمان ${warranty.displayNumber}',
+          subject: L10n.current.msg328999e4edef(warranty.displayNumber),
           sharePositionOrigin: box == null
               ? null
               : box.localToGlobal(Offset.zero) & box.size,
@@ -276,29 +285,29 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('مطالبة ضمان جديدة'),
+          title: Text(L10n.current.msg961e982ce839),
           content: TextField(
             autofocus: true,
             minLines: 3,
             maxLines: 5,
             onChanged: (value) =>
                 setDialogState(() => issueText = value.trim()),
-            decoration: const InputDecoration(
-              labelText: 'ما المشكلة؟',
-              hintText: 'مثال: الجهاز لا يعمل بعد التشغيل',
+            decoration: InputDecoration(
+              labelText: L10n.current.msgcabed10e2a69,
+              hintText: L10n.current.msg8a9a1bb9e453,
               alignLabelWithHint: true,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء'),
+              child: Text(L10n.current.msg9a30dc2a96b8),
             ),
             FilledButton(
               onPressed: issueText.length < 3
                   ? null
                   : () => Navigator.pop(dialogContext, issueText),
-              child: const Text('تسجيل المطالبة'),
+              child: Text(L10n.current.msg4ff1d76c66f8),
             ),
           ],
         ),
@@ -313,7 +322,7 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('تم تسجيل مطالبة الضمان.')));
+      ).showSnackBar(SnackBar(content: Text(L10n.current.msgb10fea1f3532)));
     }
   }
 
@@ -321,19 +330,17 @@ ${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('حذف بطاقة الضمان؟'),
-        content: const Text(
-          'سيتم حذف البطاقة ومطالبات الضمان التابعة لها من سجل المتجر نهائياً.',
-        ),
+        title: Text(L10n.current.msgb2dd8fca21fc),
+        content: Text(L10n.current.msgc7fffa55b3d8),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
+            child: Text(L10n.current.msg9a30dc2a96b8),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('حذف'),
+            child: Text(L10n.current.msg59ca629220a6),
           ),
         ],
       ),
@@ -353,6 +360,7 @@ class _WarrantyDocument extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final status = warranty.statusAt();
     final colors = context.colors;
     final controller = AppScope.of(context);
@@ -407,7 +415,7 @@ class _WarrantyDocument extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'وثيقة ضمان رقمية',
+                        L10n.current.msga46b81c8cb9b,
                         style: TextStyle(
                           color: colors.onPrimary,
                           fontSize: 19,
@@ -416,7 +424,7 @@ class _WarrantyDocument extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${profile.name} • إيصال وضمان موحدان',
+                        L10n.current.msg5c2168d73c92(profile.name),
                         style: TextStyle(
                           color: colors.onPrimary.withValues(alpha: 0.76),
                           fontSize: 12,
@@ -441,7 +449,7 @@ class _WarrantyDocument extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'المنتج المشمول',
+                            L10n.current.msg637134e8ceab,
                             style: TextStyle(
                               color: colors.onSurfaceVariant,
                               fontSize: 12,
@@ -461,50 +469,56 @@ class _WarrantyDocument extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 22),
-                _DetailRow(label: 'اسم العميل', value: warranty.customerName),
                 _DetailRow(
-                  label: 'رقم الجوال',
+                  label: L10n.current.msg70771eb8320f,
+                  value: warranty.customerName,
+                ),
+                _DetailRow(
+                  label: L10n.current.msg6dbe8474b01b,
                   value: warranty.customerPhone,
                   ltr: true,
                 ),
                 _DetailRow(
-                  label: 'رقم الضمان',
+                  label: L10n.current.msga97505f65ec3,
                   value: warranty.displayNumber,
                   ltr: true,
                 ),
                 if (warranty.invoiceNumber.isNotEmpty)
                   _DetailRow(
-                    label: 'رقم الإيصال',
+                    label: L10n.current.msg239cb47cd98d,
                     value: warranty.invoiceNumber,
                     ltr: true,
                   ),
                 if (branch != null)
-                  _DetailRow(label: 'الفرع', value: branch.name),
+                  _DetailRow(
+                    label: L10n.current.msg8a706d30e0ed,
+                    value: branch.name,
+                  ),
                 if (warranty.barcode.isNotEmpty)
                   _DetailRow(
-                    label: 'الباركود',
+                    label: L10n.current.msg501881931acd,
                     value: warranty.barcode,
                     ltr: true,
                   ),
                 if (warranty.serialNumber.isNotEmpty)
                   _DetailRow(
-                    label: 'الرقم التسلسلي',
+                    label: L10n.current.msg5789f0fed61c,
                     value: warranty.serialNumber,
                     ltr: true,
                   ),
                 _DetailRow(
-                  label: 'تاريخ الشراء',
+                  label: L10n.current.msgdc24afda1b22,
                   value: formatDate(warranty.purchaseDate),
                   ltr: true,
                 ),
                 _DetailRow(
-                  label: 'نهاية الضمان',
+                  label: L10n.current.msgc246f9ec82e0,
                   value: formatDate(warranty.expiryDate),
                   ltr: true,
                 ),
                 const Divider(height: 28),
                 Text(
-                  'تفاصيل الإيصال',
+                  L10n.current.msg3aa676d8a2e7,
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 12,
@@ -513,7 +527,7 @@ class _WarrantyDocument extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 _DetailRow(
-                  label: 'سعر البيع',
+                  label: L10n.current.msg2d37565e6fe3,
                   value: formatMoney(
                     warranty.saleSubtotal,
                     warranty.currencyCode,
@@ -521,24 +535,24 @@ class _WarrantyDocument extends StatelessWidget {
                 ),
                 if (warranty.discountAmount > 0)
                   _DetailRow(
-                    label: 'الخصم',
+                    label: L10n.current.msgb593a6457673,
                     value: formatMoney(
                       warranty.discountAmount,
                       warranty.currencyCode,
                     ),
                   ),
                 _DetailRow(
-                  label: 'الإجمالي',
+                  label: L10n.current.msgbaed6e999960,
                   value: formatMoney(warranty.saleTotal, warranty.currencyCode),
                 ),
                 _DetailRow(
-                  label: 'طريقة الدفع',
+                  label: L10n.current.msgae2d60052976,
                   value: warranty.paymentMethod.label,
                 ),
                 if (warranty.notes.isNotEmpty) ...[
                   const Divider(height: 28),
                   Text(
-                    'ملاحظات وشروط',
+                    L10n.current.msg90c177abd603,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
                       fontSize: 12,
@@ -591,6 +605,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -611,7 +626,9 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
+              textDirection: ltr
+                  ? TextDirection.ltr
+                  : Directionality.of(context),
               textAlign: ltr ? TextAlign.end : TextAlign.start,
               style: TextStyle(
                 color: colors.onSurface,
@@ -633,6 +650,7 @@ class _QrPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     final qrData =
         publicLink?.toString() ??
@@ -643,7 +661,7 @@ class _QrPanel extends StatelessWidget {
         child: Column(
           children: [
             Semantics(
-              label: 'رمز تحقق بطاقة الضمان ${warranty.displayNumber}',
+              label: L10n.current.msg7229d4c7ae58(warranty.displayNumber),
               image: true,
               child: QrImageView(
                 data: qrData,
@@ -662,14 +680,16 @@ class _QrPanel extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              publicLink == null ? 'معاينة محلية' : 'رابط تحقق آمن',
+              publicLink == null
+                  ? L10n.current.msgae8d0843c053
+                  : L10n.current.msg132503af2da2,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             Text(
               publicLink == null
-                  ? 'تظهر روابط التحقق السحابية في مساحة المتجر الحقيقية.'
-                  : 'يفتح بطاقة عربية موثّقة، مع إخفاء بيانات العميل الحساسة.',
+                  ? L10n.current.msg2dcc255c88be
+                  : L10n.current.msg1fd32ccb11f3,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
@@ -685,6 +705,7 @@ class _CreatedNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Container(
       width: double.infinity,
@@ -699,7 +720,7 @@ class _CreatedNotice extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'تم إصدار البطاقة ومزامنتها مع مساحة المتجر.',
+              L10n.current.msg5a5d5c520635,
               style: TextStyle(
                 color: colors.onPrimaryContainer,
                 fontWeight: FontWeight.w600,
@@ -717,6 +738,7 @@ class _NoRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final colors = context.colors;
     return Card(
       child: Padding(
@@ -727,7 +749,7 @@ class _NoRequests extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'لا توجد مطالبات ضمان لهذه البطاقة.',
+                L10n.current.msg6f250c704cee,
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ),

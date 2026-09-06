@@ -1,3 +1,4 @@
+import 'package:damanak/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -16,11 +17,11 @@ class ProcurementScreen extends StatelessWidget {
     length: 2,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('الموردون والمشتريات'),
-        bottom: const TabBar(
+        title: Text(L10n.current.msgb303479250b4),
+        bottom: TabBar(
           tabs: [
-            Tab(text: 'أوامر الشراء'),
-            Tab(text: 'الموردون'),
+            Tab(text: L10n.current.msg37d10770219f),
+            Tab(text: L10n.current.msge9907912acf6),
           ],
         ),
       ),
@@ -36,6 +37,7 @@ class _SuppliersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     return Align(
       alignment: Alignment.topCenter,
@@ -49,25 +51,23 @@ class _SuppliersTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${controller.suppliers.length} موردين نشطين',
+                    L10n.current.msg24348f4b9021(controller.suppliers.length),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 FilledButton.icon(
                   onPressed: () => _editSupplier(context),
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('مورد'),
+                  label: Text(L10n.current.msg9b286307f684),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             if (controller.suppliers.isEmpty)
-              const Card(
+              Card(
                 child: Padding(
                   padding: EdgeInsets.all(28),
-                  child: Center(
-                    child: Text('أضف المورد الأول لبدء أوامر الشراء.'),
-                  ),
+                  child: Center(child: Text(L10n.current.msg2066172a5f71)),
                 ),
               )
             else
@@ -136,6 +136,7 @@ class _OrdersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     return Align(
       alignment: Alignment.topCenter,
@@ -149,7 +150,9 @@ class _OrdersTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${controller.purchaseOrders.length} أوامر شراء',
+                    L10n.current.msga714623dcee2(
+                      controller.purchaseOrders.length,
+                    ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -160,7 +163,7 @@ class _OrdersTab extends StatelessWidget {
                       ? null
                       : () => _newOrder(context),
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('أمر جديد'),
+                  label: Text(L10n.current.msg56d621339101),
                 ),
               ],
             ),
@@ -168,16 +171,16 @@ class _OrdersTab extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
-                  'أضف مورداً أولاً من تبويب الموردين.',
+                  L10n.current.msg5453ad7ce99a,
                   style: TextStyle(color: context.colors.onSurfaceVariant),
                 ),
               ),
             const SizedBox(height: 14),
             if (controller.purchaseOrders.isEmpty)
-              const Card(
+              Card(
                 child: Padding(
                   padding: EdgeInsets.all(28),
-                  child: Center(child: Text('لا توجد أوامر شراء بعد.')),
+                  child: Center(child: Text(L10n.current.msg1d610c795c9e)),
                 ),
               )
             else
@@ -214,6 +217,7 @@ class _OrderCard extends StatelessWidget {
   final PurchaseOrder order;
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     final supplier = controller.suppliers
         .where((item) => item.id == order.supplierId)
@@ -236,7 +240,7 @@ class _OrderCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       Text(
-                        '${supplier?.name ?? 'مورد'} • ${formatDate(order.createdAt)}',
+                        '${supplier?.name ?? L10n.knownLabel('مورد')} • ${formatDate(order.createdAt)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: context.colors.onSurfaceVariant,
@@ -267,7 +271,7 @@ class _OrderCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Text('${order.lines.length} أصناف'),
+                Text(L10n.current.msgd10984c34bd5(order.lines.length)),
                 const Spacer(),
                 Text(
                   formatMoney(order.totalCost, controller.store!.currencyCode),
@@ -284,7 +288,7 @@ class _OrderCard extends StatelessWidget {
                       ? null
                       : () => controller.receivePurchaseOrder(order.id),
                   icon: const Icon(Icons.inventory_rounded),
-                  label: const Text('استلام كامل وتحديث المخزون'),
+                  label: Text(L10n.current.msgdc3e3b89eb83),
                 ),
               ),
             ],
@@ -344,21 +348,23 @@ class _SupplierSheetState extends State<_SupplierSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.supplier == null ? 'مورد جديد' : 'تعديل المورد',
+              widget.supplier == null
+                  ? L10n.current.msg9e920136dad3
+                  : L10n.current.msg491a2b55387d,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 14),
-            _field(0, 'اسم الشركة أو المورد', required: true),
+            _field(0, L10n.current.msg881c6f87377c, required: true),
             const SizedBox(height: 9),
-            _field(1, 'اسم مسؤول التواصل'),
+            _field(1, L10n.current.msg2d47a8a2f231),
             const SizedBox(height: 9),
-            _field(2, 'الهاتف', phone: true),
+            _field(2, L10n.current.msg94b59a5125fb, phone: true),
             const SizedBox(height: 9),
-            _field(3, 'البريد الإلكتروني', email: true),
+            _field(3, L10n.current.msgddf0fca39a4f, email: true),
             const SizedBox(height: 9),
-            _field(5, 'العنوان'),
+            _field(5, L10n.current.msg2d110e56d5f5),
             const SizedBox(height: 9),
-            _field(6, 'ملاحظات'),
+            _field(6, L10n.current.msgd446d2dc6b81),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -380,7 +386,7 @@ class _SupplierSheetState extends State<_SupplierSheet> {
                     ),
                   );
                 },
-                child: const Text('حفظ المورد'),
+                child: Text(L10n.current.msg32ffe863ab83),
               ),
             ),
           ],
@@ -404,7 +410,9 @@ class _SupplierSheetState extends State<_SupplierSheet> {
     textDirection: phone || email ? TextDirection.ltr : null,
     decoration: InputDecoration(labelText: label),
     validator: required
-        ? (value) => (value?.trim().length ?? 0) < 2 ? 'هذا الحقل مطلوب' : null
+        ? (value) => (value?.trim().length ?? 0) < 2
+              ? L10n.current.msgd5a02f880a17
+              : null
         : null,
   );
 }
@@ -466,6 +474,7 @@ class _OrderSheetState extends State<_OrderSheet> {
 
   @override
   Widget build(BuildContext context) {
+    L10n.watch(context);
     final controller = AppScope.of(context);
     return DraggableScrollableSheet(
       expand: false,
@@ -477,13 +486,15 @@ class _OrderSheetState extends State<_OrderSheet> {
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
         children: [
           Text(
-            'أمر شراء جديد',
+            L10n.current.msg1c89e0bef044,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: _branchId,
-            decoration: const InputDecoration(labelText: 'فرع الاستلام'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msg59daeec17138,
+            ),
             items: controller.branches
                 .map(
                   (item) =>
@@ -495,7 +506,9 @@ class _OrderSheetState extends State<_OrderSheet> {
           const SizedBox(height: 9),
           DropdownButtonFormField<String>(
             initialValue: _supplierId,
-            decoration: const InputDecoration(labelText: 'المورد'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msg4680c31a727f,
+            ),
             items: controller.suppliers
                 .map(
                   (item) =>
@@ -505,11 +518,16 @@ class _OrderSheetState extends State<_OrderSheet> {
             onChanged: (value) => _supplierId = value!,
           ),
           const SizedBox(height: 16),
-          Text('الأصناف', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            L10n.current.msgcdc1331ab21e,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 9),
           DropdownButtonFormField<Product>(
             initialValue: _product,
-            decoration: const InputDecoration(labelText: 'المنتج'),
+            decoration: InputDecoration(
+              labelText: L10n.current.msga79e304d96a1,
+            ),
             items: controller.products
                 .map(
                   (item) =>
@@ -531,7 +549,9 @@ class _OrderSheetState extends State<_OrderSheet> {
                     decimal: true,
                   ),
                   textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'الكمية'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg935e21853946,
+                  ),
                 ),
               ),
               const SizedBox(width: 9),
@@ -542,7 +562,9 @@ class _OrderSheetState extends State<_OrderSheet> {
                     decimal: true,
                   ),
                   textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'تكلفة الوحدة'),
+                  decoration: InputDecoration(
+                    labelText: L10n.current.msg86df419eaf6e,
+                  ),
                 ),
               ),
             ],
@@ -551,14 +573,14 @@ class _OrderSheetState extends State<_OrderSheet> {
           OutlinedButton.icon(
             onPressed: _addLine,
             icon: const Icon(Icons.playlist_add_rounded),
-            label: const Text('إضافة للأمر'),
+            label: Text(L10n.current.msg409af7a5a6d3),
           ),
           const SizedBox(height: 10),
           ..._lines.indexed.map((entry) {
             final product = controller.productById(entry.$2.productId);
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(product?.name ?? 'منتج'),
+              title: Text(product?.name ?? L10n.current.msgf8720c7412f1),
               subtitle: Text(
                 '${entry.$2.quantity} × ${formatMoney(entry.$2.unitCost, controller.store!.currencyCode)}',
               ),
@@ -572,8 +594,8 @@ class _OrderSheetState extends State<_OrderSheet> {
             controller: _notes,
             minLines: 2,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'ملاحظات الأمر (اختياري)',
+            decoration: InputDecoration(
+              labelText: L10n.current.msg0cdc868b58b7,
             ),
           ),
           const SizedBox(height: 16),
@@ -591,7 +613,7 @@ class _OrderSheetState extends State<_OrderSheet> {
                     ),
                   ),
             icon: const Icon(Icons.send_outlined),
-            label: const Text('إنشاء وإرسال الأمر'),
+            label: Text(L10n.current.msgb06d19e66e3b),
           ),
         ],
       ),
