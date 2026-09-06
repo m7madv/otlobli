@@ -1,6 +1,7 @@
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {createHash,createPrivateKey,sign} from 'node:crypto';
 import {resolve,join} from 'node:path';
+import {storeNames} from './store_names.mjs';
 
 const APP='6805194629', VERSION='0.1.2', ROOT='https://api.appstoreconnect.apple.com/v1';
 const directory=resolve(import.meta.dirname,'../store_assets/localized');
@@ -97,10 +98,29 @@ try{
     }
     if(!['PREPARE_FOR_SUBMISSION','REJECTED','DEVELOPER_REJECTED'].includes(version.attributes.appStoreState))throw new Error('Target version is not an editable draft');
     report.draftId=version.id;report.createdDraft=created;save();
+    const infos=await list(`/apps/${APP}/appInfos?limit=200`);
+    const info=infos.find(i=>i.id==='176e4637-e8be-499e-a3f2-93acf9dfeb92');
+    if(!info || !['PREPARE_FOR_SUBMISSION','REJECTED','DEVELOPER_REJECTED'].includes(info.attributes.appStoreState))throw new Error('Expected editable app information not found');
+    const infoLocales=await list(`/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+    writeFileSync(join(reportDir,'before-app-info.json'),JSON.stringify(infoLocales,null,2));
+    const arabic=infoLocales.find(l=>l.attributes.locale==='ar-SA');
+    if(arabic?.attributes.name!=='VoiceBrief')throw new Error('Arabic brand changed; preserve owner metadata');
+    report.storeNames=[];
     const localized=await list(`/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=200`);
     writeFileSync(join(reportDir,'before-metadata.json'),JSON.stringify(localized,null,2));
     for(const local of manifest.localizations){
       const locale=local.attributes.locale;
+      // Create named AppInfo localization first: implicit creation reuses the
+      // Arabic name and fails when that name belongs to another localized app.
+      const name=storeNames[locale];
+      if(!name)throw new Error('Missing approved store name');
+      let infoLocale=infoLocales.find(l=>l.attributes.locale===locale);
+      if(!infoLocale){
+        infoLocale=(await api('/appInfoLocalizations','POST',{data:{type:'appInfoLocalizations',attributes:{locale,name,privacyPolicyUrl:'https://voicebrief-legal.vercel.app/privacy?lang=en',privacyChoicesUrl:'https://voicebrief-legal.vercel.app/delete-account?lang=en'},relationships:{appInfo:relationship('appInfos',info.id)}}})).data;
+      }else if(infoLocale.attributes.name!==name){
+        throw new Error(`Existing ${locale} name differs; preserve owner metadata`);
+      }
+      report.storeNames.push({locale,name,id:infoLocale.id});save();
       let record=localized.find(l=>l.attributes.locale===locale);
       if(!record)record=(await api('/appStoreVersionLocalizations','POST',{data:{type:'appStoreVersionLocalizations',attributes:local.attributes,relationships:{appStoreVersion:relationship('appStoreVersions',version.id)}}})).data;
       else{
