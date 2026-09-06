@@ -1,6 +1,8 @@
 {
   "@@locale": "en",
   "appName": "VoiceBrief",
+  "appLanguage": "App language",
+  "followSystemLanguage": "Use device language",
   "home": "Home",
   "history": "History",
   "settings": "Settings",

@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief создаёт будильник только после подтверждения даты и времени.";
+"NSCalendarsUsageDescription" = "VoiceBrief добавляет важную дату только после вашего подтверждения.";
+"NSMicrophoneUsageDescription" = "VoiceBrief использует микрофон только когда вы выбираете запись аудио.";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief добавляет важную дату только после вашего подтверждения.";

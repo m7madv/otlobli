@@ -1,0 +1,399 @@
+{
+  "@@locale": "ur",
+  "appName": "VoiceBrief",
+  "appLanguage": "ایپ کی زبان",
+  "followSystemLanguage": "آلے کی زبان استعمال کریں",
+  "home": "ہوم",
+  "history": "ہسٹری",
+  "settings": "ترتیبات",
+  "cancel": "منسوخ",
+  "tryAgain": "دوبارہ کوشش کریں",
+  "close": "بند کریں",
+  "continueLabel": "جاری رکھیں",
+  "signIn": "سائن ان",
+  "signOut": "سائن آؤٹ",
+  "delete": "حذف کریں",
+  "copy": "کاپی کریں",
+  "edit": "ترمیم کریں",
+  "copied": "کاپی ہو گیا",
+  "complete": "مکمل",
+  "unavailable": "دستیاب نہیں",
+  "replaceAudio": "آڈیو بدلیں",
+  "removeAudio": "آڈیو ہٹائیں",
+  "playAudio": "آڈیو چلائیں",
+  "pauseAudio": "آڈیو روکیں",
+  "audioWaveform": "آڈیو کی لہر",
+  "audioWaveformLoading": "آڈیو کی اصل لہر بن رہی ہے…",
+  "audioPlayback": "آڈیو چل رہا ہے: {duration} میں سے {elapsed}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "{title} کاپی کریں",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "یہ اسکرین دستیاب نہیں۔",
+  "goPro": "Pro حاصل کریں",
+  "homeHeadline": "صوتی پیغامات سے واضح اگلے قدم حاصل کریں",
+  "homeSupporting": "WhatsApp سے شیئر کریں، آڈیو چنیں یا یہاں ریکارڈ کریں۔",
+  "shareFromWhatsApp": "WhatsApp سے",
+  "shareFromWhatsAppSteps": "صوتی پیغام دبا کر رکھیں، شیئر پر ٹیپ کریں، پھر VoiceBrief چنیں",
+  "chooseVoiceNote": "صوتی پیغام چنیں",
+  "recordInstead": "ابھی ریکارڈ کریں",
+  "recentBriefs": "حالیہ خلاصے",
+  "viewAll": "سب دیکھیں",
+  "noBriefsYet": "ابھی کوئی خلاصہ نہیں",
+  "noBriefsMessage": "پہلا خلاصہ بنانے کے لیے آڈیو چنیں یا ریکارڈ کریں۔",
+  "usageFreeMinutesRemaining": "{total} مفت منٹوں میں سے {remaining} باقی",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "{total} Pro منٹوں میں سے {remaining} باقی",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "{total} منٹوں میں سے {remaining} باقی",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "ہر صوتی پیغام کو مفید بنائیں",
+  "authSupporting": "اپنے منٹ محفوظ رکھنے اور محفوظ کردہ خلاصے اپنے اکاؤنٹ تک نجی رکھنے کے لیے سائن ان کریں۔",
+  "demoServicesActive": "نمائشی خدمات فعال ہیں۔ کوئی بیرونی اکاؤنٹ یا معاوضے والی خدمت استعمال نہیں ہوتی۔",
+  "providerSignInTitle": "تیز اور محفوظ سائن ان",
+  "providerSignInDescription": "Apple یا Google چنیں۔ VoiceBrief آپ کے اکاؤنٹ کا پاس ورڈ کبھی نہیں دیکھتا۔",
+  "continueWithApple": "Apple کے ساتھ جاری رکھیں",
+  "continueWithGoogle": "Google کے ساتھ جاری رکھیں",
+  "byContinuingPrefix": "جاری رکھ کر آپ اتفاق کرتے ہیں: ",
+  "terms": "شرائط",
+  "andConjunction": " اور ",
+  "privacyPolicy": "رازداری کی پالیسی",
+  "errorIdentityProviderUnavailable": "سائن ان کا یہ طریقہ دستیاب نہیں۔ دوسرا طریقہ آزمائیں۔",
+  "onboardingSignIn": "سائن ان",
+  "onboardingTitleOne": "آواز سے واضح معلومات",
+  "onboardingBodyOne": "آڈیو شیئر کریں، چنیں یا ریکارڈ کریں۔ لفظی متن، خلاصہ، کام، تاریخیں اور مجوزہ جوابات حاصل کریں۔",
+  "onboardingTitleTwo": "آپ کا آڈیو نجی رہتا ہے",
+  "onboardingBodyTwo": "آڈیو محفوظ طریقے سے پراسیس ہو کر خودکار طور پر حذف ہو جاتا ہے۔ آپ طے کرتے ہیں کہ کون سا متن محفوظ کرنا ہے۔",
+  "getStarted": "شروع کریں",
+  "recordAudio": "آڈیو ریکارڈ کریں",
+  "discardRecordingTitle": "ریکارڈنگ حذف کریں؟",
+  "discardRecordingMessage": "موجودہ ریکارڈنگ حذف ہو جائے گی۔",
+  "discard": "حذف کر دیں",
+  "recordingPaused": "ریکارڈنگ رکی ہوئی ہے",
+  "recording": "ریکارڈنگ جاری ہے",
+  "tapRecordReady": "تیار ہوں تو ریکارڈ پر ٹیپ کریں",
+  "startRecording": "ریکارڈنگ شروع کریں",
+  "resume": "جاری رکھیں",
+  "pause": "وقفہ",
+  "stop": "روکیں",
+  "cancelRecording": "ریکارڈنگ منسوخ کریں",
+  "microphoneJustInTime": "مائیکروفون کی اجازت صرف ریکارڈ پر ٹیپ کرنے کے بعد مانگی جاتی ہے۔",
+  "recordingSaveFailed": "ریکارڈنگ محفوظ نہیں ہو سکی۔",
+  "liveWaveformIdle": "ریکارڈنگ شروع ہونے پر اصل لہر نظر آئے گی۔",
+  "liveWaveformStarting": "مائیکروفون کی اصل سطح پڑھی جا رہی ہے…",
+  "liveWaveformActive": "یہ لہر آپ کی آواز کے ساتھ حرکت کر رہی ہے۔",
+  "historyLocalOnly": "صرف اس آلے پر محفوظ ہے",
+  "searchBriefs": "خلاصے تلاش کریں",
+  "nothingSaved": "ابھی کچھ محفوظ نہیں",
+  "nothingSavedMessage": "کوئی نتیجہ محفوظ کریں تو یہاں نظر آئے گا۔",
+  "noMatchingBriefs": "کوئی مماثل خلاصہ نہیں",
+  "noMatchingBriefsMessage": "عنوان یا خلاصے کا کوئی دوسرا لفظ تلاش کریں۔",
+  "briefDeleted": "خلاصہ حذف ہو گیا",
+  "undo": "واپس لائیں",
+  "voiceNoteReady": "صوتی پیغام تیار ہے",
+  "reviewAudio": "آڈیو کا جائزہ لیں",
+  "createMyBrief": "میرا خلاصہ بنائیں",
+  "secureAiProcessing": "محفوظ AI پراسیسنگ · آخر میں عارضی آڈیو حذف ہو جاتا ہے",
+  "secureAiProcessingSemantics": "آڈیو AI پراسیسنگ کے لیے محفوظ طریقے سے بھیجا جاتا ہے اور بعد میں عارضی اسٹوریج سے حذف کر دیا جاتا ہے۔",
+  "trimAudio": "آڈیو تراشیں",
+  "trimAudioHelp": "دونوں کنارے کھینچ کر حصہ چنیں۔ آگے بڑھنے سے پہلے اسے سن سکتے ہیں۔",
+  "selectedAudioRange": "منتخب حصہ: {start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "پورا آڈیو استعمال کریں",
+  "createBriefFromSelection": "اس حصے کا خلاصہ بنائیں",
+  "trimmingAudio": "آڈیو تراشا جا رہا ہے…",
+  "audioTrimmed": "آڈیو تراش دیا گیا۔ صرف منتخب حصہ رکھا گیا ہے۔",
+  "sharedAudioImporting": "شیئر کردہ صوتی پیغام تیار ہو رہا ہے…",
+  "customizeOutput": "نتیجہ اپنی پسند کے مطابق بنائیں",
+  "defaultOutput": "خلاصہ اور لفظ بہ لفظ متن خودکار طور پر شامل ہوتے ہیں",
+  "fullTranscript": "لفظ بہ لفظ متن",
+  "fullTranscriptDescription": "ریکارڈنگ میں کہی گئی ہر بات جوں کی توں، تاکہ آپ پڑھ، تلاش یا کاپی کر سکیں۔",
+  "summaryAndKeyPoints": "خلاصہ اور اہم نکات",
+  "actionItemsAndDates": "کام اور تاریخیں",
+  "suggestedReplies": "مجوزہ جوابات",
+  "translateSummaryEnglish": "خلاصے کا انگریزی میں ترجمہ کریں",
+  "sharedAudioReadySemantics": "شیئر کردہ صوتی پیغام درآمد ہو کر تیار ہے۔",
+  "sharedAudioReady": "صوتی پیغام درآمد ہو گیا۔ صرف ایک ٹیپ باقی ہے۔",
+  "creatingBrief": "آپ کا خلاصہ بن رہا ہے",
+  "processingFallbackError": "پراسیسنگ مکمل نہیں ہوئی۔ سرور کی محفوظ نقل حذف ہو گئی ہے اور آپ کی نجی مقامی نقل دوبارہ کوشش کے لیے تیار ہے۔",
+  "processingKeepOpen": "محفوظ اپ لوڈ مکمل ہونے تک VoiceBrief کھلا رکھیں۔ وقت ریکارڈنگ کی لمبائی اور کنکشن پر منحصر ہے۔",
+  "preparingAudio": "آڈیو تیار ہو رہا ہے",
+  "uploadingSecurely": "محفوظ اپ لوڈ جاری ہے",
+  "transcribing": "لفظی متن بن رہا ہے",
+  "creatingYourBrief": "آپ کا خلاصہ بن رہا ہے",
+  "finalizing": "آخری مرحلہ",
+  "brief": "خلاصہ",
+  "briefUnavailable": "یہ خلاصہ اب دستیاب نہیں۔",
+  "copyAll": "سب کاپی کریں",
+  "shareResult": "نتیجہ شیئر کریں",
+  "savedLocally": "آلے پر محفوظ",
+  "notSaved": "محفوظ نہیں",
+  "saved": "محفوظ",
+  "saveResult": "نتیجہ محفوظ کریں",
+  "deleteResult": "نتیجہ حذف کریں",
+  "deleteBriefTitle": "یہ خلاصہ حذف کریں؟",
+  "deleteBriefMessage": "محفوظ کردہ متن اس آلے سے حذف ہو جائے گا۔",
+  "keyPoints": "اہم نکات",
+  "actionItems": "کام",
+  "importantDates": "اہم تاریخیں",
+  "addToCalendar": "کیلنڈر میں شامل کریں",
+  "setReminder": "یاد دہانی لگائیں",
+  "reminderSet": "VoiceBrief کا الارم لگا دیا گیا۔",
+  "reminderUnavailable": "یاد دہانی نہیں لگ سکی۔ VoiceBrief کی اطلاعات فعال کر کے دوبارہ کوشش کریں۔",
+  "reminderMustBeFuture": "یاد دہانی کے لیے مستقبل کا وقت چنیں۔",
+  "chooseAlarmTone": "الارم کی آواز",
+  "chooseAlarmToneDescription": "iPhone کی اصل آواز استعمال کریں یا اپنی آواز چنیں۔",
+  "previewTone": "آواز سنیں",
+  "confirmAlarm": "یہ آواز استعمال کریں",
+  "alarmsAndReminders": "الارم اور یاد دہانیاں",
+  "voiceBriefAlarms": "الارم",
+  "voiceBriefAlarmsDescription": "اپنے مقرر کردہ الارم دیکھیں یا منسوخ کریں۔",
+  "noScheduledAlarms": "کوئی آنے والا الارم نہیں",
+  "noScheduledAlarmsMessage": "خلاصے کی کسی تاریخ سے الارم لگائیں تو یہاں نظر آئے گا۔",
+  "alarmsUnavailable": "VoiceBrief کے الارم ابھی لوڈ نہیں ہو سکے۔",
+  "alarmScheduled": "مقرر ہے",
+  "alarmToneLabel": "آواز: {tone}",
+  "alarmSoundTitle": "الارم کی آواز",
+  "systemAlarmSound": "iPhone کی طے شدہ آواز",
+  "systemAlarmSoundDescription": "سسٹم کی اصل آواز۔",
+  "customAlarmSound": "اپنی آواز",
+  "changeAlarmSound": "بدلیں",
+  "addCustomAlarmSound": "اپنی آواز شامل کریں",
+  "importAudioSound": "آڈیو فائل چنیں",
+  "importVideoSound": "ویڈیو سے آواز نکالیں",
+  "soundLimitNotice": "پہلے 29 سیکنڈ الارم کے موزوں فارمیٹ میں محفوظ ہوتے ہیں۔",
+  "preparingAlarmSound": "آواز تیار ہو رہی ہے…",
+  "soundImportFailed": "یہ فائل استعمال نہیں ہو سکی۔ آڈیو والی فائل چنیں۔",
+  "importedSoundReady": "آواز تیار ہے۔",
+  "useThisSound": "یہ آواز استعمال کریں",
+  "upcomingAlarms": "آنے والے الارم",
+  "loadingAlarms": "الارم لوڈ ہو رہے ہیں…",
+  "cancelAlarm": "الارم منسوخ کریں",
+  "cancelAlarmTitle": "یہ الارم منسوخ کریں؟",
+  "cancelAlarmMessage": "منسوخ ہونے کے بعد “{title}” الارم نہیں بجے گا۔",
+  "alarmCancelled": "الارم منسوخ ہو گیا۔",
+  "alarmCancelFailed": "الارم منسوخ نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
+  "refresh": "تازہ کریں",
+  "reminderNotificationTitle": "یاد دہانی: {title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "VoiceBrief سے: “{phrase}”",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "ذمہ دار: {owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "سنا گیا: “{phrase}”",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "تصدیق درکار ہے",
+  "taskDeadline": "کام کی آخری تاریخ",
+  "shortTone": "مختصر",
+  "friendlyTone": "دوستانہ",
+  "professionalTone": "پیشہ ورانہ",
+  "shortReply": "مختصر جواب",
+  "friendlyReply": "دوستانہ جواب",
+  "professionalReply": "پیشہ ورانہ جواب",
+  "replyText": "جواب کا متن",
+  "shareEditedReply": "ترمیم شدہ جواب شیئر کریں",
+  "copyEditedReply": "ترمیم شدہ جواب کاپی کریں",
+  "confirmDatePhrase": "“{phrase}” کی تصدیق کریں",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "تقریب کے وقت کی تصدیق کریں",
+  "openCalendarTitle": "کیلنڈر کھولیں؟",
+  "openCalendarMessage": "VoiceBrief نے “{phrase}” کو {date} سمجھا ہے۔ محفوظ کرنے سے پہلے کیلنڈر آپ سے تصدیق مانگے گا۔",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "کیلنڈر کھولیں",
+  "calendarDescription": "VoiceBrief سے تصدیق کے بعد بنایا گیا: “{phrase}”",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "کیلنڈر کا ایڈیٹر کھل گیا۔",
+  "datesFound": "{count} تاریخیں ملیں · یاد دہانی لگائیں یا کیلنڈر میں شامل کریں",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "{count} تاریخیں ملی ہیں۔ جائزہ لیں، پھر یاد دہانی لگائیں یا سسٹم کیلنڈر میں شامل کریں۔",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "اکاؤنٹ",
+  "notSignedIn": "سائن ان نہیں",
+  "verifiedAccount": "تصدیق شدہ اکاؤنٹ",
+  "emailVerificationRequired": "ای میل کی تصدیق درکار ہے",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "مفت پلان",
+  "minutesRemaining": "{count} منٹ باقی",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "خریداریاں بحال کریں",
+  "purchasesRestored": "خریداریاں بحال ہو گئیں۔",
+  "noPurchasesRestored": "کوئی خریداری بحال نہیں ہوئی۔",
+  "manageSubscription": "سبسکرپشن کا انتظام",
+  "appearance": "ظاہری انداز",
+  "systemTheme": "سسٹم",
+  "lightTheme": "روشن",
+  "darkTheme": "گہرا",
+  "privacyAndData": "رازداری اور ڈیٹا",
+  "audioHandlingTitle": "آڈیو عارضی ہے؛ متن محفوظ کرنا اختیاری",
+  "audioHandlingDescription": "آڈیو لفظی متن بنانے کے لیے عارضی طور پر استعمال ہو کر خودکار طور پر حذف ہو جاتا ہے۔ صرف آپ کے محفوظ کردہ خلاصے اور متن ہسٹری میں رہتے ہیں۔",
+  "exportSavedText": "محفوظ کردہ متن شیئر کریں",
+  "exportSubject": "VoiceBrief برآمد",
+  "exportSavedTextDescription": "خلاصوں، اہم نکات، کاموں، تاریخوں، جوابات اور لفظی متن کی TXT فائل بنا کر شیئر مینو کھولتا ہے۔ اس میں کبھی آڈیو شامل نہیں ہوتا۔",
+  "exportSavedTextFailed": "شیئر کرنے کے لیے متن کی فائل نہیں بن سکی۔",
+  "noSavedTextOnDevice": "اس آلے پر کوئی متن محفوظ نہیں۔",
+  "clearLocalHistory": "محفوظ کردہ متن حذف کریں",
+  "clearSavedTextDescription": "صرف اس آلے کے خلاصے اور لفظی متن حذف کرتا ہے۔ یہاں آڈیو ریکارڈنگ محفوظ نہیں ہوتی۔",
+  "clearHistoryTitle": "محفوظ کردہ متن حذف کریں؟",
+  "clearHistoryMessage": "اس آلے کے تمام خلاصے اور لفظی متن مستقل حذف ہو جائیں گے۔ آڈیو فائلیں پراسیسنگ کے بعد پہلے ہی حذف ہو جاتی ہیں۔",
+  "clearHistory": "متن حذف کریں",
+  "savedTextCleared": "محفوظ کردہ متن حذف ہو گیا۔",
+  "clearSavedTextFailed": "متن حذف نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
+  "termsOfService": "استعمال کی شرائط",
+  "support": "معاونت",
+  "contactSupport": "معاونت سے رابطہ",
+  "appVersion": "ایپ کا ورژن",
+  "deleteAccountTitle": "اکاؤنٹ حذف کریں؟",
+  "deleteAccountMessage": "اس سے سرور پر آپ کا اکاؤنٹ اور مقامی ہسٹری حذف ہو جائے گی۔ اسٹور کی سبسکرپشن تب تک جاری رہے گی جب تک آپ اسے اسٹور اکاؤنٹ میں منسوخ نہیں کرتے۔",
+  "deleteAccount": "اکاؤنٹ حذف کریں",
+  "active": "فعال",
+  "proHeadline": "ہر صوتی پیغام سے قابلِ عمل خلاصہ حاصل کریں",
+  "accurateTranscripts": "درست لفظی متن",
+  "instantSummaries": "فوری خلاصے",
+  "threeReplyTones": "بھیجنے کے لیے تیار تین انداز کے جواب",
+  "loadingStorePrices": "اسٹور کی قیمتیں لوڈ ہو رہی ہیں…",
+  "subscriptionOptionsUnavailable": "سبسکرپشن دستیاب نہیں۔ پروڈکشن میں متبادل قیمت نہیں دکھائی جاتی۔",
+  "yearly": "سالانہ",
+  "monthly": "ماہانہ",
+  "bestValue": "بہترین قدر",
+  "proActive": "Pro فعال ہے",
+  "subscriptionRenewalNotice": "موجودہ مدت ختم ہونے سے کم از کم 24 گھنٹے پہلے منسوخ نہ کرنے پر سبسکرپشن خودکار طور پر تجدید ہوتی ہے۔ اسٹور اکاؤنٹ میں کسی بھی وقت انتظام یا منسوخی کریں۔",
+  "privacy": "رازداری",
+  "proActivatedToast": "VoiceBrief Pro فعال ہے۔",
+  "noActivePurchases": "کوئی فعال خریداری نہیں ملی۔",
+  "errorNoInternet": "آپ آف لائن لگ رہے ہیں۔ کنکشن چیک کر کے دوبارہ کوشش کریں۔",
+  "errorAuthentication": "سائن ان نہیں ہو سکا۔ معلومات چیک کر کے دوبارہ کوشش کریں۔",
+  "errorProviderCanceled": "سائن ان منسوخ ہو گیا۔",
+  "errorEmailVerification": "ای میل میں تصدیقی لنک کھولیں، پھر VoiceBrief پر واپس آئیں۔",
+  "errorUnsupportedAudio": "یہ آڈیو فارمیٹ معاون نہیں۔",
+  "errorFileTooLarge": "آڈیو فائل موجودہ اپ لوڈ حد سے بڑی ہے۔",
+  "errorUnreadableAudio": "یہ آڈیو پڑھا نہیں جا سکا۔ دوسری فائل آزمائیں۔",
+  "errorAudioEditing": "اس آلے پر آڈیو تراشا نہیں جا سکا۔ اصل فائل تبدیل نہیں ہوئی۔",
+  "errorMicrophoneDenied": "مائیکروفون کی اجازت صرف ریکارڈ کرنے کے لیے درکار ہے۔",
+  "errorUploadInterrupted": "محفوظ اپ لوڈ رک گیا۔ آپ محفوظ طریقے سے دوبارہ کوشش کر سکتے ہیں۔",
+  "errorProcessingTimeout": "پراسیسنگ میں بہت وقت لگا۔ آپ کے منٹ نہیں کاٹے گئے۔",
+  "errorTranscription": "آڈیو کا لفظی متن نہیں بن سکا۔ کچھ دیر بعد دوبارہ کوشش کریں۔",
+  "errorInvalidResponse": "نتیجہ نامکمل تھا اور محفوظ نہیں ہوا۔",
+  "errorQuotaExhausted": "اس آڈیو کے لیے آپ کے منٹ کافی نہیں۔",
+  "errorSubscriptionUnavailable": "سبسکرپشن ابھی دستیاب نہیں۔",
+  "errorSubscriptionSyncPending": "خریداری کی تصدیق ہو گئی ہے اور Pro ابھی ہم وقت ہو رہا ہے۔ VoiceBrief کھلا رکھیں اور کچھ دیر بعد کوشش کریں۔",
+  "errorPurchaseCanceled": "خریداری منسوخ ہو گئی۔",
+  "errorPurchaseFailed": "خریداری مکمل نہیں ہوئی۔ VoiceBrief نے کوئی رقم نہیں کاٹی۔",
+  "errorRestoreFailed": "خریداریاں بحال نہیں ہو سکیں۔ بعد میں کوشش کریں۔",
+  "errorServiceUnavailable": "VoiceBrief عارضی طور پر دستیاب نہیں۔ کچھ دیر بعد کوشش کریں۔",
+  "errorShareHandoff": "شیئر کردہ آڈیو محفوظ طریقے سے درآمد نہیں ہو سکا۔",
+  "errorConfiguration": "اس سہولت کی پروڈکشن ترتیب ابھی باقی ہے۔",
+  "errorUnknown": "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔"
+}

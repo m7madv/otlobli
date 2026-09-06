@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+B20000000000000000000001 = {isa = PBXBuildFile; fileRef = B2000000000000000000000A; };
+B20000000000000000000002 = {isa = PBXBuildFile; fileRef = B2000000000000000000000A; };
+B20000000000000000000003 = {isa = PBXBuildFile; fileRef = B2000000000000000000000B; };
+B20000000000000000000004 = {isa = PBXBuildFile; fileRef = B2000000000000000000000B; };
+B20000000000000000000005 = {isa = PBXBuildFile; fileRef = B2000000000000000000000C; };
+B20000000000000000000006 = {isa = PBXBuildFile; fileRef = B2000000000000000000000C; };
 		A10000000000000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* ShareViewController.swift */; };
 		A10000000000000000000002 /* VoiceBriefShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* VoiceBriefShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
@@ -61,6 +67,29 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+B2000000000000000000000A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceBriefLocalization.swift; sourceTree = "<group>"; };
+B20000000000000000000064 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en"; path = "en.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000065 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en"; path = "en.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000066 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ar"; path = "ar.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000067 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ar"; path = "ar.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000068 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "es"; path = "es.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000069 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "es"; path = "es.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B2000000000000000000006A = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "fr"; path = "fr.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B2000000000000000000006B = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "fr"; path = "fr.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B2000000000000000000006C = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "pt"; path = "pt.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B2000000000000000000006D = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "pt"; path = "pt.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B2000000000000000000006E = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id"; path = "id.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B2000000000000000000006F = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "id"; path = "id.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000070 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000071 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000072 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ru"; path = "ru.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000073 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ru"; path = "ru.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000074 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "hi"; path = "hi.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000075 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "hi"; path = "hi.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000076 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "bn"; path = "bn.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000077 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "bn"; path = "bn.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+B20000000000000000000078 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ur"; path = "ur.lproj/Localizable.strings"; sourceTree = "<group>"; };
+B20000000000000000000079 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "ur"; path = "ur.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A10000000000000000000003 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000005 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
@@ -102,6 +131,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+B2000000000000000000000D = {isa = PBXGroup; children = (B2000000000000000000000A, B2000000000000000000000B, B2000000000000000000000C, ); path = Localization; sourceTree = "<group>"; };
 		A10000000000000000000007 /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
@@ -135,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				9740EEB11CF90186004384FC /* Flutter */,
+				B2000000000000000000000D /* Localization */,
 				97C146F01CF9000F007C117D /* Runner */,
 				A10000000000000000000007 /* ShareExtension */,
 				97C146EF1CF9000F007C117D /* Products */,
@@ -256,6 +287,7 @@
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"ar", "es", "fr", "pt", "id", "zh-Hans", "ru", "hi", "bn", "ur",
 				en,
 				Base,
 			);
@@ -276,6 +308,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B20000000000000000000004, B20000000000000000000006,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -291,6 +324,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
+				B20000000000000000000003, B20000000000000000000005,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
@@ -339,6 +373,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* ShareViewController.swift in Sources */,
+				B20000000000000000000002,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -355,6 +390,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				B20000000000000000000001,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);
@@ -376,6 +412,8 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
+B2000000000000000000000B = {isa = PBXVariantGroup; children = (B20000000000000000000064, B20000000000000000000066, B20000000000000000000068, B2000000000000000000006A, B2000000000000000000006C, B2000000000000000000006E, B20000000000000000000070, B20000000000000000000072, B20000000000000000000074, B20000000000000000000076, B20000000000000000000078, ); name = Localizable.strings; sourceTree = "<group>"; };
+B2000000000000000000000C = {isa = PBXVariantGroup; children = (B20000000000000000000065, B20000000000000000000067, B20000000000000000000069, B2000000000000000000006B, B2000000000000000000006D, B2000000000000000000006F, B20000000000000000000071, B20000000000000000000073, B20000000000000000000075, B20000000000000000000077, B20000000000000000000079, ); name = InfoPlist.strings; sourceTree = "<group>"; };
 		97C146FA1CF9000F007C117D /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -402,7 +440,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -411,7 +449,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = app.voicebrief.mobile.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -430,7 +468,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 36D743K87T;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -440,7 +478,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = app.voicebrief.mobile.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "VoiceBrief Share App Store 2026";
@@ -458,7 +496,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
@@ -467,7 +505,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = app.voicebrief.mobile.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

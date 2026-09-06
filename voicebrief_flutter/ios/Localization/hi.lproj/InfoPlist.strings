@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief तारीख और समय की पुष्टि के बाद ही अलार्म लगाता है।";
+"NSCalendarsUsageDescription" = "VoiceBrief आपकी पुष्टि के बाद ही ज़रूरी तारीख जोड़ता है।";
+"NSMicrophoneUsageDescription" = "VoiceBrief केवल आपके ऑडियो रिकॉर्ड करने पर माइक्रोफ़ोन इस्तेमाल करता है।";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief आपकी पुष्टि के बाद ही ज़रूरी तारीख जोड़ता है।";

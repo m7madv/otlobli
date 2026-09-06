@@ -1,0 +1,843 @@
+{
+  "version": "0.1.2",
+  "build": 21,
+  "screenshotOrigin": "Production Flutter widgets rendered with synthetic sample content, not physical-device captures.",
+  "localizations": [
+    {
+      "language": "ar",
+      "attributes": {
+        "locale": "ar-SA",
+        "description": "حوّل الرسائل الصوتية إلى خطوات واضحة\n\nشارك من واتساب، اختر ملفًا صوتيًا، أو سجّل من هنا.\n\n• النص الحرفي للتسجيل\n• الملخص والنقاط الأساسية\n• المهام والمواعيد\n• الردود المقترحة\n\nاسحب المقبضين لتحديد الجزء الذي تريد تلخيصه. يمكنك تشغيله قبل المتابعة.\n\nيُستخدم ملف الصوت مؤقتًا للتحويل ثم يُحذف تلقائيًا. لا يبقى في السجل إلا الملخص والنص عندما تضغط حفظ.\n\nيتطلب التطبيق اتصالًا بالإنترنت وحساب Apple أو Google. بعض الأقسام وأنماط الردود تتطلب VoiceBrief Pro. راجع الكلمات والتواريخ التي يستخرجها الذكاء الاصطناعي قبل الاعتماد عليها. صفحات الشروط والخصوصية والدعم متاحة بالعربية والإنجليزية.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=ar",
+        "promotionalText": "حوّل الرسائل الصوتية إلى خطوات واضحة",
+        "whatsNew": "أضفنا 11 لغة للواجهة. اختر لغتك المفضلة من الإعدادات؛ يبقى اختيارك محفوظًا بعد إعادة تشغيل التطبيق.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=ar"
+      },
+      "screenshots": [
+        {
+          "file": "ar/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 192038,
+          "sha256": "6e1cfac05d811efd01145d4158bfb471021651f2239081c9d2c2ad0225b2e4aa"
+        },
+        {
+          "file": "ar/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 148365,
+          "sha256": "5cb0fc10f982b21af2171f282a676531f0f59f7fa4738af2883c0209378ca58b"
+        },
+        {
+          "file": "ar/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 125279,
+          "sha256": "7a3d1aad0ed1ef2d133a739414ecde172466614fe799cadb6d42050bbc09d80c"
+        },
+        {
+          "file": "ar/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 101773,
+          "sha256": "652cbaa1da416a6c7efd1727d224a3eed5c9c7f6096637a25524e5ca86642884"
+        },
+        {
+          "file": "ar/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 164354,
+          "sha256": "90ef39c5a4ee87ad41b236599cef60880d02a85879dbdcd8b0e7ff8a8426dd30"
+        },
+        {
+          "file": "ar/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 153201,
+          "sha256": "e2111e6fb4bdf4007508334ca68165648ec0cc8b1d1f10ca4b95088bd915d3f6"
+        },
+        {
+          "file": "ar/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 141690,
+          "sha256": "2c89d8c594c40086a9091444cb0a02f4231486a987fdda4bd4028dd24d65f8f5"
+        },
+        {
+          "file": "ar/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 96670,
+          "sha256": "d1cf34929aefc323028766902005dda00e832202e0e380323a387d849869a78b"
+        }
+      ]
+    },
+    {
+      "language": "en",
+      "attributes": {
+        "locale": "en-US",
+        "description": "Turn voice notes into clear next steps\n\nShare from WhatsApp, choose an audio file, or record here.\n\n• Word-for-word transcript\n• Summary and key points\n• Action items and dates\n• Suggested replies\n\nDrag both handles to choose the part you want summarized. You can play it before continuing.\n\nAudio is used temporarily for transcription, then deleted automatically. Only a brief and transcript you choose to save can remain in history.\n\nAn internet connection and an Apple or Google account are required. Some sections and reply styles require VoiceBrief Pro. Review AI-generated words and dates before relying on them. Legal and support pages are available in Arabic and English.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Turn voice notes into clear next steps",
+        "whatsNew": "Now available in 11 interface languages. Choose your preferred language in Settings; your choice is saved after restarting.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "en/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 177623,
+          "sha256": "8d9ead5011c5feee18dcf6881f81754f96ff41fbcad3e1192e7c1c7067da7d37"
+        },
+        {
+          "file": "en/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 123288,
+          "sha256": "1aed1833bdeda84017bf38cc540b2d44e75491a00f9ce16b4626f2754c2fd65f"
+        },
+        {
+          "file": "en/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 126272,
+          "sha256": "a2a7b8389d3172ed109b5af924c9cc5f6290eded08e662d1d58af44a3ea7c79c"
+        },
+        {
+          "file": "en/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 95867,
+          "sha256": "d1ee51f5fa36aeee69c6aac83680dfb19c82033ee53eb0756e608e41a38a1958"
+        },
+        {
+          "file": "en/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 146911,
+          "sha256": "c6a148f30266973b2beba45c8f9df783219ec06681d510d1d2211a6f6cb5b7c4"
+        },
+        {
+          "file": "en/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 137426,
+          "sha256": "73a19fac95d4924e68da3d48c52443a744733647e274c6c6ccc34dd7b2244185"
+        },
+        {
+          "file": "en/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 139895,
+          "sha256": "89a821dcb61b72f202cc7d1d95a57a4604f53789f657465ae79b2e1e0ee27160"
+        },
+        {
+          "file": "en/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 92066,
+          "sha256": "09d24d6a7bae22a2125523cdf50f51d4b1df45d5d0196c34fd62aa0734985368"
+        }
+      ]
+    },
+    {
+      "language": "zh",
+      "attributes": {
+        "locale": "zh-Hans",
+        "description": "将语音消息化为清晰的行动\n\n从 WhatsApp 分享、选择音频文件，或在此录音。\n\n• 逐字转写\n• 摘要与要点\n• 任务与日期\n• 回复建议\n\n拖动两端选择要总结的片段。继续前可以试听。\n\n音频仅临时用于转写，随后自动删除。只有您选择保存的摘要和转写会留在历史记录中。\n\n需要互联网连接及 Apple 或 Google 账户。部分内容和回复风格需要 VoiceBrief Pro。请核对 AI 生成的文字和日期后再使用。法律和支持页面提供阿拉伯语和英语版本。\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "将语音消息化为清晰的行动",
+        "whatsNew": "界面现支持 11 种语言。在设置中选择偏好语言，重启应用后仍会保留。",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "zh/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 225599,
+          "sha256": "8415720260f76f77ee708a0031bf1c86c5c433e62a1bf16cf25aad979ac5ca61"
+        },
+        {
+          "file": "zh/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 130698,
+          "sha256": "78e2c76bd7b664db06d1f916041261cfb92470f0141216c10557edf5ed89b29d"
+        },
+        {
+          "file": "zh/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 119352,
+          "sha256": "31afba05f6c601adf9ffed876671c8df59b93a20463a98d65cb18ee3dd2906aa"
+        },
+        {
+          "file": "zh/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 106935,
+          "sha256": "49f50885debee324c74fca6ba040dd83015fe0b5e66e2c95c9e2585ba2d34e67"
+        },
+        {
+          "file": "zh/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 197658,
+          "sha256": "27db5089d4650f82117f2dd0d2b5b7f4e1c2fc04d931d7b572a3b4332632ee49"
+        },
+        {
+          "file": "zh/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 143713,
+          "sha256": "25f119daf08ea80d463002e8720e9ec8a1b755d0974a83e506695ca77c7a60c4"
+        },
+        {
+          "file": "zh/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 141144,
+          "sha256": "56ba084a48d2768f85eeb73597705a9e02ebb3051e5ad3d9bc8e54b7e3f424ba"
+        },
+        {
+          "file": "zh/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 101806,
+          "sha256": "eb5fd8953a73b22b679f3c99c5a5c59a29b6abf677b771f9afa76b81c0d50ebe"
+        }
+      ]
+    },
+    {
+      "language": "hi",
+      "attributes": {
+        "locale": "hi",
+        "description": "वॉइस मैसेज से पाएँ स्पष्ट अगले कदम\n\nWhatsApp से साझा करें, ऑडियो चुनें या यहाँ रिकॉर्ड करें।\n\n• शब्दशः ट्रांसक्रिप्ट\n• सारांश और मुख्य बातें\n• काम और तारीखें\n• जवाबों के सुझाव\n\nदोनों किनारे खींचकर हिस्सा चुनें। आगे बढ़ने से पहले उसे सुन सकते हैं।\n\nऑडियो ट्रांसक्रिप्ट बनाने के लिए अस्थायी रूप से इस्तेमाल होता है और अपने आप हट जाता है। केवल आपके चुने हुए सारांश और ट्रांसक्रिप्ट इतिहास में रहते हैं।\n\nइंटरनेट और Apple या Google खाता ज़रूरी है। कुछ हिस्सों और जवाबों के तरीकों के लिए VoiceBrief Pro चाहिए। AI के शब्दों और तारीखों पर भरोसा करने से पहले जाँचें। कानूनी और सहायता पृष्ठ अरबी और अंग्रेज़ी में उपलब्ध हैं।\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "वॉइस मैसेज से पाएँ स्पष्ट अगले कदम",
+        "whatsNew": "इंटरफ़ेस अब 11 भाषाओं में है। सेटिंग में भाषा चुनें; ऐप दोबारा खोलने पर भी पसंद सुरक्षित रहेगी।",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "hi/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 218408,
+          "sha256": "7e3e734f97e89fb93be1015285cb34238ebac70d2102678777720da095100092"
+        },
+        {
+          "file": "hi/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 149542,
+          "sha256": "a948eeb5a519fc731a088ba1b8b91f500f713475e459650ede94686e40e76b4e"
+        },
+        {
+          "file": "hi/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 137550,
+          "sha256": "9880591d99fadfa2ce4ed6206242005a56cc8ee17073ab3e3aa1d5e36678b4d4"
+        },
+        {
+          "file": "hi/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 109376,
+          "sha256": "4df21964799c06ac7a1917861e840043a907e7e9b0115006760d0821ecaa15fd"
+        },
+        {
+          "file": "hi/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 188752,
+          "sha256": "f555d455d51044a2cfb33686f65566fdf24a1fc0cab28e302236c9534905bdf6"
+        },
+        {
+          "file": "hi/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 168365,
+          "sha256": "05524378935aa7ecd6b84815e6d750767550129ee5cbd6ded94262265459f4e3"
+        },
+        {
+          "file": "hi/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 158342,
+          "sha256": "b8ce71415d32e8d6bd5f6aa7644da7b5577d5479f01cff133b1bc769512928f3"
+        },
+        {
+          "file": "hi/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 104753,
+          "sha256": "ba9b002f8936472d8cea211719c57c14aac5339e4b1085d53a2167e6c8d7824e"
+        }
+      ]
+    },
+    {
+      "language": "es",
+      "attributes": {
+        "locale": "es-ES",
+        "description": "Convierte notas de voz en próximos pasos claros\n\nComparte desde WhatsApp, elige un audio o graba aquí.\n\n• Transcripción literal\n• Resumen y puntos clave\n• Tareas y fechas\n• Respuestas sugeridas\n\nArrastra ambos extremos para elegir el fragmento. Puedes escucharlo antes de continuar.\n\nEl audio se usa temporalmente para transcribirlo y se elimina automáticamente. Solo los resúmenes y transcripciones que decidas guardar quedan en el historial.\n\nNecesitas internet y una cuenta de Apple o Google. Algunas secciones y estilos de respuesta requieren VoiceBrief Pro. Revisa las palabras y fechas generadas por IA antes de confiar en ellas. Las páginas legales y de ayuda están en árabe e inglés.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Convierte notas de voz en próximos pasos claros",
+        "whatsNew": "La interfaz está disponible en 11 idiomas. Elige tu idioma en Ajustes; se conservará al reiniciar.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "es/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 189052,
+          "sha256": "42538a6fac18fde63c71d7f83bff96092af0abfba61ebdc57ec1f52afc23efc5"
+        },
+        {
+          "file": "es/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 132165,
+          "sha256": "4d0473d9897b0b9f8e7315f38698175c80f989070947a692148af467d6904fb0"
+        },
+        {
+          "file": "es/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 133208,
+          "sha256": "d2151b22627a704bbc43b7f3fdc7be225f1943eef81544b3bdfa2788008aaf9d"
+        },
+        {
+          "file": "es/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 106339,
+          "sha256": "d5de9bef2d14336473237c87c784f60a0ed2ef468016b15dfe5740231dd32d9b"
+        },
+        {
+          "file": "es/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 159697,
+          "sha256": "4c3f7aa5297c90eb24d039d153a9ad2557ff7ae3ac6119a93058846a3f2f8d99"
+        },
+        {
+          "file": "es/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 146109,
+          "sha256": "18615dd9b2b473d3131d0a1d8dff7151967eb11a113bb4a221548c30d2984903"
+        },
+        {
+          "file": "es/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 145290,
+          "sha256": "12e485aacb2e5f5b5b07bb6bb99253bc68ee6633c26f8443229f57d0c2ec3fe7"
+        },
+        {
+          "file": "es/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 98208,
+          "sha256": "0d3869a7a84c7e82359c795ead4d48a27c09da9e146544625012b53c6bd17909"
+        }
+      ]
+    },
+    {
+      "language": "fr",
+      "attributes": {
+        "locale": "fr-FR",
+        "description": "Transformez vos messages vocaux en actions claires\n\nPartagez depuis WhatsApp, choisissez un fichier audio ou enregistrez ici.\n\n• Transcription intégrale\n• Résumé et points clés\n• Tâches et dates\n• Suggestions de réponses\n\nFaites glisser les deux poignées pour sélectionner le passage. Vous pouvez l’écouter avant de continuer.\n\nL’audio sert temporairement à la transcription, puis est supprimé automatiquement. Seuls les résumés et transcriptions que vous enregistrez restent dans l’historique.\n\nUne connexion Internet et un compte Apple ou Google sont requis. Certaines sections et certains styles de réponse nécessitent VoiceBrief Pro. Vérifiez les mots et les dates produits par l’IA. Les pages juridiques et d’assistance sont en arabe et en anglais.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Transformez vos messages vocaux en actions claires",
+        "whatsNew": "L’interface est disponible en 11 langues. Choisissez votre langue dans les réglages ; elle reste enregistrée après redémarrage.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "fr/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 198823,
+          "sha256": "fc9452116c6bc334121297b37e6bcf95d0791c1009661affcc6ddac7e54a1fa9"
+        },
+        {
+          "file": "fr/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 130629,
+          "sha256": "a2a3e7441ae73a41bb0fa96cd444515404a888c711f6e4292b5c79196b38f9cf"
+        },
+        {
+          "file": "fr/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 124560,
+          "sha256": "5b90c7ba674e5494c14f2ce5eb3d965e3c967552d8687d65eb2a7e2622ddabad"
+        },
+        {
+          "file": "fr/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 107119,
+          "sha256": "b8f0d6f328c6ba64dcd25054e39d7340b5107e3f4f76008572420bec11b576ae"
+        },
+        {
+          "file": "fr/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 165068,
+          "sha256": "00729243b62ed8a72964e51c0a639bb811e59bd0178c1b02f9dc7d42d3daea1a"
+        },
+        {
+          "file": "fr/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 139693,
+          "sha256": "9b79265f34ede55d7192c520a0aed73aa3cbb0d67f3018a8a82e7dd4ada176f4"
+        },
+        {
+          "file": "fr/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 138327,
+          "sha256": "4b8fc0c4079394475262e529f047944263b307c0b99a74ade2603427049ae1e2"
+        },
+        {
+          "file": "fr/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 97162,
+          "sha256": "9bc51e9977fa399f44ecd759236e0766079708e20f1a02a1aca455b39a96ead9"
+        }
+      ]
+    },
+    {
+      "language": "bn",
+      "attributes": {
+        "locale": "bn-BD",
+        "description": "ভয়েস মেসেজ থেকে স্পষ্ট পরবর্তী পদক্ষেপ\n\nWhatsApp থেকে শেয়ার করুন, অডিও বাছুন বা এখানে রেকর্ড করুন।\n\n• হুবহু প্রতিলিপি\n• সারসংক্ষেপ ও মূল বিষয়\n• কাজ ও তারিখ\n• উত্তরের পরামর্শ\n\nদুই প্রান্ত টেনে অংশ বাছুন। এগোনোর আগে শুনতে পারবেন।\n\nঅডিও সাময়িকভাবে প্রতিলিপি তৈরিতে ব্যবহৃত হয়, তারপর নিজে থেকে মুছে যায়। শুধু আপনার সংরক্ষণ করা সারসংক্ষেপ ও প্রতিলিপি ইতিহাসে থাকে।\n\nইন্টারনেট এবং Apple বা Google অ্যাকাউন্ট প্রয়োজন। কিছু বিভাগ ও উত্তরের ধরনে VoiceBrief Pro লাগে। AI-এর শব্দ ও তারিখের ওপর নির্ভর করার আগে যাচাই করুন। আইনি ও সহায়তা পৃষ্ঠা আরবি এবং ইংরেজিতে উপলব্ধ।\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "ভয়েস মেসেজ থেকে স্পষ্ট পরবর্তী পদক্ষেপ",
+        "whatsNew": "ইন্টারফেস এখন 11টি ভাষায়। সেটিংসে ভাষা বাছুন; অ্যাপ আবার খুললেও আপনার পছন্দ সংরক্ষিত থাকবে।",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "bn/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 262733,
+          "sha256": "1bbea6863c48e02234fabb1e96ca3170c14bc32137c5826de0bff35f6bdb1342"
+        },
+        {
+          "file": "bn/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 192287,
+          "sha256": "1f2a4a03481a500bfe7fd413791d7683995bf6b4ec4de03fc92dfc537bc36a9f"
+        },
+        {
+          "file": "bn/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 174924,
+          "sha256": "4132657686f0450225fa77f46e25579825d293054cc0dc314277cf6ad00058dd"
+        },
+        {
+          "file": "bn/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 132767,
+          "sha256": "d98ba9e0cfe7b19e78fa1ea494a34a0a5b813cd5f6ff841f96dd7e53b37e362b"
+        },
+        {
+          "file": "bn/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 224120,
+          "sha256": "8588ee22055576b5f4d52a69180f321009b13a0f06820604616cfc231ace2086"
+        },
+        {
+          "file": "bn/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 209852,
+          "sha256": "0825f4d8f6154c7a7e64e60b2b5805f06c9fe466a85127953910d4f7731107e9"
+        },
+        {
+          "file": "bn/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 203109,
+          "sha256": "c5b0c77ea7cb0917c3bdf540a454675c8b46c05db65688ee136aa035576ede1e"
+        },
+        {
+          "file": "bn/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 123156,
+          "sha256": "6eba09cf82c5a9ac53a60691cc8c4a80a9c8f046f4a43a10cb7337856b523f6b"
+        }
+      ]
+    },
+    {
+      "language": "pt",
+      "attributes": {
+        "locale": "pt-BR",
+        "description": "Transforme mensagens de voz em próximos passos claros\n\nCompartilhe pelo WhatsApp, escolha um áudio ou grave aqui.\n\n• Transcrição literal\n• Resumo e pontos principais\n• Tarefas e datas\n• Sugestões de respostas\n\nArraste as duas extremidades para escolher o trecho. Você pode ouvi-lo antes de continuar.\n\nO áudio é usado temporariamente na transcrição e excluído automaticamente. Só os resumos e transcrições que você salvar ficam no histórico.\n\nÉ necessário internet e uma conta Apple ou Google. Algumas seções e estilos de resposta exigem VoiceBrief Pro. Confira as palavras e datas geradas por IA antes de confiar nelas. As páginas legais e de suporte estão em árabe e inglês.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Transforme mensagens de voz em próximos passos claros",
+        "whatsNew": "A interface está disponível em 11 idiomas. Escolha o idioma em Configurações; ele será mantido ao reiniciar.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "pt/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 192494,
+          "sha256": "18c247a0b56ba3a77542ce073723d39b035f55216b099b471a7017187d8e12bf"
+        },
+        {
+          "file": "pt/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 128690,
+          "sha256": "39091c7ce6df9a784cc73c0d16a0b261c3e1eca9e81fc0c43da6413f334db5c2"
+        },
+        {
+          "file": "pt/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 124610,
+          "sha256": "0e2a82fc87e031e2dab317809f20af034eb74a23dc3c2acd4ad064b8f0e82377"
+        },
+        {
+          "file": "pt/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 106771,
+          "sha256": "8504083015da86d6be5593d0ea01a68380c6fec4d1363b6f0a60567267e6302a"
+        },
+        {
+          "file": "pt/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 165962,
+          "sha256": "60acf65715cb8fe980c51bdd34853ce9f82faafa71064203ddf5c2e757339e8e"
+        },
+        {
+          "file": "pt/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 143385,
+          "sha256": "5b78de5dc46c92295e96e424be2cac70454ebf12ad8a3ec55009805ae1f3125f"
+        },
+        {
+          "file": "pt/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 138543,
+          "sha256": "feb092ae60c42788dfb64558ba48c0a7b0d76e839639426a64f5d65a90135587"
+        },
+        {
+          "file": "pt/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 97084,
+          "sha256": "1d11efbee3a9e618cc162ef204488c174efb83d06ffad170251f5df1fb338afe"
+        }
+      ]
+    },
+    {
+      "language": "ru",
+      "attributes": {
+        "locale": "ru",
+        "description": "Превратите голосовые сообщения в понятный план\n\nПоделитесь из WhatsApp, выберите аудиофайл или запишите здесь.\n\n• Дословная расшифровка\n• Сводка и ключевые мысли\n• Задачи и даты\n• Варианты ответов\n\nПеремещайте оба края, чтобы выбрать фрагмент. Его можно прослушать перед продолжением.\n\nАудио временно используется для расшифровки и автоматически удаляется. В истории остаются только сводки и расшифровки, которые вы сохраните.\n\nНужны интернет и аккаунт Apple или Google. Некоторые разделы и стили ответов требуют VoiceBrief Pro. Проверяйте слова и даты, созданные ИИ, прежде чем полагаться на них. Правовые страницы и поддержка доступны на арабском и английском.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Превратите голосовые сообщения в понятный план",
+        "whatsNew": "Интерфейс доступен на 11 языках. Выберите язык в настройках — он сохранится после перезапуска.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "ru/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 181466,
+          "sha256": "8910368e6287f84249448651d260a96066e19b63458c3640f6bb216d98bd28e2"
+        },
+        {
+          "file": "ru/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 129837,
+          "sha256": "898105df1f5105ca2bbce8e64f48c7a2a7f3c395ae63d763030143e45a66f6ce"
+        },
+        {
+          "file": "ru/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 130650,
+          "sha256": "db05b11711956fc28d34add3131afe74e32cbb443ce855047f3d63b566056d64"
+        },
+        {
+          "file": "ru/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 101037,
+          "sha256": "b084d4482d9c88f4d4931afd180884d4e3536ccb570b46b19d9fc27f758ea347"
+        },
+        {
+          "file": "ru/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 155691,
+          "sha256": "edc0d3041c2730f4929d7ad34786116c6b1ed020487927f1e0ece466fce07f68"
+        },
+        {
+          "file": "ru/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 145618,
+          "sha256": "86bf416cb1e8e4509de795099c8aca9d471f6e9dd14410535c0412088e064807"
+        },
+        {
+          "file": "ru/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 140128,
+          "sha256": "477074424f0925a50b739f1da21dc83c28a776a6697d6c872f6ac9d87c188243"
+        },
+        {
+          "file": "ru/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 93280,
+          "sha256": "8b2d99b921aa5d9897284b22e7afe7c2fa4d5208654989043e2dd024c9f0d0ee"
+        }
+      ]
+    },
+    {
+      "language": "ur",
+      "attributes": {
+        "locale": "ur-PK",
+        "description": "صوتی پیغامات سے واضح اگلے قدم حاصل کریں\n\nWhatsApp سے شیئر کریں، آڈیو چنیں یا یہاں ریکارڈ کریں۔\n\n• لفظ بہ لفظ متن\n• خلاصہ اور اہم نکات\n• کام اور تاریخیں\n• مجوزہ جوابات\n\nدونوں کنارے کھینچ کر حصہ چنیں۔ آگے بڑھنے سے پہلے اسے سن سکتے ہیں۔\n\nآڈیو لفظی متن بنانے کے لیے عارضی طور پر استعمال ہو کر خودکار طور پر حذف ہو جاتا ہے۔ صرف آپ کے محفوظ کردہ خلاصے اور متن ہسٹری میں رہتے ہیں۔\n\nانٹرنیٹ اور Apple یا Google اکاؤنٹ درکار ہے۔ کچھ حصوں اور جواب کے انداز کے لیے VoiceBrief Pro چاہیے۔ AI کے الفاظ اور تاریخوں پر بھروسا کرنے سے پہلے جائزہ لیں۔ قانونی اور معاونت کے صفحات عربی اور انگریزی میں دستیاب ہیں۔\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "صوتی پیغامات سے واضح اگلے قدم حاصل کریں",
+        "whatsNew": "انٹرفیس اب 11 زبانوں میں ہے۔ ترتیبات میں زبان چنیں؛ ایپ دوبارہ کھولنے پر بھی انتخاب محفوظ رہے گا۔",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "ur/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 216263,
+          "sha256": "a0a98f11190e813fc202a9e72b49cd921f2d02444b5129fa8859b38538ebe88f"
+        },
+        {
+          "file": "ur/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 136381,
+          "sha256": "f67b1541f2c9d9fdf5a0a12223a76bf36c10d3cacda8012fce7d481810f88b17"
+        },
+        {
+          "file": "ur/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 128113,
+          "sha256": "9f783532da920337cc828f63f7ac9fd8e6b59e134c058b122f69d432f64ad567"
+        },
+        {
+          "file": "ur/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 101314,
+          "sha256": "443b84a9049e75577c8fb7a18d551fede3e3865112635cce0c05bd272f684cf5"
+        },
+        {
+          "file": "ur/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 182482,
+          "sha256": "68e9e8e88036f85c6332ecaa098ab4e876473ed5f952e75c3fd122ce27c6ade0"
+        },
+        {
+          "file": "ur/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 144527,
+          "sha256": "47ea9aeceb78c83139775d67fef3abdb94a0980ece7281d796194178fb270ff9"
+        },
+        {
+          "file": "ur/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 141201,
+          "sha256": "f0f61910d4e9df025fa833aa6f15b9811b50de005982f2d79f826637b4657c73"
+        },
+        {
+          "file": "ur/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 95143,
+          "sha256": "c482f4263a238383dbcda264dcd415c38eea65e05df4a4d41eae65322db7427f"
+        }
+      ]
+    },
+    {
+      "language": "id",
+      "attributes": {
+        "locale": "id",
+        "description": "Ubah pesan suara menjadi langkah yang jelas\n\nBagikan dari WhatsApp, pilih file audio, atau rekam di sini.\n\n• Transkrip kata demi kata\n• Ringkasan dan poin utama\n• Tugas dan tanggal\n• Saran balasan\n\nGeser kedua ujung untuk memilih bagian yang diringkas. Anda dapat memutarnya sebelum melanjutkan.\n\nAudio digunakan sementara untuk transkripsi lalu dihapus otomatis. Hanya ringkasan dan transkrip yang Anda pilih untuk disimpan yang tetap ada di riwayat.\n\nMemerlukan internet dan akun Apple atau Google. Beberapa bagian dan gaya balasan memerlukan VoiceBrief Pro. Periksa kata dan tanggal yang dihasilkan AI sebelum mengandalkannya. Halaman hukum dan bantuan tersedia dalam bahasa Arab dan Inggris.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
+        "promotionalText": "Ubah pesan suara menjadi langkah yang jelas",
+        "whatsNew": "Antarmuka tersedia dalam 11 bahasa. Pilih bahasa di Pengaturan; pilihan tetap tersimpan setelah memulai ulang.",
+        "supportUrl": "https://voicebrief-legal.vercel.app/support?lang=en"
+      },
+      "screenshots": [
+        {
+          "file": "id/iphone/01_home.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 175335,
+          "sha256": "d8f0d080c48ad596933f82958643c511dd32b98efa473b3536caaa990d53d732"
+        },
+        {
+          "file": "id/iphone/02_brief.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 124195,
+          "sha256": "385558a73e51f7f1f104d069c66e7d5a4419732eded974d43a19a65bc5973e1b"
+        },
+        {
+          "file": "id/iphone/03_dates.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 125144,
+          "sha256": "cdd2d2418822543574c3e1447f948c27745edf6862e543e87cc0256031e9c4b5"
+        },
+        {
+          "file": "id/iphone/04_history.png",
+          "type": "APP_IPHONE_65",
+          "width": 1284,
+          "height": 2778,
+          "bytes": 96051,
+          "sha256": "cee39ec56b5916e7fc367408412cc6284dd2ba4fc3c70314f7222e80cef19be9"
+        },
+        {
+          "file": "id/ipad/01_home.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 147649,
+          "sha256": "6fa49819ac51deaa2962049e92f2d7377c893e21fa981012f021759c3583b706"
+        },
+        {
+          "file": "id/ipad/02_brief.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 134937,
+          "sha256": "f706e9872e35be4de48fed652912f8e90d97d267fe9e74e73c62cba041ba30b9"
+        },
+        {
+          "file": "id/ipad/03_dates.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 134982,
+          "sha256": "30ea8bdf0085b6d6e85ea2a5f4776a03527afcefdfe1b7e5142d9dc86a706938"
+        },
+        {
+          "file": "id/ipad/04_history.png",
+          "type": "APP_IPAD_PRO_3GEN_129",
+          "width": 2064,
+          "height": 2752,
+          "bytes": 88819,
+          "sha256": "8924c7c209d05a0326676968419cfd783dd8c54e4a2780c184fe413b0bbe7e9c"
+        }
+      ]
+    }
+  ]
+}

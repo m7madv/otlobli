@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:voicebrief/features/subscription/domain/subscription_models.dart';
+import 'package:voicebrief/l10n/app_languages.dart';
 
 abstract interface class AppPreferences {
   ThemeMode get themeMode;
+  String? get languageCode;
+  Future<void> setLanguageCode(String? code);
 
   SubscriptionStatus? subscriptionFor(String accountId);
 
@@ -23,12 +26,26 @@ class DeviceAppPreferences implements AppPreferences {
   DeviceAppPreferences(this._preferences);
 
   static const _themeKey = 'voicebrief.themeMode';
+  static const _languageKey = 'voicebrief.languageCode';
   static const _subscriptionKey = 'voicebrief.subscriptionCache';
 
   final SharedPreferences _preferences;
 
   static Future<DeviceAppPreferences> load() async =>
       DeviceAppPreferences(await SharedPreferences.getInstance());
+
+  @override
+  String? get languageCode =>
+      AppLanguages.validated(_preferences.getString(_languageKey));
+
+  @override
+  Future<void> setLanguageCode(String? code) async {
+    final language = AppLanguages.validated(code);
+    final saved = language == null
+        ? await _preferences.remove(_languageKey)
+        : await _preferences.setString(_languageKey, language);
+    if (!saved) throw StateError('Language preference could not be saved');
+  }
 
   @override
   ThemeMode get themeMode => switch (_preferences.getString(_themeKey)) {
@@ -90,11 +107,21 @@ class DeviceAppPreferences implements AppPreferences {
 class MemoryAppPreferences implements AppPreferences {
   MemoryAppPreferences({
     ThemeMode themeMode = ThemeMode.system,
+    String? languageCode,
     Map<String, SubscriptionStatus>? subscriptions,
   }) : _themeMode = themeMode,
+       _languageCode = AppLanguages.validated(languageCode),
        _subscriptions = {...?subscriptions};
 
   ThemeMode _themeMode;
+  String? _languageCode;
+
+  @override
+  String? get languageCode => _languageCode;
+
+  @override
+  Future<void> setLanguageCode(String? code) async =>
+      _languageCode = AppLanguages.validated(code);
   final Map<String, SubscriptionStatus> _subscriptions;
 
   @override

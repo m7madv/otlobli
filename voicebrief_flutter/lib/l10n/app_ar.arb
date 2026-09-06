@@ -1,6 +1,8 @@
 {
   "@@locale": "ar",
   "appName": "VoiceBrief",
+  "appLanguage": "لغة التطبيق",
+  "followSystemLanguage": "استخدام لغة الجهاز",
   "home": "الرئيسية",
   "history": "السجل",
   "settings": "الإعدادات",

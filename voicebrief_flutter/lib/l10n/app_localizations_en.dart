@@ -12,6 +12,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appName => 'VoiceBrief';
 
   @override
+  String get appLanguage => 'App language';
+
+  @override
+  String get followSystemLanguage => 'Use device language';
+
+  @override
   String get home => 'Home';
 
   @override

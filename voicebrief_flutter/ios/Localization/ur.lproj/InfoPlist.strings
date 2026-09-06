@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief صرف تاریخ اور وقت کی تصدیق کے بعد الارم لگاتا ہے۔";
+"NSCalendarsUsageDescription" = "VoiceBrief صرف آپ کی تصدیق کے بعد اہم تاریخ شامل کرتا ہے۔";
+"NSMicrophoneUsageDescription" = "VoiceBrief صرف آپ کے آڈیو ریکارڈ کرنے پر مائیکروفون استعمال کرتا ہے۔";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief صرف آپ کی تصدیق کے بعد اہم تاریخ شامل کرتا ہے۔";

@@ -1,0 +1,399 @@
+{
+  "@@locale": "id",
+  "appName": "VoiceBrief",
+  "appLanguage": "Bahasa aplikasi",
+  "followSystemLanguage": "Gunakan bahasa perangkat",
+  "home": "Beranda",
+  "history": "Riwayat",
+  "settings": "Pengaturan",
+  "cancel": "Batal",
+  "tryAgain": "Coba lagi",
+  "close": "Tutup",
+  "continueLabel": "Lanjutkan",
+  "signIn": "Masuk",
+  "signOut": "Keluar",
+  "delete": "Hapus",
+  "copy": "Salin",
+  "edit": "Edit",
+  "copied": "Disalin",
+  "complete": "Selesai",
+  "unavailable": "Tidak tersedia",
+  "replaceAudio": "Ganti audio",
+  "removeAudio": "Hapus audio",
+  "playAudio": "Putar audio",
+  "pauseAudio": "Jeda audio",
+  "audioWaveform": "Gelombang audio",
+  "audioWaveformLoading": "Menggambar gelombang audio asli…",
+  "audioPlayback": "Pemutaran audio: {elapsed} dari {duration}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "Salin {title}",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "Layar ini tidak tersedia.",
+  "goPro": "Beralih ke Pro",
+  "homeHeadline": "Ubah pesan suara menjadi langkah yang jelas",
+  "homeSupporting": "Bagikan dari WhatsApp, pilih file audio, atau rekam di sini.",
+  "shareFromWhatsApp": "Dari WhatsApp",
+  "shareFromWhatsAppSteps": "Tekan lama pesan suara, ketuk Bagikan, lalu VoiceBrief",
+  "chooseVoiceNote": "Pilih pesan suara",
+  "recordInstead": "Rekam sekarang",
+  "recentBriefs": "Ringkasan terbaru",
+  "viewAll": "Lihat semua",
+  "noBriefsYet": "Belum ada ringkasan",
+  "noBriefsMessage": "Pilih atau rekam audio untuk membuat ringkasan pertama.",
+  "usageFreeMinutesRemaining": "Sisa {remaining} dari {total} menit gratis",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "Sisa {remaining} dari {total} menit Pro",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "Sisa {remaining} dari {total} menit",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "Jadikan setiap pesan suara bermanfaat",
+  "authSupporting": "Masuk untuk melindungi kuota menit dan menjaga privasi ringkasan di akun Anda.",
+  "demoServicesActive": "Mode demo aktif. Tidak menggunakan akun eksternal atau layanan berbayar.",
+  "providerSignInTitle": "Masuk cepat dan aman",
+  "providerSignInDescription": "Pilih Apple atau Google. VoiceBrief tidak pernah melihat kata sandi akun Anda.",
+  "continueWithApple": "Lanjutkan dengan Apple",
+  "continueWithGoogle": "Lanjutkan dengan Google",
+  "byContinuingPrefix": "Dengan melanjutkan, Anda menyetujui ",
+  "terms": "Ketentuan",
+  "andConjunction": " dan ",
+  "privacyPolicy": "Kebijakan Privasi",
+  "errorIdentityProviderUnavailable": "Metode masuk ini belum tersedia. Coba metode lain.",
+  "onboardingSignIn": "Masuk",
+  "onboardingTitleOne": "Dari suara menjadi kejelasan",
+  "onboardingBodyOne": "Bagikan, pilih, atau rekam audio. Dapatkan transkrip, ringkasan, tugas, tanggal, dan saran balasan.",
+  "onboardingTitleTwo": "Audio Anda tetap privat",
+  "onboardingBodyTwo": "Audio diproses dengan aman dan dihapus otomatis. Anda memilih teks yang ingin disimpan.",
+  "getStarted": "Mulai",
+  "recordAudio": "Rekam audio",
+  "discardRecordingTitle": "Buang rekaman?",
+  "discardRecordingMessage": "Rekaman saat ini akan dihapus.",
+  "discard": "Buang",
+  "recordingPaused": "Rekaman dijeda",
+  "recording": "Merekam",
+  "tapRecordReady": "Ketuk rekam saat Anda siap",
+  "startRecording": "Mulai merekam",
+  "resume": "Lanjutkan",
+  "pause": "Jeda",
+  "stop": "Berhenti",
+  "cancelRecording": "Batalkan rekaman",
+  "microphoneJustInTime": "Akses mikrofon hanya diminta saat Anda mengetuk rekam.",
+  "recordingSaveFailed": "Rekaman tidak dapat disimpan.",
+  "liveWaveformIdle": "Gelombang asli muncul setelah perekaman dimulai.",
+  "liveWaveformStarting": "Membaca tingkat mikrofon asli…",
+  "liveWaveformActive": "Gelombang ini mengikuti suara Anda secara langsung.",
+  "historyLocalOnly": "Disimpan lokal di perangkat ini",
+  "searchBriefs": "Cari ringkasan",
+  "nothingSaved": "Belum ada yang disimpan",
+  "nothingSavedMessage": "Simpan hasil agar muncul di sini.",
+  "noMatchingBriefs": "Tidak ada ringkasan yang cocok",
+  "noMatchingBriefsMessage": "Coba kata lain dari judul atau ringkasan.",
+  "briefDeleted": "Ringkasan dihapus",
+  "undo": "Urungkan",
+  "voiceNoteReady": "Pesan suara siap",
+  "reviewAudio": "Tinjau audio",
+  "createMyBrief": "Buat ringkasan saya",
+  "secureAiProcessing": "Pemrosesan AI aman · audio sementara dihapus setelah diproses",
+  "secureAiProcessingSemantics": "Audio dikirim dengan aman untuk diproses AI dan dihapus dari penyimpanan sementara setelah selesai.",
+  "trimAudio": "Potong audio",
+  "trimAudioHelp": "Geser kedua ujung untuk memilih bagian yang diringkas. Anda dapat memutarnya sebelum melanjutkan.",
+  "selectedAudioRange": "Bagian terpilih: {start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "Gunakan seluruh audio",
+  "createBriefFromSelection": "Ringkas bagian ini",
+  "trimmingAudio": "Memotong audio…",
+  "audioTrimmed": "Audio dipotong. Hanya bagian terpilih yang disimpan.",
+  "sharedAudioImporting": "Menyiapkan pesan suara yang dibagikan…",
+  "customizeOutput": "Sesuaikan hasil",
+  "defaultOutput": "Ringkasan dan transkrip kata demi kata disertakan otomatis",
+  "fullTranscript": "Transkrip kata demi kata",
+  "fullTranscriptDescription": "Semua yang diucapkan dalam rekaman, sesuai aslinya, untuk ditinjau, dicari, atau disalin.",
+  "summaryAndKeyPoints": "Ringkasan dan poin utama",
+  "actionItemsAndDates": "Tugas dan tanggal",
+  "suggestedReplies": "Saran balasan",
+  "translateSummaryEnglish": "Terjemahkan ringkasan ke bahasa Inggris",
+  "sharedAudioReadySemantics": "Pesan suara yang dibagikan telah diimpor dan siap.",
+  "sharedAudioReady": "Pesan suara diimpor. Tinggal satu ketukan.",
+  "creatingBrief": "Membuat ringkasan Anda",
+  "processingFallbackError": "Pemrosesan gagal. Salinan aman di server telah dihapus dan salinan lokal privat Anda siap dicoba lagi.",
+  "processingKeepOpen": "Biarkan VoiceBrief terbuka hingga unggahan aman selesai. Waktu bergantung pada panjang rekaman dan koneksi.",
+  "preparingAudio": "Menyiapkan audio",
+  "uploadingSecurely": "Mengunggah dengan aman",
+  "transcribing": "Mentranskripsikan",
+  "creatingYourBrief": "Membuat ringkasan Anda",
+  "finalizing": "Menyelesaikan",
+  "brief": "Ringkasan",
+  "briefUnavailable": "Ringkasan ini tidak lagi tersedia.",
+  "copyAll": "Salin semua",
+  "shareResult": "Bagikan hasil",
+  "savedLocally": "Disimpan lokal",
+  "notSaved": "Belum disimpan",
+  "saved": "Disimpan",
+  "saveResult": "Simpan hasil",
+  "deleteResult": "Hapus hasil",
+  "deleteBriefTitle": "Hapus ringkasan ini?",
+  "deleteBriefMessage": "Teks tersimpan akan dihapus dari perangkat ini.",
+  "keyPoints": "Poin utama",
+  "actionItems": "Tugas",
+  "importantDates": "Tanggal penting",
+  "addToCalendar": "Tambahkan ke kalender",
+  "setReminder": "Atur pengingat",
+  "reminderSet": "Alarm VoiceBrief diatur.",
+  "reminderUnavailable": "Pengingat tidak dapat diatur. Aktifkan notifikasi VoiceBrief dan coba lagi.",
+  "reminderMustBeFuture": "Pilih waktu mendatang untuk pengingat.",
+  "chooseAlarmTone": "Suara alarm",
+  "chooseAlarmToneDescription": "Gunakan suara asli iPhone atau pilih suara Anda sendiri.",
+  "previewTone": "Pratinjau suara",
+  "confirmAlarm": "Gunakan suara ini",
+  "alarmsAndReminders": "Alarm dan pengingat",
+  "voiceBriefAlarms": "Alarm",
+  "voiceBriefAlarmsDescription": "Lihat atau batalkan alarm terjadwal.",
+  "noScheduledAlarms": "Tidak ada alarm mendatang",
+  "noScheduledAlarmsMessage": "Atur alarm dari tanggal dalam ringkasan agar muncul di sini.",
+  "alarmsUnavailable": "Alarm VoiceBrief belum dapat dimuat.",
+  "alarmScheduled": "Terjadwal",
+  "alarmToneLabel": "Suara: {tone}",
+  "alarmSoundTitle": "Suara alarm",
+  "systemAlarmSound": "Suara bawaan iPhone",
+  "systemAlarmSoundDescription": "Suara asli dari sistem.",
+  "customAlarmSound": "Suara khusus",
+  "changeAlarmSound": "Ubah",
+  "addCustomAlarmSound": "Tambahkan suara Anda",
+  "importAudioSound": "Pilih file audio",
+  "importVideoSound": "Ekstrak suara dari video",
+  "soundLimitNotice": "29 detik pertama disimpan dalam format yang sesuai untuk alarm.",
+  "preparingAlarmSound": "Menyiapkan suara…",
+  "soundImportFailed": "File ini tidak dapat digunakan. Pilih file yang berisi audio.",
+  "importedSoundReady": "Suara siap.",
+  "useThisSound": "Gunakan suara ini",
+  "upcomingAlarms": "Alarm mendatang",
+  "loadingAlarms": "Memuat alarm…",
+  "cancelAlarm": "Batalkan alarm",
+  "cancelAlarmTitle": "Batalkan alarm ini?",
+  "cancelAlarmMessage": "Alarm “{title}” tidak akan berbunyi setelah dibatalkan.",
+  "alarmCancelled": "Alarm dibatalkan.",
+  "alarmCancelFailed": "Alarm tidak dapat dibatalkan. Coba lagi.",
+  "refresh": "Muat ulang",
+  "reminderNotificationTitle": "Pengingat: {title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "Dari VoiceBrief: “{phrase}”",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "Penanggung jawab: {owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "Terdengar: “{phrase}”",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "Perlu konfirmasi",
+  "taskDeadline": "Tenggat tugas",
+  "shortTone": "Singkat",
+  "friendlyTone": "Ramah",
+  "professionalTone": "Profesional",
+  "shortReply": "Balasan singkat",
+  "friendlyReply": "Balasan ramah",
+  "professionalReply": "Balasan profesional",
+  "replyText": "Teks balasan",
+  "shareEditedReply": "Bagikan balasan yang diedit",
+  "copyEditedReply": "Salin balasan yang diedit",
+  "confirmDatePhrase": "Konfirmasi “{phrase}”",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "Konfirmasi waktu acara",
+  "openCalendarTitle": "Buka kalender?",
+  "openCalendarMessage": "VoiceBrief menafsirkan “{phrase}” sebagai {date}. Kalender akan meminta konfirmasi sebelum menyimpan.",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "Buka kalender",
+  "calendarDescription": "Dibuat dari VoiceBrief setelah mengonfirmasi: “{phrase}”",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "Editor kalender dibuka.",
+  "datesFound": "{count} tanggal ditemukan · atur pengingat atau tambahkan ke kalender",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "{count} tanggal ditemukan. Tinjau, lalu atur pengingat atau tambahkan ke kalender sistem.",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "Akun",
+  "notSignedIn": "Belum masuk",
+  "verifiedAccount": "Akun terverifikasi",
+  "emailVerificationRequired": "Verifikasi email diperlukan",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "Paket gratis",
+  "minutesRemaining": "Sisa {count} menit",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "Pulihkan pembelian",
+  "purchasesRestored": "Pembelian dipulihkan.",
+  "noPurchasesRestored": "Tidak ada pembelian yang dipulihkan.",
+  "manageSubscription": "Kelola langganan",
+  "appearance": "Tampilan",
+  "systemTheme": "Sistem",
+  "lightTheme": "Terang",
+  "darkTheme": "Gelap",
+  "privacyAndData": "Privasi dan data",
+  "audioHandlingTitle": "Audio sementara; menyimpan teks bersifat opsional",
+  "audioHandlingDescription": "Audio digunakan sementara untuk transkripsi lalu dihapus otomatis. Hanya ringkasan dan transkrip yang Anda pilih untuk disimpan yang tetap ada di riwayat.",
+  "exportSavedText": "Bagikan teks tersimpan",
+  "exportSubject": "Ekspor VoiceBrief",
+  "exportSavedTextDescription": "Membuat file TXT berisi ringkasan, poin utama, tugas, tanggal, balasan, dan transkrip, lalu membuka menu berbagi. Tidak pernah menyertakan audio.",
+  "exportSavedTextFailed": "File teks untuk dibagikan tidak dapat dibuat.",
+  "noSavedTextOnDevice": "Tidak ada teks tersimpan di perangkat ini.",
+  "clearLocalHistory": "Hapus teks tersimpan",
+  "clearSavedTextDescription": "Menghapus ringkasan dan transkrip hanya dari perangkat ini. Tidak ada rekaman audio yang disimpan di sini.",
+  "clearHistoryTitle": "Hapus teks tersimpan?",
+  "clearHistoryMessage": "Semua ringkasan dan transkrip di perangkat ini akan dihapus permanen. File audio sudah dihapus setelah diproses.",
+  "clearHistory": "Hapus teks",
+  "savedTextCleared": "Teks tersimpan dihapus.",
+  "clearSavedTextFailed": "Teks tidak dapat dihapus. Coba lagi.",
+  "termsOfService": "Ketentuan layanan",
+  "support": "Bantuan",
+  "contactSupport": "Hubungi dukungan",
+  "appVersion": "Versi aplikasi",
+  "deleteAccountTitle": "Hapus akun?",
+  "deleteAccountMessage": "Akun server dan riwayat lokal Anda akan dihapus. Langganan toko tetap berjalan hingga Anda membatalkannya di akun toko.",
+  "deleteAccount": "Hapus akun",
+  "active": "Aktif",
+  "proHeadline": "Ubah setiap pesan suara menjadi ringkasan yang dapat ditindaklanjuti",
+  "accurateTranscripts": "Transkrip akurat",
+  "instantSummaries": "Ringkasan instan",
+  "threeReplyTones": "Tiga gaya balasan siap kirim",
+  "loadingStorePrices": "Memuat harga toko…",
+  "subscriptionOptionsUnavailable": "Pilihan langganan tidak tersedia. Tidak ada harga pengganti yang ditampilkan dalam versi produksi.",
+  "yearly": "Tahunan",
+  "monthly": "Bulanan",
+  "bestValue": "PALING HEMAT",
+  "proActive": "Pro aktif",
+  "subscriptionRenewalNotice": "Langganan diperpanjang otomatis kecuali dibatalkan setidaknya 24 jam sebelum periode berakhir. Kelola atau batalkan kapan saja di akun toko Anda.",
+  "privacy": "Privasi",
+  "proActivatedToast": "VoiceBrief Pro aktif.",
+  "noActivePurchases": "Tidak ada pembelian aktif.",
+  "errorNoInternet": "Anda tampaknya offline. Periksa koneksi dan coba lagi.",
+  "errorAuthentication": "Tidak dapat masuk. Periksa data Anda dan coba lagi.",
+  "errorProviderCanceled": "Proses masuk dibatalkan.",
+  "errorEmailVerification": "Buka tautan verifikasi di email Anda, lalu kembali ke VoiceBrief.",
+  "errorUnsupportedAudio": "Format audio ini tidak didukung.",
+  "errorFileTooLarge": "File audio melebihi batas unggahan saat ini.",
+  "errorUnreadableAudio": "Audio tidak dapat dibaca. Coba file lain.",
+  "errorAudioEditing": "Audio tidak dapat dipotong di perangkat ini. File asli tidak berubah.",
+  "errorMicrophoneDenied": "Akses mikrofon hanya diperlukan jika Anda memilih merekam.",
+  "errorUploadInterrupted": "Unggahan aman terputus. Anda dapat mencoba lagi dengan aman.",
+  "errorProcessingTimeout": "Pemrosesan terlalu lama. Menit Anda tidak dipotong.",
+  "errorTranscription": "Audio tidak dapat ditranskripsikan. Coba lagi sebentar lagi.",
+  "errorInvalidResponse": "Hasil tidak lengkap dan tidak disimpan.",
+  "errorQuotaExhausted": "Menit pemrosesan Anda tidak cukup untuk audio ini.",
+  "errorSubscriptionUnavailable": "Pilihan langganan belum tersedia.",
+  "errorSubscriptionSyncPending": "Pembelian Anda dikonfirmasi dan Pro masih disinkronkan. Biarkan VoiceBrief terbuka dan coba lagi sebentar lagi.",
+  "errorPurchaseCanceled": "Pembelian dibatalkan.",
+  "errorPurchaseFailed": "Pembelian tidak selesai. VoiceBrief tidak menagih Anda.",
+  "errorRestoreFailed": "Pembelian tidak dapat dipulihkan. Coba lagi nanti.",
+  "errorServiceUnavailable": "VoiceBrief sementara tidak tersedia. Coba lagi sebentar lagi.",
+  "errorShareHandoff": "Audio yang dibagikan tidak dapat diimpor dengan aman.",
+  "errorConfiguration": "Fitur ini masih memerlukan konfigurasi produksi.",
+  "errorUnknown": "Terjadi kesalahan. Coba lagi."
+}

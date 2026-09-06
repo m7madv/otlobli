@@ -185,9 +185,12 @@ Widget testApp({
   double textScale = 1,
   Locale locale = const Locale('en'),
   AppConfig config = testConfig,
+  String? fontFamily,
+  Widget Function(BuildContext, Widget)? frameBuilder,
 }) {
   controller.setThemeMode(themeMode);
-  final testFontFamily = locale.languageCode == 'ar' ? 'Arial' : 'Roboto';
+  final testFontFamily =
+      fontFamily ?? (locale.languageCode == 'ar' ? 'Arial' : 'Roboto');
   final lightTheme = _fontTheme(AppTheme.light(), testFontFamily);
   final darkTheme = _fontTheme(AppTheme.dark(), testFontFamily);
   return ProviderScope(
@@ -207,7 +210,7 @@ Widget testApp({
         data: MediaQuery.of(
           context,
         ).copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!,
+        child: frameBuilder == null ? child! : frameBuilder(context, child!),
       ),
       home: home,
     ),

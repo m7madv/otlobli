@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "يضبط VoiceBrief المنبّه بعد تأكيدك التاريخ والوقت فقط.";
+"NSCalendarsUsageDescription" = "يضيف VoiceBrief موعدًا مهمًا بعد تأكيدك فقط.";
+"NSMicrophoneUsageDescription" = "يستخدم VoiceBrief الميكروفون فقط عندما تختار تسجيل الصوت.";
+"NSCalendarsFullAccessUsageDescription" = "يضيف VoiceBrief موعدًا مهمًا بعد تأكيدك فقط.";

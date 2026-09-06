@@ -1,0 +1,399 @@
+{
+  "@@locale": "ru",
+  "appName": "VoiceBrief",
+  "appLanguage": "Язык приложения",
+  "followSystemLanguage": "Язык устройства",
+  "home": "Главная",
+  "history": "История",
+  "settings": "Настройки",
+  "cancel": "Отмена",
+  "tryAgain": "Повторить",
+  "close": "Закрыть",
+  "continueLabel": "Продолжить",
+  "signIn": "Войти",
+  "signOut": "Выйти",
+  "delete": "Удалить",
+  "copy": "Копировать",
+  "edit": "Изменить",
+  "copied": "Скопировано",
+  "complete": "Готово",
+  "unavailable": "Недоступно",
+  "replaceAudio": "Заменить аудио",
+  "removeAudio": "Убрать аудио",
+  "playAudio": "Воспроизвести",
+  "pauseAudio": "Приостановить",
+  "audioWaveform": "Звуковая волна",
+  "audioWaveformLoading": "Построение реальной звуковой волны…",
+  "audioPlayback": "Воспроизведение: {elapsed} из {duration}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "Копировать: {title}",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "Этот экран недоступен.",
+  "goPro": "Перейти на Pro",
+  "homeHeadline": "Превратите голосовые сообщения в понятный план",
+  "homeSupporting": "Поделитесь из WhatsApp, выберите аудиофайл или запишите здесь.",
+  "shareFromWhatsApp": "Из WhatsApp",
+  "shareFromWhatsAppSteps": "Удерживайте голосовое сообщение, нажмите «Поделиться», затем VoiceBrief",
+  "chooseVoiceNote": "Выбрать голосовое сообщение",
+  "recordInstead": "Записать сейчас",
+  "recentBriefs": "Последние сводки",
+  "viewAll": "Показать все",
+  "noBriefsYet": "Сводок пока нет",
+  "noBriefsMessage": "Выберите или запишите аудио, чтобы создать первую сводку.",
+  "usageFreeMinutesRemaining": "Осталось {remaining} из {total} бесплатных минут",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "Осталось {remaining} из {total} минут Pro",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "Осталось {remaining} из {total} минут",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "Польза в каждом голосовом сообщении",
+  "authSupporting": "Войдите, чтобы защитить свои минуты и сохранить сводки доступными только в вашем аккаунте.",
+  "demoServicesActive": "Включён деморежим. Внешние аккаунты и платные сервисы не используются.",
+  "providerSignInTitle": "Быстрый и безопасный вход",
+  "providerSignInDescription": "Выберите Apple или Google. VoiceBrief никогда не видит ваш пароль.",
+  "continueWithApple": "Продолжить с Apple",
+  "continueWithGoogle": "Продолжить с Google",
+  "byContinuingPrefix": "Продолжая, вы принимаете ",
+  "terms": "Условия",
+  "andConjunction": " и ",
+  "privacyPolicy": "Политику конфиденциальности",
+  "errorIdentityProviderUnavailable": "Этот способ входа недоступен. Попробуйте другой.",
+  "onboardingSignIn": "Войти",
+  "onboardingTitleOne": "От голоса к ясности",
+  "onboardingBodyOne": "Поделитесь, выберите или запишите аудио. Получите расшифровку, сводку, задачи, даты и варианты ответов.",
+  "onboardingTitleTwo": "Ваше аудио остаётся личным",
+  "onboardingBodyTwo": "Аудио безопасно обрабатывается и автоматически удаляется. Вы выбираете, какие тексты сохранить.",
+  "getStarted": "Начать",
+  "recordAudio": "Записать аудио",
+  "discardRecordingTitle": "Удалить запись?",
+  "discardRecordingMessage": "Текущая запись будет удалена.",
+  "discard": "Удалить",
+  "recordingPaused": "Запись приостановлена",
+  "recording": "Идёт запись",
+  "tapRecordReady": "Нажмите запись, когда будете готовы",
+  "startRecording": "Начать запись",
+  "resume": "Продолжить",
+  "pause": "Пауза",
+  "stop": "Стоп",
+  "cancelRecording": "Отменить запись",
+  "microphoneJustInTime": "Доступ к микрофону запрашивается только при начале записи.",
+  "recordingSaveFailed": "Не удалось сохранить запись.",
+  "liveWaveformIdle": "Реальная звуковая волна появится после начала записи.",
+  "liveWaveformStarting": "Измерение уровня микрофона…",
+  "liveWaveformActive": "Волна движется в такт вашему голосу.",
+  "historyLocalOnly": "Сохранено только на этом устройстве",
+  "searchBriefs": "Поиск сводок",
+  "nothingSaved": "Пока ничего не сохранено",
+  "nothingSavedMessage": "Сохраните результат, чтобы он появился здесь.",
+  "noMatchingBriefs": "Совпадений нет",
+  "noMatchingBriefsMessage": "Попробуйте другое слово из заголовка или сводки.",
+  "briefDeleted": "Сводка удалена",
+  "undo": "Отменить",
+  "voiceNoteReady": "Голосовое сообщение готово",
+  "reviewAudio": "Проверить аудио",
+  "createMyBrief": "Создать сводку",
+  "secureAiProcessing": "Безопасная обработка ИИ · временное аудио удаляется после обработки",
+  "secureAiProcessingSemantics": "Аудио безопасно отправляется на обработку ИИ и затем удаляется из временного хранилища.",
+  "trimAudio": "Обрезать аудио",
+  "trimAudioHelp": "Перемещайте оба края, чтобы выбрать фрагмент. Его можно прослушать перед продолжением.",
+  "selectedAudioRange": "Выбранный фрагмент: {start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "Использовать всё аудио",
+  "createBriefFromSelection": "Создать сводку фрагмента",
+  "trimmingAudio": "Обрезка аудио…",
+  "audioTrimmed": "Аудио обрезано. Сохранён только выбранный фрагмент.",
+  "sharedAudioImporting": "Подготовка переданного голосового сообщения…",
+  "customizeOutput": "Настроить результат",
+  "defaultOutput": "Сводка и дословная расшифровка включаются автоматически",
+  "fullTranscript": "Дословная расшифровка",
+  "fullTranscriptDescription": "Всё сказанное в записи сохранено без пересказа, чтобы вы могли перечитать, найти или скопировать текст.",
+  "summaryAndKeyPoints": "Сводка и ключевые мысли",
+  "actionItemsAndDates": "Задачи и даты",
+  "suggestedReplies": "Варианты ответов",
+  "translateSummaryEnglish": "Перевести сводку на английский",
+  "sharedAudioReadySemantics": "Переданное голосовое сообщение импортировано и готово.",
+  "sharedAudioReady": "Сообщение импортировано. Осталось одно нажатие.",
+  "creatingBrief": "Создание сводки",
+  "processingFallbackError": "Обработка не завершена. Защищённая копия на сервере удалена, а ваша личная локальная копия готова к повторной попытке.",
+  "processingKeepOpen": "Не закрывайте VoiceBrief до завершения безопасной загрузки. Время зависит от длины записи и соединения.",
+  "preparingAudio": "Подготовка аудио",
+  "uploadingSecurely": "Безопасная загрузка",
+  "transcribing": "Расшифровка",
+  "creatingYourBrief": "Создание сводки",
+  "finalizing": "Завершение",
+  "brief": "Сводка",
+  "briefUnavailable": "Эта сводка больше недоступна.",
+  "copyAll": "Копировать всё",
+  "shareResult": "Поделиться результатом",
+  "savedLocally": "Сохранено локально",
+  "notSaved": "Не сохранено",
+  "saved": "Сохранено",
+  "saveResult": "Сохранить результат",
+  "deleteResult": "Удалить результат",
+  "deleteBriefTitle": "Удалить эту сводку?",
+  "deleteBriefMessage": "Сохранённый текст будет удалён с этого устройства.",
+  "keyPoints": "Ключевые мысли",
+  "actionItems": "Задачи",
+  "importantDates": "Важные даты",
+  "addToCalendar": "Добавить в календарь",
+  "setReminder": "Создать напоминание",
+  "reminderSet": "Будильник VoiceBrief установлен.",
+  "reminderUnavailable": "Не удалось создать напоминание. Включите уведомления VoiceBrief и повторите попытку.",
+  "reminderMustBeFuture": "Выберите будущее время напоминания.",
+  "chooseAlarmTone": "Звук будильника",
+  "chooseAlarmToneDescription": "Используйте исходный звук iPhone или выберите свой.",
+  "previewTone": "Прослушать",
+  "confirmAlarm": "Использовать этот звук",
+  "alarmsAndReminders": "Будильники и напоминания",
+  "voiceBriefAlarms": "Будильники",
+  "voiceBriefAlarmsDescription": "Просмотр и отмена запланированных будильников.",
+  "noScheduledAlarms": "Нет предстоящих будильников",
+  "noScheduledAlarmsMessage": "Создайте будильник из даты в сводке, и он появится здесь.",
+  "alarmsUnavailable": "Не удалось загрузить будильники VoiceBrief.",
+  "alarmScheduled": "Запланирован",
+  "alarmToneLabel": "Звук: {tone}",
+  "alarmSoundTitle": "Звук будильника",
+  "systemAlarmSound": "Стандартный звук iPhone",
+  "systemAlarmSoundDescription": "Исходный системный звук.",
+  "customAlarmSound": "Свой звук",
+  "changeAlarmSound": "Изменить",
+  "addCustomAlarmSound": "Добавить свой звук",
+  "importAudioSound": "Выбрать аудиофайл",
+  "importVideoSound": "Извлечь звук из видео",
+  "soundLimitNotice": "Первые 29 секунд сохраняются в формате для будильника.",
+  "preparingAlarmSound": "Подготовка звука…",
+  "soundImportFailed": "Не удалось использовать файл. Выберите файл со звуком.",
+  "importedSoundReady": "Звук готов.",
+  "useThisSound": "Использовать этот звук",
+  "upcomingAlarms": "Предстоящие будильники",
+  "loadingAlarms": "Загрузка будильников…",
+  "cancelAlarm": "Отменить будильник",
+  "cancelAlarmTitle": "Отменить этот будильник?",
+  "cancelAlarmMessage": "После отмены будильник «{title}» не прозвучит.",
+  "alarmCancelled": "Будильник отменён.",
+  "alarmCancelFailed": "Не удалось отменить будильник. Повторите попытку.",
+  "refresh": "Обновить",
+  "reminderNotificationTitle": "Напоминание: {title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "Из VoiceBrief: «{phrase}»",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "Ответственный: {owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "Сказано: «{phrase}»",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "Нужно подтверждение",
+  "taskDeadline": "Срок задачи",
+  "shortTone": "Кратко",
+  "friendlyTone": "Дружелюбно",
+  "professionalTone": "Деловой стиль",
+  "shortReply": "Краткий ответ",
+  "friendlyReply": "Дружелюбный ответ",
+  "professionalReply": "Деловой ответ",
+  "replyText": "Текст ответа",
+  "shareEditedReply": "Поделиться изменённым ответом",
+  "copyEditedReply": "Копировать изменённый ответ",
+  "confirmDatePhrase": "Подтвердить «{phrase}»",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "Подтвердить время события",
+  "openCalendarTitle": "Открыть календарь?",
+  "openCalendarMessage": "VoiceBrief определил «{phrase}» как {date}. Календарь попросит подтвердить данные перед сохранением.",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "Открыть календарь",
+  "calendarDescription": "Создано в VoiceBrief после подтверждения: «{phrase}»",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "Редактор календаря открыт.",
+  "datesFound": "{count, plural, one{Найдена {count} дата · создайте напоминание или добавьте в календарь} few{Найдены {count} даты · создайте напоминания или добавьте в календарь} many{Найдено {count} дат · создайте напоминания или добавьте в календарь} other{Найдено дат: {count} · создайте напоминания или добавьте в календарь}}",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "Найдено дат: {count}. Проверьте их, затем создайте напоминания или добавьте в системный календарь.",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "Аккаунт",
+  "notSignedIn": "Вход не выполнен",
+  "verifiedAccount": "Аккаунт подтверждён",
+  "emailVerificationRequired": "Требуется подтверждение почты",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "Бесплатный план",
+  "minutesRemaining": "Осталось минут: {count}",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "Восстановить покупки",
+  "purchasesRestored": "Покупки восстановлены.",
+  "noPurchasesRestored": "Нет восстановленных покупок.",
+  "manageSubscription": "Управление подпиской",
+  "appearance": "Оформление",
+  "systemTheme": "Системное",
+  "lightTheme": "Светлое",
+  "darkTheme": "Тёмное",
+  "privacyAndData": "Конфиденциальность и данные",
+  "audioHandlingTitle": "Аудио временное; сохранение текста по желанию",
+  "audioHandlingDescription": "Аудио временно используется для расшифровки и автоматически удаляется. В истории остаются только сводки и расшифровки, которые вы сохраните.",
+  "exportSavedText": "Поделиться сохранённым текстом",
+  "exportSubject": "Экспорт VoiceBrief",
+  "exportSavedTextDescription": "Создаёт TXT со сводками, ключевыми мыслями, задачами, датами, ответами и расшифровками и открывает меню отправки. Аудио не включается.",
+  "exportSavedTextFailed": "Не удалось создать текстовый файл для отправки.",
+  "noSavedTextOnDevice": "На этом устройстве нет сохранённого текста.",
+  "clearLocalHistory": "Удалить сохранённый текст",
+  "clearSavedTextDescription": "Удаляет сводки и расшифровки только с этого устройства. Аудиозаписи здесь не хранятся.",
+  "clearHistoryTitle": "Удалить сохранённый текст?",
+  "clearHistoryMessage": "Все сводки и расшифровки на этом устройстве будут удалены навсегда. Аудиофайлы уже удаляются после обработки.",
+  "clearHistory": "Удалить текст",
+  "savedTextCleared": "Сохранённый текст удалён.",
+  "clearSavedTextFailed": "Не удалось удалить текст. Повторите попытку.",
+  "termsOfService": "Условия использования",
+  "support": "Поддержка",
+  "contactSupport": "Связаться с поддержкой",
+  "appVersion": "Версия приложения",
+  "deleteAccountTitle": "Удалить аккаунт?",
+  "deleteAccountMessage": "Будут удалены аккаунт на сервере и локальная история. Подписки останутся активны, пока вы не отмените их в аккаунте магазина.",
+  "deleteAccount": "Удалить аккаунт",
+  "active": "Активно",
+  "proHeadline": "Превратите каждое голосовое сообщение в сводку с действиями",
+  "accurateTranscripts": "Точные расшифровки",
+  "instantSummaries": "Мгновенные сводки",
+  "threeReplyTones": "Три стиля готовых ответов",
+  "loadingStorePrices": "Загрузка цен магазина…",
+  "subscriptionOptionsUnavailable": "Подписки недоступны. В рабочей версии подставные цены не показываются.",
+  "yearly": "Годовая",
+  "monthly": "Месячная",
+  "bestValue": "ВЫГОДНО",
+  "proActive": "Pro активен",
+  "subscriptionRenewalNotice": "Подписки продлеваются автоматически, если их не отменить минимум за 24 часа до конца периода. Управлять подписками и отменять их можно в аккаунте магазина.",
+  "privacy": "Конфиденциальность",
+  "proActivatedToast": "VoiceBrief Pro активен.",
+  "noActivePurchases": "Активные покупки не найдены.",
+  "errorNoInternet": "Похоже, вы не в сети. Проверьте соединение и повторите попытку.",
+  "errorAuthentication": "Не удалось войти. Проверьте данные и повторите попытку.",
+  "errorProviderCanceled": "Вход отменён.",
+  "errorEmailVerification": "Откройте ссылку подтверждения в письме, затем вернитесь в VoiceBrief.",
+  "errorUnsupportedAudio": "Этот формат аудио не поддерживается.",
+  "errorFileTooLarge": "Аудиофайл превышает текущий лимит загрузки.",
+  "errorUnreadableAudio": "Не удалось прочитать аудио. Попробуйте другой файл.",
+  "errorAudioEditing": "Не удалось обрезать аудио на этом устройстве. Оригинал не изменён.",
+  "errorMicrophoneDenied": "Доступ к микрофону нужен только для записи.",
+  "errorUploadInterrupted": "Безопасная загрузка прервана. Можно безопасно повторить попытку.",
+  "errorProcessingTimeout": "Обработка заняла слишком много времени. Минуты не списаны.",
+  "errorTranscription": "Не удалось расшифровать аудио. Повторите попытку чуть позже.",
+  "errorInvalidResponse": "Результат неполный и не был сохранён.",
+  "errorQuotaExhausted": "Недостаточно минут для обработки этого аудио.",
+  "errorSubscriptionUnavailable": "Подписки сейчас недоступны.",
+  "errorSubscriptionSyncPending": "Покупка подтверждена, Pro ещё синхронизируется. Не закрывайте VoiceBrief и повторите попытку чуть позже.",
+  "errorPurchaseCanceled": "Покупка отменена.",
+  "errorPurchaseFailed": "Покупка не завершена. VoiceBrief не списал деньги.",
+  "errorRestoreFailed": "Не удалось восстановить покупки. Попробуйте позже.",
+  "errorServiceUnavailable": "VoiceBrief временно недоступен. Попробуйте чуть позже.",
+  "errorShareHandoff": "Не удалось безопасно импортировать переданное аудио.",
+  "errorConfiguration": "Эта функция ещё требует настройки рабочего окружения.",
+  "errorUnknown": "Произошла ошибка. Повторите попытку."
+}

@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "তারিখ ও সময় নিশ্চিত করার পরই VoiceBrief অ্যালার্ম সেট করে।";
+"NSCalendarsUsageDescription" = "আপনার নিশ্চিতকরণের পরই VoiceBrief গুরুত্বপূর্ণ তারিখ যোগ করে।";
+"NSMicrophoneUsageDescription" = "আপনি অডিও রেকর্ড বাছলেই শুধু VoiceBrief মাইক্রোফোন ব্যবহার করে।";
+"NSCalendarsFullAccessUsageDescription" = "আপনার নিশ্চিতকরণের পরই VoiceBrief গুরুত্বপূর্ণ তারিখ যোগ করে।";

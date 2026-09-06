@@ -12,6 +12,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appName => 'VoiceBrief';
 
   @override
+  String get appLanguage => 'لغة التطبيق';
+
+  @override
+  String get followSystemLanguage => 'استخدام لغة الجهاز';
+
+  @override
   String get home => 'الرئيسية';
 
   @override

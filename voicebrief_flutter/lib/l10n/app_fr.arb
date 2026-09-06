@@ -1,0 +1,399 @@
+{
+  "@@locale": "fr",
+  "appName": "VoiceBrief",
+  "appLanguage": "Langue de l’application",
+  "followSystemLanguage": "Utiliser la langue de l’appareil",
+  "home": "Accueil",
+  "history": "Historique",
+  "settings": "Réglages",
+  "cancel": "Annuler",
+  "tryAgain": "Réessayer",
+  "close": "Fermer",
+  "continueLabel": "Continuer",
+  "signIn": "Se connecter",
+  "signOut": "Se déconnecter",
+  "delete": "Supprimer",
+  "copy": "Copier",
+  "edit": "Modifier",
+  "copied": "Copié",
+  "complete": "Terminé",
+  "unavailable": "Indisponible",
+  "replaceAudio": "Remplacer l’audio",
+  "removeAudio": "Retirer l’audio",
+  "playAudio": "Lire l’audio",
+  "pauseAudio": "Mettre en pause",
+  "audioWaveform": "Forme d’onde",
+  "audioWaveformLoading": "Tracé de la forme d’onde réelle…",
+  "audioPlayback": "Lecture : {elapsed} sur {duration}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "Copier {title}",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "Cet écran est indisponible.",
+  "goPro": "Passer à Pro",
+  "homeHeadline": "Transformez vos messages vocaux en actions claires",
+  "homeSupporting": "Partagez depuis WhatsApp, choisissez un fichier audio ou enregistrez ici.",
+  "shareFromWhatsApp": "Depuis WhatsApp",
+  "shareFromWhatsAppSteps": "Maintenez le message vocal, touchez Partager, puis VoiceBrief",
+  "chooseVoiceNote": "Choisir un message vocal",
+  "recordInstead": "Enregistrer maintenant",
+  "recentBriefs": "Résumés récents",
+  "viewAll": "Tout voir",
+  "noBriefsYet": "Aucun résumé pour le moment",
+  "noBriefsMessage": "Choisissez ou enregistrez un audio pour créer votre premier résumé.",
+  "usageFreeMinutesRemaining": "{remaining} minutes gratuites restantes sur {total}",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "{remaining} minutes Pro restantes sur {total}",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "{remaining} minutes restantes sur {total}",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "Rendez chaque message vocal utile",
+  "authSupporting": "Connectez-vous pour protéger vos minutes et garder vos résumés privés dans votre compte.",
+  "demoServicesActive": "Mode démo actif. Aucun compte externe ni service payant n’est utilisé.",
+  "providerSignInTitle": "Connexion rapide et sécurisée",
+  "providerSignInDescription": "Choisissez Apple ou Google. VoiceBrief ne voit jamais votre mot de passe.",
+  "continueWithApple": "Continuer avec Apple",
+  "continueWithGoogle": "Continuer avec Google",
+  "byContinuingPrefix": "En continuant, vous acceptez les ",
+  "terms": "Conditions",
+  "andConjunction": " et la ",
+  "privacyPolicy": "Politique de confidentialité",
+  "errorIdentityProviderUnavailable": "Ce mode de connexion est indisponible. Essayez-en un autre.",
+  "onboardingSignIn": "Se connecter",
+  "onboardingTitleOne": "De la voix à l’essentiel",
+  "onboardingBodyOne": "Partagez, choisissez ou enregistrez un audio. Obtenez transcription, résumé, tâches, dates et suggestions de réponses.",
+  "onboardingTitleTwo": "Votre audio reste privé",
+  "onboardingBodyTwo": "L’audio est traité de façon sécurisée et supprimé automatiquement. Vous choisissez les textes à conserver.",
+  "getStarted": "Commencer",
+  "recordAudio": "Enregistrer un audio",
+  "discardRecordingTitle": "Supprimer cet enregistrement ?",
+  "discardRecordingMessage": "L’enregistrement actuel sera supprimé.",
+  "discard": "Abandonner",
+  "recordingPaused": "Enregistrement en pause",
+  "recording": "Enregistrement",
+  "tapRecordReady": "Touchez Enregistrer quand vous êtes prêt",
+  "startRecording": "Démarrer l’enregistrement",
+  "resume": "Reprendre",
+  "pause": "Pause",
+  "stop": "Arrêter",
+  "cancelRecording": "Annuler l’enregistrement",
+  "microphoneJustInTime": "L’accès au microphone est demandé uniquement lorsque vous lancez l’enregistrement.",
+  "recordingSaveFailed": "Impossible de sauvegarder l’enregistrement.",
+  "liveWaveformIdle": "La forme d’onde réelle apparaît au début de l’enregistrement.",
+  "liveWaveformStarting": "Lecture du niveau réel du microphone…",
+  "liveWaveformActive": "Cette onde suit votre voix en direct.",
+  "historyLocalOnly": "Enregistré localement sur cet appareil",
+  "searchBriefs": "Rechercher des résumés",
+  "nothingSaved": "Aucun texte enregistré",
+  "nothingSavedMessage": "Enregistrez un résultat pour le retrouver ici.",
+  "noMatchingBriefs": "Aucun résumé correspondant",
+  "noMatchingBriefsMessage": "Essayez un autre mot du titre ou du résumé.",
+  "briefDeleted": "Résumé supprimé",
+  "undo": "Annuler",
+  "voiceNoteReady": "Message vocal prêt",
+  "reviewAudio": "Vérifier l’audio",
+  "createMyBrief": "Créer mon résumé",
+  "secureAiProcessing": "Traitement sécurisé par IA · audio temporaire supprimé après traitement",
+  "secureAiProcessingSemantics": "L’audio est transmis de façon sécurisée à l’IA puis supprimé du stockage temporaire après traitement.",
+  "trimAudio": "Découper l’audio",
+  "trimAudioHelp": "Faites glisser les deux poignées pour sélectionner le passage. Vous pouvez l’écouter avant de continuer.",
+  "selectedAudioRange": "Passage sélectionné : {start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "Utiliser tout l’audio",
+  "createBriefFromSelection": "Résumer ce passage",
+  "trimmingAudio": "Découpage de l’audio…",
+  "audioTrimmed": "Audio découpé. Seul le passage sélectionné a été conservé.",
+  "sharedAudioImporting": "Préparation du message vocal partagé…",
+  "customizeOutput": "Personnaliser le résultat",
+  "defaultOutput": "Le résumé et la transcription intégrale sont inclus automatiquement",
+  "fullTranscript": "Transcription intégrale",
+  "fullTranscriptDescription": "Tout ce qui a été dit, conservé tel quel pour le relire, le rechercher ou le copier.",
+  "summaryAndKeyPoints": "Résumé et points clés",
+  "actionItemsAndDates": "Tâches et dates",
+  "suggestedReplies": "Suggestions de réponses",
+  "translateSummaryEnglish": "Traduire le résumé en anglais",
+  "sharedAudioReadySemantics": "Message vocal partagé importé et prêt.",
+  "sharedAudioReady": "Message vocal importé. Encore un geste.",
+  "creatingBrief": "Création de votre résumé",
+  "processingFallbackError": "Le traitement a échoué. La copie sécurisée du serveur a été supprimée et votre copie locale privée est prête pour un nouvel essai.",
+  "processingKeepOpen": "Gardez VoiceBrief ouvert jusqu’à la fin de l’envoi sécurisé. La durée dépend de l’audio et de la connexion.",
+  "preparingAudio": "Préparation de l’audio",
+  "uploadingSecurely": "Envoi sécurisé",
+  "transcribing": "Transcription",
+  "creatingYourBrief": "Création de votre résumé",
+  "finalizing": "Finalisation",
+  "brief": "Résumé",
+  "briefUnavailable": "Ce résumé n’est plus disponible.",
+  "copyAll": "Tout copier",
+  "shareResult": "Partager le résultat",
+  "savedLocally": "Enregistré localement",
+  "notSaved": "Non enregistré",
+  "saved": "Enregistré",
+  "saveResult": "Enregistrer le résultat",
+  "deleteResult": "Supprimer le résultat",
+  "deleteBriefTitle": "Supprimer ce résumé ?",
+  "deleteBriefMessage": "Le texte enregistré sera supprimé de cet appareil.",
+  "keyPoints": "Points clés",
+  "actionItems": "Tâches",
+  "importantDates": "Dates importantes",
+  "addToCalendar": "Ajouter au calendrier",
+  "setReminder": "Créer un rappel",
+  "reminderSet": "Alarme VoiceBrief programmée.",
+  "reminderUnavailable": "Impossible de créer le rappel. Activez les notifications de VoiceBrief et réessayez.",
+  "reminderMustBeFuture": "Choisissez une heure future pour le rappel.",
+  "chooseAlarmTone": "Son de l’alarme",
+  "chooseAlarmToneDescription": "Utilisez le son d’origine de l’iPhone ou choisissez le vôtre.",
+  "previewTone": "Écouter le son",
+  "confirmAlarm": "Utiliser ce son",
+  "alarmsAndReminders": "Alarmes et rappels",
+  "voiceBriefAlarms": "Alarmes",
+  "voiceBriefAlarmsDescription": "Consultez ou annulez vos alarmes programmées.",
+  "noScheduledAlarms": "Aucune alarme à venir",
+  "noScheduledAlarmsMessage": "Créez une alarme depuis une date d’un résumé pour la retrouver ici.",
+  "alarmsUnavailable": "Impossible de charger les alarmes VoiceBrief.",
+  "alarmScheduled": "Programmée",
+  "alarmToneLabel": "Son : {tone}",
+  "alarmSoundTitle": "Son de l’alarme",
+  "systemAlarmSound": "Son par défaut de l’iPhone",
+  "systemAlarmSoundDescription": "Le son d’origine du système.",
+  "customAlarmSound": "Son personnalisé",
+  "changeAlarmSound": "Changer",
+  "addCustomAlarmSound": "Ajouter votre son",
+  "importAudioSound": "Choisir un fichier audio",
+  "importVideoSound": "Extraire le son d’une vidéo",
+  "soundLimitNotice": "Les 29 premières secondes sont enregistrées dans un format adapté aux alarmes.",
+  "preparingAlarmSound": "Préparation du son…",
+  "soundImportFailed": "Impossible d’utiliser ce fichier. Choisissez un fichier contenant de l’audio.",
+  "importedSoundReady": "Le son est prêt.",
+  "useThisSound": "Utiliser ce son",
+  "upcomingAlarms": "Alarmes à venir",
+  "loadingAlarms": "Chargement des alarmes…",
+  "cancelAlarm": "Annuler l’alarme",
+  "cancelAlarmTitle": "Annuler cette alarme ?",
+  "cancelAlarmMessage": "L’alarme « {title} » ne sonnera plus après son annulation.",
+  "alarmCancelled": "Alarme annulée.",
+  "alarmCancelFailed": "Impossible d’annuler l’alarme. Réessayez.",
+  "refresh": "Actualiser",
+  "reminderNotificationTitle": "Rappel : {title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "Depuis VoiceBrief : « {phrase} »",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "Responsable : {owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "Entendu : « {phrase} »",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "Confirmation requise",
+  "taskDeadline": "Échéance",
+  "shortTone": "Court",
+  "friendlyTone": "Amical",
+  "professionalTone": "Professionnel",
+  "shortReply": "Réponse courte",
+  "friendlyReply": "Réponse amicale",
+  "professionalReply": "Réponse professionnelle",
+  "replyText": "Texte de la réponse",
+  "shareEditedReply": "Partager la réponse modifiée",
+  "copyEditedReply": "Copier la réponse modifiée",
+  "confirmDatePhrase": "Confirmer « {phrase} »",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "Confirmer l’heure",
+  "openCalendarTitle": "Ouvrir le calendrier ?",
+  "openCalendarMessage": "VoiceBrief a interprété « {phrase} » comme {date}. Le calendrier vous demandera de confirmer avant l’enregistrement.",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "Ouvrir le calendrier",
+  "calendarDescription": "Créé depuis VoiceBrief après confirmation : « {phrase} »",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "Éditeur du calendrier ouvert.",
+  "datesFound": "{count, plural, one{1 date trouvée · créez un rappel ou ajoutez-la au calendrier} other{{count} dates trouvées · créez des rappels ou ajoutez-les au calendrier}}",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "{count, plural, one{1 date trouvée. Vérifiez-la, puis créez un rappel ou ajoutez-la au calendrier du système.} other{{count} dates trouvées. Vérifiez-les, puis créez des rappels ou ajoutez-les au calendrier du système.}}",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "Compte",
+  "notSignedIn": "Non connecté",
+  "verifiedAccount": "Compte vérifié",
+  "emailVerificationRequired": "Vérification de l’adresse e-mail requise",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "Offre gratuite",
+  "minutesRemaining": "{count} minutes restantes",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "Restaurer les achats",
+  "purchasesRestored": "Achats restaurés.",
+  "noPurchasesRestored": "Aucun achat restauré.",
+  "manageSubscription": "Gérer l’abonnement",
+  "appearance": "Apparence",
+  "systemTheme": "Système",
+  "lightTheme": "Clair",
+  "darkTheme": "Sombre",
+  "privacyAndData": "Confidentialité et données",
+  "audioHandlingTitle": "Audio temporaire ; enregistrement du texte facultatif",
+  "audioHandlingDescription": "L’audio sert temporairement à la transcription, puis est supprimé automatiquement. Seuls les résumés et transcriptions que vous enregistrez restent dans l’historique.",
+  "exportSavedText": "Partager les textes enregistrés",
+  "exportSubject": "Export VoiceBrief",
+  "exportSavedTextDescription": "Crée un fichier TXT avec résumés, points clés, tâches, dates, réponses et transcriptions, puis ouvre le menu de partage. Aucun audio n’est inclus.",
+  "exportSavedTextFailed": "Impossible de créer le fichier texte à partager.",
+  "noSavedTextOnDevice": "Aucun texte enregistré sur cet appareil.",
+  "clearLocalHistory": "Supprimer les textes enregistrés",
+  "clearSavedTextDescription": "Supprime les résumés et transcriptions de cet appareil uniquement. Aucun enregistrement audio n’y est conservé.",
+  "clearHistoryTitle": "Supprimer les textes enregistrés ?",
+  "clearHistoryMessage": "Tous les résumés et transcriptions de cet appareil seront définitivement supprimés. Les fichiers audio sont déjà supprimés après traitement.",
+  "clearHistory": "Supprimer les textes",
+  "savedTextCleared": "Textes enregistrés supprimés.",
+  "clearSavedTextFailed": "Impossible de supprimer les textes. Réessayez.",
+  "termsOfService": "Conditions d’utilisation",
+  "support": "Assistance",
+  "contactSupport": "Contacter l’assistance",
+  "appVersion": "Version de l’application",
+  "deleteAccountTitle": "Supprimer le compte ?",
+  "deleteAccountMessage": "Votre compte serveur et l’historique local seront supprimés. Les abonnements restent actifs jusqu’à leur résiliation dans votre compte de la boutique.",
+  "deleteAccount": "Supprimer le compte",
+  "active": "Actif",
+  "proHeadline": "Transformez chaque message vocal en résumé concret",
+  "accurateTranscripts": "Transcriptions précises",
+  "instantSummaries": "Résumés instantanés",
+  "threeReplyTones": "Trois styles de réponses prêts à envoyer",
+  "loadingStorePrices": "Chargement des tarifs…",
+  "subscriptionOptionsUnavailable": "Les abonnements sont indisponibles. Aucun prix de remplacement n’est affiché en production.",
+  "yearly": "Annuel",
+  "monthly": "Mensuel",
+  "bestValue": "MEILLEURE OFFRE",
+  "proActive": "Pro est actif",
+  "subscriptionRenewalNotice": "Les abonnements se renouvellent automatiquement sauf résiliation au moins 24 heures avant la fin de la période. Gérez-les ou résiliez-les dans votre compte de la boutique.",
+  "privacy": "Confidentialité",
+  "proActivatedToast": "VoiceBrief Pro est actif.",
+  "noActivePurchases": "Aucun achat actif trouvé.",
+  "errorNoInternet": "Vous semblez hors ligne. Vérifiez votre connexion et réessayez.",
+  "errorAuthentication": "Connexion impossible. Vérifiez vos informations et réessayez.",
+  "errorProviderCanceled": "Connexion annulée.",
+  "errorEmailVerification": "Ouvrez le lien de vérification reçu par e-mail, puis revenez dans VoiceBrief.",
+  "errorUnsupportedAudio": "Ce format audio n’est pas pris en charge.",
+  "errorFileTooLarge": "Ce fichier audio dépasse la limite d’envoi actuelle.",
+  "errorUnreadableAudio": "Impossible de lire cet audio. Essayez un autre fichier.",
+  "errorAudioEditing": "Impossible de découper cet audio sur cet appareil. L’original est inchangé.",
+  "errorMicrophoneDenied": "Le microphone est nécessaire uniquement si vous choisissez d’enregistrer.",
+  "errorUploadInterrupted": "L’envoi sécurisé a été interrompu. Vous pouvez réessayer sans risque.",
+  "errorProcessingTimeout": "Le traitement a pris trop de temps. Vos minutes n’ont pas été déduites.",
+  "errorTranscription": "Impossible de transcrire l’audio. Réessayez dans un instant.",
+  "errorInvalidResponse": "Le résultat était incomplet et n’a pas été enregistré.",
+  "errorQuotaExhausted": "Vos minutes sont insuffisantes pour traiter cet audio.",
+  "errorSubscriptionUnavailable": "Les abonnements sont indisponibles pour le moment.",
+  "errorSubscriptionSyncPending": "Votre achat est confirmé et Pro se synchronise. Gardez VoiceBrief ouvert et réessayez bientôt.",
+  "errorPurchaseCanceled": "Achat annulé.",
+  "errorPurchaseFailed": "L’achat n’a pas abouti. VoiceBrief ne vous a rien facturé.",
+  "errorRestoreFailed": "Impossible de restaurer les achats. Réessayez plus tard.",
+  "errorServiceUnavailable": "VoiceBrief est temporairement indisponible. Réessayez bientôt.",
+  "errorShareHandoff": "Impossible d’importer l’audio partagé de façon sécurisée.",
+  "errorConfiguration": "Cette fonctionnalité nécessite encore sa configuration de production.",
+  "errorUnknown": "Un problème est survenu. Réessayez."
+}

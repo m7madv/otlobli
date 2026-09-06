@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:voicebrief/app/app_state.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/core/storage/app_preferences.dart';
 import 'package:voicebrief/core/utils/quota_math.dart';
+import 'package:voicebrief/l10n/app_languages.dart';
 import 'package:voicebrief/features/audio_import/data/audio_import_service.dart';
 import 'package:voicebrief/features/audio_import/domain/audio_input.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
@@ -27,6 +29,7 @@ AppState _initialAppState(
   return AppState(
     user: user,
     themeMode: preferences.themeMode,
+    languageCode: preferences.languageCode,
     subscription: user == null
         ? const AppState().subscription
         : preferences.subscriptionFor(user.id) ?? const AppState().subscription,
@@ -50,6 +53,7 @@ class AppController extends StateNotifier<AppState> {
        _sharedInbox = sharedAudioInbox,
        _preferences = preferences,
        super(_initialAppState(authRepository, preferences)) {
+    unawaited(_syncNativeLanguage());
     if (state.user != null) unawaited(_activateAccount(state.user!));
     _sharedAudioSubscription = _sharedInbox.received.listen(
       (payload) => unawaited(_importShared(payload)),
@@ -124,6 +128,31 @@ class AppController extends StateNotifier<AppState> {
   }
 
   void clearError() => state = state.copyWith(errorMessage: null);
+
+  Future<bool> setLanguageCode(String? code) async {
+    if (code != null && AppLanguages.validated(code) == null) return false;
+    try {
+      await _preferences.setLanguageCode(code);
+      if (mounted) state = state.copyWith(languageCode: code);
+      await _syncNativeLanguage();
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _syncNativeLanguage() async {
+    if (!Platform.isIOS) return;
+    try {
+      await const MethodChannel(
+        'voicebrief/share',
+      ).invokeMethod<void>('setAppLanguage', _preferences.languageCode);
+    } on PlatformException {
+      // The persisted Flutter preference remains valid if the bridge is unavailable.
+    } on MissingPluginException {
+      // Widget tests and old native preview runners may omit this bridge.
+    }
+  }
 
   Future<bool> signInWithProvider(IdentityProvider provider) =>
       _authenticate(() => _auth.signInWithProvider(provider));
@@ -205,7 +234,10 @@ class AppController extends StateNotifier<AppState> {
     await _auth.signOut();
     await _historySubscription?.cancel();
     if (accountId != null) await _preferences.clearSubscription(accountId);
-    state = AppState(themeMode: _preferences.themeMode);
+    state = AppState(
+      themeMode: _preferences.themeMode,
+      languageCode: _preferences.languageCode,
+    );
   }
 
   Future<bool> deleteAccount() async {
@@ -221,7 +253,10 @@ class AppController extends StateNotifier<AppState> {
       await _subscriptions.logOut();
       await _historySubscription?.cancel();
       await _preferences.clearSubscription(accountId);
-      state = AppState(themeMode: _preferences.themeMode);
+      state = AppState(
+        themeMode: _preferences.themeMode,
+        languageCode: _preferences.languageCode,
+      );
       return true;
     } on AppFailure catch (failure) {
       state = state.copyWith(errorMessage: failure.message);

@@ -3,6 +3,7 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <application
         android:label="VoiceBrief"
+        android:localeConfig="@xml/locales_config"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

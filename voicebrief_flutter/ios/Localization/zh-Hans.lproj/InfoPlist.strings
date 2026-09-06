@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief 仅在您确认日期和时间后设置闹钟。";
+"NSCalendarsUsageDescription" = "VoiceBrief 仅在您确认后添加重要日期。";
+"NSMicrophoneUsageDescription" = "VoiceBrief 仅在您选择录音时使用麦克风。";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief 仅在您确认后添加重要日期。";

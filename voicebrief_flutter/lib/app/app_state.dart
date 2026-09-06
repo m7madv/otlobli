@@ -15,6 +15,7 @@ sealed class AppState with _$AppState {
     AuthUser? user,
     @Default(false) bool authBusy,
     @Default(ThemeMode.system) ThemeMode themeMode,
+    String? languageCode,
     @Default(0) int navigationIndex,
     @Default(
       SubscriptionStatus(

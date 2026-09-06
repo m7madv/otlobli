@@ -4,6 +4,7 @@ import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/app/providers.dart';
 import 'package:voicebrief/app/router.dart';
 import 'package:voicebrief/l10n/app_localizations.dart';
+import 'package:voicebrief/l10n/app_languages.dart';
 import 'package:voicebrief/ui/core/theme/app_theme.dart';
 
 class VoiceBriefApp extends ConsumerWidget {
@@ -23,7 +24,11 @@ class VoiceBriefApp extends ConsumerWidget {
     final themeMode = ref.watch(
       appControllerProvider.select((value) => value.themeMode),
     );
+    final languageCode = ref.watch(
+      appControllerProvider.select((value) => value.languageCode),
+    );
     return MaterialApp.router(
+      locale: languageCode == null ? null : Locale(languageCode),
       title: AppIdentity.name,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
@@ -32,12 +37,7 @@ class VoiceBriefApp extends ConsumerWidget {
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      localeListResolutionCallback: (preferredLocales, supportedLocales) {
-        final usesArabic = preferredLocales?.any(
-          (locale) => locale.languageCode == 'ar',
-        );
-        return usesArabic == true ? const Locale('ar') : const Locale('en');
-      },
+      localeListResolutionCallback: AppLanguages.resolve,
     );
   }
 }

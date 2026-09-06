@@ -44,6 +44,9 @@ final class VoiceBriefShareBridge {
         return
       }
       switch call.method {
+      case "setAppLanguage":
+        VoiceBriefLocalization.setLanguage(call.arguments as? String)
+        result(nil)
       case "takePendingShare":
         self.dartReady = true
         result(self.takePayloadForDart())

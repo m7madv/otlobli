@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief menjadwalkan alarm hanya setelah Anda mengonfirmasi tanggal dan waktunya.";
+"NSCalendarsUsageDescription" = "VoiceBrief menambahkan tanggal penting hanya setelah Anda mengonfirmasinya.";
+"NSMicrophoneUsageDescription" = "VoiceBrief menggunakan mikrofon hanya saat Anda memilih merekam audio.";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief menambahkan tanggal penting hanya setelah Anda mengonfirmasinya.";

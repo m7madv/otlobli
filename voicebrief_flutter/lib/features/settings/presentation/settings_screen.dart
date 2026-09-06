@@ -12,6 +12,7 @@ import 'package:voicebrief/app/providers.dart';
 import 'package:voicebrief/features/subscription/domain/subscription_models.dart';
 import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/l10n/l10n.dart';
+import 'package:voicebrief/l10n/app_languages.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
 import 'package:voicebrief/ui/core/theme/app_tokens.dart';
 
@@ -89,6 +90,15 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         AppSectionHeader(context.l10n.appearance),
+        AppListTile(
+          title: context.l10n.appLanguage,
+          subtitle:
+              AppLanguages.names[state.languageCode] ??
+              context.l10n.followSystemLanguage,
+          leading: const Icon(Icons.language),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _chooseLanguage(context, ref),
+        ),
         const SizedBox(height: AppSpacing.sm),
         AppSegmentedControl<ThemeMode>(
           segments: [
@@ -277,6 +287,55 @@ class SettingsScreen extends ConsumerWidget {
       if (exportFile != null && await exportFile.exists()) {
         await exportFile.delete();
       }
+    }
+  }
+
+  Future<void> _chooseLanguage(BuildContext context, WidgetRef ref) async {
+    final selected = ref.read(appControllerProvider).languageCode ?? '';
+    final value = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.8,
+        child: Column(
+          children: [
+            ListTile(
+              title: Text(context.l10n.appLanguage),
+              trailing: IconButton(
+                tooltip: context.l10n.close,
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(sheetContext),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final entry in <String, String>{
+                    '': context.l10n.followSystemLanguage,
+                    ...AppLanguages.names,
+                  }.entries)
+                    ListTile(
+                      title: Text(entry.value),
+                      selected: selected == entry.key,
+                      trailing: selected == entry.key
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => Navigator.pop(sheetContext, entry.key),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (value == null || !context.mounted) return;
+    final saved = await ref
+        .read(appControllerProvider.notifier)
+        .setLanguageCode(value.isEmpty ? null : value);
+    if (!saved && context.mounted) {
+      AppToast.show(context, context.l10n.errorUnknown);
     }
   }
 

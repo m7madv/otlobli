@@ -1,0 +1,399 @@
+{
+  "@@locale": "hi",
+  "appName": "VoiceBrief",
+  "appLanguage": "ऐप की भाषा",
+  "followSystemLanguage": "डिवाइस की भाषा इस्तेमाल करें",
+  "home": "होम",
+  "history": "इतिहास",
+  "settings": "सेटिंग",
+  "cancel": "रद्द करें",
+  "tryAgain": "फिर कोशिश करें",
+  "close": "बंद करें",
+  "continueLabel": "आगे बढ़ें",
+  "signIn": "साइन इन",
+  "signOut": "साइन आउट",
+  "delete": "हटाएँ",
+  "copy": "कॉपी करें",
+  "edit": "बदलें",
+  "copied": "कॉपी हो गया",
+  "complete": "पूरा हुआ",
+  "unavailable": "उपलब्ध नहीं",
+  "replaceAudio": "ऑडियो बदलें",
+  "removeAudio": "ऑडियो हटाएँ",
+  "playAudio": "ऑडियो चलाएँ",
+  "pauseAudio": "ऑडियो रोकें",
+  "audioWaveform": "ऑडियो तरंग",
+  "audioWaveformLoading": "असली ऑडियो तरंग बन रही है…",
+  "audioPlayback": "ऑडियो चल रहा है: {duration} में से {elapsed}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "{title} कॉपी करें",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "यह स्क्रीन उपलब्ध नहीं है।",
+  "goPro": "Pro लें",
+  "homeHeadline": "वॉइस मैसेज से पाएँ स्पष्ट अगले कदम",
+  "homeSupporting": "WhatsApp से साझा करें, ऑडियो चुनें या यहाँ रिकॉर्ड करें।",
+  "shareFromWhatsApp": "WhatsApp से",
+  "shareFromWhatsAppSteps": "वॉइस मैसेज दबाकर रखें, साझा करें पर टैप करें, फिर VoiceBrief चुनें",
+  "chooseVoiceNote": "वॉइस मैसेज चुनें",
+  "recordInstead": "अभी रिकॉर्ड करें",
+  "recentBriefs": "हाल के सारांश",
+  "viewAll": "सभी देखें",
+  "noBriefsYet": "अभी कोई सारांश नहीं",
+  "noBriefsMessage": "पहला सारांश बनाने के लिए ऑडियो चुनें या रिकॉर्ड करें।",
+  "usageFreeMinutesRemaining": "{total} मुफ़्त मिनटों में से {remaining} बाकी",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "{total} Pro मिनटों में से {remaining} बाकी",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "{total} मिनटों में से {remaining} बाकी",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "हर वॉइस मैसेज को उपयोगी बनाएँ",
+  "authSupporting": "अपने मिनट सुरक्षित रखने और सहेजे गए सारांश अपने खाते तक निजी रखने के लिए साइन इन करें।",
+  "demoServicesActive": "डेमो सेवाएँ चालू हैं। बाहरी खाते या सशुल्क सेवाएँ इस्तेमाल नहीं होतीं।",
+  "providerSignInTitle": "तेज़ और सुरक्षित साइन इन",
+  "providerSignInDescription": "Apple या Google चुनें। VoiceBrief आपके खाते का पासवर्ड कभी नहीं देखता।",
+  "continueWithApple": "Apple से जारी रखें",
+  "continueWithGoogle": "Google से जारी रखें",
+  "byContinuingPrefix": "आगे बढ़कर आप सहमति देते हैं: ",
+  "terms": "शर्तें",
+  "andConjunction": " और ",
+  "privacyPolicy": "गोपनीयता नीति",
+  "errorIdentityProviderUnavailable": "यह साइन इन तरीका अभी उपलब्ध नहीं है। दूसरा तरीका आज़माएँ।",
+  "onboardingSignIn": "साइन इन",
+  "onboardingTitleOne": "आवाज़ से स्पष्ट जानकारी",
+  "onboardingBodyOne": "ऑडियो साझा करें, चुनें या रिकॉर्ड करें। ट्रांसक्रिप्ट, सारांश, काम, तारीखें और जवाबों के सुझाव पाएँ।",
+  "onboardingTitleTwo": "आपका ऑडियो निजी रहता है",
+  "onboardingBodyTwo": "ऑडियो सुरक्षित ढंग से प्रोसेस होकर अपने आप हट जाता है। कौन-से टेक्स्ट सहेजने हैं, आप चुनते हैं।",
+  "getStarted": "शुरू करें",
+  "recordAudio": "ऑडियो रिकॉर्ड करें",
+  "discardRecordingTitle": "रिकॉर्डिंग हटाएँ?",
+  "discardRecordingMessage": "मौजूदा रिकॉर्डिंग हटा दी जाएगी।",
+  "discard": "हटा दें",
+  "recordingPaused": "रिकॉर्डिंग रुकी हुई है",
+  "recording": "रिकॉर्डिंग चल रही है",
+  "tapRecordReady": "तैयार होने पर रिकॉर्ड पर टैप करें",
+  "startRecording": "रिकॉर्डिंग शुरू करें",
+  "resume": "जारी रखें",
+  "pause": "विराम दें",
+  "stop": "रोकें",
+  "cancelRecording": "रिकॉर्डिंग रद्द करें",
+  "microphoneJustInTime": "माइक्रोफ़ोन की अनुमति केवल रिकॉर्ड पर टैप करने पर माँगी जाती है।",
+  "recordingSaveFailed": "रिकॉर्डिंग सहेजी नहीं जा सकी।",
+  "liveWaveformIdle": "रिकॉर्डिंग शुरू होने पर असली तरंग दिखेगी।",
+  "liveWaveformStarting": "माइक्रोफ़ोन का असली स्तर पढ़ा जा रहा है…",
+  "liveWaveformActive": "यह तरंग आपकी आवाज़ के साथ बदल रही है।",
+  "historyLocalOnly": "केवल इस डिवाइस पर सहेजा गया",
+  "searchBriefs": "सारांश खोजें",
+  "nothingSaved": "अभी कुछ सहेजा नहीं गया",
+  "nothingSavedMessage": "कोई नतीजा सहेजें, वह यहाँ दिखेगा।",
+  "noMatchingBriefs": "मिलता-जुलता सारांश नहीं मिला",
+  "noMatchingBriefsMessage": "शीर्षक या सारांश का कोई दूसरा शब्द खोजें।",
+  "briefDeleted": "सारांश हटा दिया गया",
+  "undo": "पहले जैसा करें",
+  "voiceNoteReady": "वॉइस मैसेज तैयार है",
+  "reviewAudio": "ऑडियो जाँचें",
+  "createMyBrief": "मेरा सारांश बनाएँ",
+  "secureAiProcessing": "सुरक्षित AI प्रोसेसिंग · पूरा होने पर अस्थायी ऑडियो हट जाता है",
+  "secureAiProcessingSemantics": "ऑडियो AI प्रोसेसिंग के लिए सुरक्षित ढंग से भेजा जाता है और बाद में अस्थायी स्टोरेज से हट जाता है।",
+  "trimAudio": "ऑडियो काटें",
+  "trimAudioHelp": "दोनों किनारे खींचकर हिस्सा चुनें। आगे बढ़ने से पहले उसे सुन सकते हैं।",
+  "selectedAudioRange": "चुना गया हिस्सा: {start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "पूरा ऑडियो इस्तेमाल करें",
+  "createBriefFromSelection": "इस हिस्से का सारांश बनाएँ",
+  "trimmingAudio": "ऑडियो काटा जा रहा है…",
+  "audioTrimmed": "ऑडियो काट दिया गया। केवल चुना हुआ हिस्सा रखा गया है।",
+  "sharedAudioImporting": "साझा किया गया वॉइस मैसेज तैयार हो रहा है…",
+  "customizeOutput": "नतीजा अपनी पसंद का बनाएँ",
+  "defaultOutput": "सारांश और शब्दशः ट्रांसक्रिप्ट अपने आप शामिल होते हैं",
+  "fullTranscript": "शब्दशः ट्रांसक्रिप्ट",
+  "fullTranscriptDescription": "रिकॉर्डिंग में कही गई हर बात जस की तस, ताकि आप पढ़ सकें, खोज सकें या कॉपी कर सकें।",
+  "summaryAndKeyPoints": "सारांश और मुख्य बातें",
+  "actionItemsAndDates": "काम और तारीखें",
+  "suggestedReplies": "जवाबों के सुझाव",
+  "translateSummaryEnglish": "सारांश का अंग्रेज़ी में अनुवाद करें",
+  "sharedAudioReadySemantics": "साझा किया गया वॉइस मैसेज आयात होकर तैयार है।",
+  "sharedAudioReady": "वॉइस मैसेज आयात हो गया। बस एक टैप बाकी है।",
+  "creatingBrief": "आपका सारांश बन रहा है",
+  "processingFallbackError": "प्रोसेसिंग पूरी नहीं हुई। सर्वर की सुरक्षित कॉपी हटा दी गई है और आपकी निजी स्थानीय कॉपी दोबारा कोशिश के लिए तैयार है।",
+  "processingKeepOpen": "सुरक्षित अपलोड पूरा होने तक VoiceBrief खुला रखें। समय रिकॉर्डिंग की लंबाई और कनेक्शन पर निर्भर करता है।",
+  "preparingAudio": "ऑडियो तैयार हो रहा है",
+  "uploadingSecurely": "सुरक्षित अपलोड हो रहा है",
+  "transcribing": "ट्रांसक्रिप्ट बन रहा है",
+  "creatingYourBrief": "आपका सारांश बन रहा है",
+  "finalizing": "अंतिम चरण",
+  "brief": "सारांश",
+  "briefUnavailable": "यह सारांश अब उपलब्ध नहीं है।",
+  "copyAll": "सब कॉपी करें",
+  "shareResult": "नतीजा साझा करें",
+  "savedLocally": "डिवाइस पर सहेजा गया",
+  "notSaved": "सहेजा नहीं गया",
+  "saved": "सहेजा गया",
+  "saveResult": "नतीजा सहेजें",
+  "deleteResult": "नतीजा हटाएँ",
+  "deleteBriefTitle": "यह सारांश हटाएँ?",
+  "deleteBriefMessage": "सहेजा गया टेक्स्ट इस डिवाइस से हट जाएगा।",
+  "keyPoints": "मुख्य बातें",
+  "actionItems": "काम",
+  "importantDates": "ज़रूरी तारीखें",
+  "addToCalendar": "कैलेंडर में जोड़ें",
+  "setReminder": "रिमाइंडर लगाएँ",
+  "reminderSet": "VoiceBrief अलार्म लगा दिया गया।",
+  "reminderUnavailable": "रिमाइंडर नहीं लग सका। VoiceBrief सूचनाएँ चालू करके फिर कोशिश करें।",
+  "reminderMustBeFuture": "रिमाइंडर के लिए भविष्य का समय चुनें।",
+  "chooseAlarmTone": "अलार्म की आवाज़",
+  "chooseAlarmToneDescription": "iPhone की मूल आवाज़ इस्तेमाल करें या अपनी आवाज़ चुनें।",
+  "previewTone": "आवाज़ सुनें",
+  "confirmAlarm": "यह आवाज़ इस्तेमाल करें",
+  "alarmsAndReminders": "अलार्म और रिमाइंडर",
+  "voiceBriefAlarms": "अलार्म",
+  "voiceBriefAlarmsDescription": "तय किए गए अलार्म देखें या रद्द करें।",
+  "noScheduledAlarms": "कोई आगामी अलार्म नहीं",
+  "noScheduledAlarmsMessage": "सारांश की किसी तारीख से अलार्म लगाएँ, वह यहाँ दिखेगा।",
+  "alarmsUnavailable": "VoiceBrief अलार्म अभी लोड नहीं हो सके।",
+  "alarmScheduled": "तय किया गया",
+  "alarmToneLabel": "आवाज़: {tone}",
+  "alarmSoundTitle": "अलार्म की आवाज़",
+  "systemAlarmSound": "iPhone की डिफ़ॉल्ट आवाज़",
+  "systemAlarmSoundDescription": "सिस्टम की मूल आवाज़।",
+  "customAlarmSound": "अपनी आवाज़",
+  "changeAlarmSound": "बदलें",
+  "addCustomAlarmSound": "अपनी आवाज़ जोड़ें",
+  "importAudioSound": "ऑडियो फ़ाइल चुनें",
+  "importVideoSound": "वीडियो से आवाज़ निकालें",
+  "soundLimitNotice": "पहले 29 सेकंड अलार्म के अनुकूल फ़ॉर्मैट में सहेजे जाते हैं।",
+  "preparingAlarmSound": "आवाज़ तैयार हो रही है…",
+  "soundImportFailed": "यह फ़ाइल इस्तेमाल नहीं हो सकी। आवाज़ वाली फ़ाइल चुनें।",
+  "importedSoundReady": "आवाज़ तैयार है।",
+  "useThisSound": "यह आवाज़ इस्तेमाल करें",
+  "upcomingAlarms": "आगामी अलार्म",
+  "loadingAlarms": "अलार्म लोड हो रहे हैं…",
+  "cancelAlarm": "अलार्म रद्द करें",
+  "cancelAlarmTitle": "यह अलार्म रद्द करें?",
+  "cancelAlarmMessage": "रद्द करने के बाद “{title}” अलार्म नहीं बजेगा।",
+  "alarmCancelled": "अलार्म रद्द कर दिया गया।",
+  "alarmCancelFailed": "अलार्म रद्द नहीं हो सका। फिर कोशिश करें।",
+  "refresh": "रीफ़्रेश करें",
+  "reminderNotificationTitle": "रिमाइंडर: {title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "VoiceBrief से: “{phrase}”",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "ज़िम्मेदार: {owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "सुना गया: “{phrase}”",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "पुष्टि चाहिए",
+  "taskDeadline": "काम की अंतिम तारीख",
+  "shortTone": "छोटा",
+  "friendlyTone": "दोस्ताना",
+  "professionalTone": "पेशेवर",
+  "shortReply": "छोटा जवाब",
+  "friendlyReply": "दोस्ताना जवाब",
+  "professionalReply": "पेशेवर जवाब",
+  "replyText": "जवाब का टेक्स्ट",
+  "shareEditedReply": "बदला हुआ जवाब साझा करें",
+  "copyEditedReply": "बदला हुआ जवाब कॉपी करें",
+  "confirmDatePhrase": "“{phrase}” की पुष्टि करें",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "कार्यक्रम के समय की पुष्टि करें",
+  "openCalendarTitle": "कैलेंडर खोलें?",
+  "openCalendarMessage": "VoiceBrief ने “{phrase}” का अर्थ {date} समझा है। सहेजने से पहले कैलेंडर आपसे पुष्टि माँगेगा।",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "कैलेंडर खोलें",
+  "calendarDescription": "VoiceBrief से पुष्टि के बाद बनाया गया: “{phrase}”",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "कैलेंडर संपादक खुल गया।",
+  "datesFound": "{count} तारीखें मिलीं · रिमाइंडर लगाएँ या कैलेंडर में जोड़ें",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "{count} तारीखें मिली हैं। जाँचें, फिर रिमाइंडर लगाएँ या सिस्टम कैलेंडर में जोड़ें।",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "खाता",
+  "notSignedIn": "साइन इन नहीं है",
+  "verifiedAccount": "सत्यापित खाता",
+  "emailVerificationRequired": "ईमेल सत्यापन ज़रूरी है",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "मुफ़्त प्लान",
+  "minutesRemaining": "{count} मिनट बाकी",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "खरीदारी बहाल करें",
+  "purchasesRestored": "खरीदारी बहाल हो गई।",
+  "noPurchasesRestored": "कोई खरीदारी बहाल नहीं हुई।",
+  "manageSubscription": "सदस्यता प्रबंधित करें",
+  "appearance": "रूप",
+  "systemTheme": "सिस्टम",
+  "lightTheme": "हल्का",
+  "darkTheme": "गहरा",
+  "privacyAndData": "गोपनीयता और डेटा",
+  "audioHandlingTitle": "ऑडियो अस्थायी है; टेक्स्ट सहेजना वैकल्पिक",
+  "audioHandlingDescription": "ऑडियो ट्रांसक्रिप्ट बनाने के लिए अस्थायी रूप से इस्तेमाल होता है और अपने आप हट जाता है। केवल आपके चुने हुए सारांश और ट्रांसक्रिप्ट इतिहास में रहते हैं।",
+  "exportSavedText": "सहेजा हुआ टेक्स्ट साझा करें",
+  "exportSubject": "VoiceBrief निर्यात",
+  "exportSavedTextDescription": "सारांश, मुख्य बातें, काम, तारीखें, जवाब और ट्रांसक्रिप्ट की TXT फ़ाइल बनाकर साझा करने का मेनू खोलता है। इसमें कभी ऑडियो नहीं होता।",
+  "exportSavedTextFailed": "साझा करने के लिए टेक्स्ट फ़ाइल नहीं बन सकी।",
+  "noSavedTextOnDevice": "इस डिवाइस पर कोई टेक्स्ट सहेजा नहीं गया है।",
+  "clearLocalHistory": "सहेजा हुआ टेक्स्ट हटाएँ",
+  "clearSavedTextDescription": "केवल इस डिवाइस के सारांश और ट्रांसक्रिप्ट हटते हैं। यहाँ ऑडियो रिकॉर्डिंग नहीं रखी जातीं।",
+  "clearHistoryTitle": "सहेजा हुआ टेक्स्ट हटाएँ?",
+  "clearHistoryMessage": "इस डिवाइस के सभी सारांश और ट्रांसक्रिप्ट हमेशा के लिए हट जाएँगे। ऑडियो फ़ाइलें प्रोसेसिंग के बाद पहले ही हट जाती हैं।",
+  "clearHistory": "टेक्स्ट हटाएँ",
+  "savedTextCleared": "सहेजा हुआ टेक्स्ट हट गया।",
+  "clearSavedTextFailed": "टेक्स्ट नहीं हट सका। फिर कोशिश करें।",
+  "termsOfService": "सेवा की शर्तें",
+  "support": "सहायता",
+  "contactSupport": "सहायता से संपर्क करें",
+  "appVersion": "ऐप का संस्करण",
+  "deleteAccountTitle": "खाता हटाएँ?",
+  "deleteAccountMessage": "इससे सर्वर पर आपका खाता और स्थानीय इतिहास हट जाएगा। स्टोर की सदस्यताएँ तब तक जारी रहेंगी जब तक आप उन्हें स्टोर खाते से रद्द नहीं करते।",
+  "deleteAccount": "खाता हटाएँ",
+  "active": "सक्रिय",
+  "proHeadline": "हर वॉइस मैसेज से पाएँ काम आने वाला सारांश",
+  "accurateTranscripts": "सटीक ट्रांसक्रिप्ट",
+  "instantSummaries": "तुरंत सारांश",
+  "threeReplyTones": "भेजने के लिए तैयार तीन तरह के जवाब",
+  "loadingStorePrices": "स्टोर की कीमतें लोड हो रही हैं…",
+  "subscriptionOptionsUnavailable": "सदस्यता विकल्प उपलब्ध नहीं हैं। प्रोडक्शन में वैकल्पिक कीमत नहीं दिखाई जाती।",
+  "yearly": "सालाना",
+  "monthly": "मासिक",
+  "bestValue": "सबसे किफ़ायती",
+  "proActive": "Pro सक्रिय है",
+  "subscriptionRenewalNotice": "मौजूदा अवधि खत्म होने से कम से कम 24 घंटे पहले रद्द न करने पर सदस्यता अपने आप नवीनीकृत होती है। स्टोर खाते से कभी भी प्रबंधित या रद्द करें।",
+  "privacy": "गोपनीयता",
+  "proActivatedToast": "VoiceBrief Pro सक्रिय है।",
+  "noActivePurchases": "कोई सक्रिय खरीदारी नहीं मिली।",
+  "errorNoInternet": "आप ऑफ़लाइन लग रहे हैं। कनेक्शन जाँचें और फिर कोशिश करें।",
+  "errorAuthentication": "साइन इन नहीं हो सका। जानकारी जाँचें और फिर कोशिश करें।",
+  "errorProviderCanceled": "साइन इन रद्द कर दिया गया।",
+  "errorEmailVerification": "ईमेल का सत्यापन लिंक खोलें और फिर VoiceBrief पर लौटें।",
+  "errorUnsupportedAudio": "यह ऑडियो फ़ॉर्मैट समर्थित नहीं है।",
+  "errorFileTooLarge": "ऑडियो फ़ाइल मौजूदा अपलोड सीमा से बड़ी है।",
+  "errorUnreadableAudio": "यह ऑडियो पढ़ा नहीं जा सका। दूसरी फ़ाइल आज़माएँ।",
+  "errorAudioEditing": "इस डिवाइस पर ऑडियो नहीं काटा जा सका। मूल फ़ाइल नहीं बदली है।",
+  "errorMicrophoneDenied": "माइक्रोफ़ोन की अनुमति केवल रिकॉर्ड करने पर चाहिए।",
+  "errorUploadInterrupted": "सुरक्षित अपलोड रुक गया। आप सुरक्षित रूप से फिर कोशिश कर सकते हैं।",
+  "errorProcessingTimeout": "प्रोसेसिंग में बहुत समय लगा। आपके मिनट नहीं काटे गए।",
+  "errorTranscription": "ऑडियो का ट्रांसक्रिप्ट नहीं बन सका। थोड़ी देर में फिर कोशिश करें।",
+  "errorInvalidResponse": "नतीजा अधूरा था और सहेजा नहीं गया।",
+  "errorQuotaExhausted": "इस ऑडियो के लिए आपके पास पर्याप्त मिनट नहीं हैं।",
+  "errorSubscriptionUnavailable": "सदस्यता विकल्प अभी उपलब्ध नहीं हैं।",
+  "errorSubscriptionSyncPending": "खरीदारी की पुष्टि हो गई है और Pro सिंक हो रहा है। VoiceBrief खुला रखें और थोड़ी देर में फिर कोशिश करें।",
+  "errorPurchaseCanceled": "खरीदारी रद्द कर दी गई।",
+  "errorPurchaseFailed": "खरीदारी पूरी नहीं हुई। VoiceBrief ने कोई शुल्क नहीं लिया।",
+  "errorRestoreFailed": "खरीदारी बहाल नहीं हो सकी। बाद में फिर कोशिश करें।",
+  "errorServiceUnavailable": "VoiceBrief अभी उपलब्ध नहीं है। थोड़ी देर में फिर कोशिश करें।",
+  "errorShareHandoff": "साझा ऑडियो सुरक्षित ढंग से आयात नहीं हो सका।",
+  "errorConfiguration": "इस सुविधा का प्रोडक्शन कॉन्फ़िगरेशन अभी बाकी है।",
+  "errorUnknown": "कुछ गलत हो गया। फिर कोशिश करें।"
+}

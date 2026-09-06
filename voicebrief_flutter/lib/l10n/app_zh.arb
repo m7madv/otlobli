@@ -1,0 +1,399 @@
+{
+  "@@locale": "zh",
+  "appName": "VoiceBrief",
+  "appLanguage": "应用语言",
+  "followSystemLanguage": "使用设备语言",
+  "home": "首页",
+  "history": "历史记录",
+  "settings": "设置",
+  "cancel": "取消",
+  "tryAgain": "重试",
+  "close": "关闭",
+  "continueLabel": "继续",
+  "signIn": "登录",
+  "signOut": "退出登录",
+  "delete": "删除",
+  "copy": "复制",
+  "edit": "编辑",
+  "copied": "已复制",
+  "complete": "完成",
+  "unavailable": "不可用",
+  "replaceAudio": "更换音频",
+  "removeAudio": "移除音频",
+  "playAudio": "播放音频",
+  "pauseAudio": "暂停音频",
+  "audioWaveform": "音频波形",
+  "audioWaveformLoading": "正在绘制真实音频波形…",
+  "audioPlayback": "音频播放：{elapsed}，共 {duration}",
+  "@audioPlayback": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "copySection": "复制{title}",
+  "@copySection": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "screenUnavailable": "此页面不可用。",
+  "goPro": "升级到 Pro",
+  "homeHeadline": "将语音消息化为清晰的行动",
+  "homeSupporting": "从 WhatsApp 分享、选择音频文件，或在此录音。",
+  "shareFromWhatsApp": "来自 WhatsApp",
+  "shareFromWhatsAppSteps": "长按语音消息，点按“分享”，然后选择 VoiceBrief",
+  "chooseVoiceNote": "选择语音消息",
+  "recordInstead": "直接录音",
+  "recentBriefs": "最近的摘要",
+  "viewAll": "查看全部",
+  "noBriefsYet": "暂无摘要",
+  "noBriefsMessage": "选择或录制音频，创建第一份摘要。",
+  "usageFreeMinutesRemaining": "免费分钟剩余 {remaining}，共 {total}",
+  "@usageFreeMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageProMinutesRemaining": "Pro 分钟剩余 {remaining}，共 {total}",
+  "@usageProMinutesRemaining": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "usageMinutesSemantics": "剩余 {remaining} 分钟，共 {total} 分钟",
+  "@usageMinutesSemantics": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "authHeadline": "让每条语音消息更有价值",
+  "authSupporting": "登录以保护您的分钟额度，并让已保存的摘要仅对您的账户可见。",
+  "demoServicesActive": "演示服务已启用。不会使用外部账户或付费服务。",
+  "providerSignInTitle": "快速、安全地登录",
+  "providerSignInDescription": "选择 Apple 或 Google。VoiceBrief 无法查看您的账户密码。",
+  "continueWithApple": "通过 Apple 继续",
+  "continueWithGoogle": "通过 Google 继续",
+  "byContinuingPrefix": "继续即表示您同意",
+  "terms": "条款",
+  "andConjunction": "及",
+  "privacyPolicy": "隐私政策",
+  "errorIdentityProviderUnavailable": "此登录方式暂不可用，请尝试其他方式。",
+  "onboardingSignIn": "登录",
+  "onboardingTitleOne": "从语音到清晰要点",
+  "onboardingBodyOne": "分享、选择或录制音频，获取转写、摘要、任务、日期及回复建议。",
+  "onboardingTitleTwo": "您的音频保持私密",
+  "onboardingBodyTwo": "音频经过安全处理后会自动删除。您可以选择保存哪些文字结果。",
+  "getStarted": "开始使用",
+  "recordAudio": "录制音频",
+  "discardRecordingTitle": "放弃录音？",
+  "discardRecordingMessage": "当前录音将被删除。",
+  "discard": "放弃",
+  "recordingPaused": "录音已暂停",
+  "recording": "正在录音",
+  "tapRecordReady": "准备好后点按录音",
+  "startRecording": "开始录音",
+  "resume": "继续",
+  "pause": "暂停",
+  "stop": "停止",
+  "cancelRecording": "取消录音",
+  "microphoneJustInTime": "仅在点按录音时才会请求麦克风权限。",
+  "recordingSaveFailed": "无法保存录音。",
+  "liveWaveformIdle": "开始录音后会显示真实波形。",
+  "liveWaveformStarting": "正在读取实际麦克风音量…",
+  "liveWaveformActive": "此波形随您的实时声音变化。",
+  "historyLocalOnly": "仅保存在此设备",
+  "searchBriefs": "搜索摘要",
+  "nothingSaved": "暂无已保存内容",
+  "nothingSavedMessage": "保存结果后即可在此查看。",
+  "noMatchingBriefs": "没有匹配的摘要",
+  "noMatchingBriefsMessage": "请尝试其他标题或摘要关键词。",
+  "briefDeleted": "摘要已删除",
+  "undo": "撤销",
+  "voiceNoteReady": "语音消息已就绪",
+  "reviewAudio": "检查音频",
+  "createMyBrief": "生成我的摘要",
+  "secureAiProcessing": "安全的 AI 处理 · 处理后删除临时音频",
+  "secureAiProcessingSemantics": "音频将安全发送以供 AI 处理，并在处理后从临时存储中删除。",
+  "trimAudio": "裁剪音频",
+  "trimAudioHelp": "拖动两端选择要总结的片段。继续前可以试听。",
+  "selectedAudioRange": "已选片段：{start} — {end}",
+  "@selectedAudioRange": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "useFullAudio": "使用完整音频",
+  "createBriefFromSelection": "总结此片段",
+  "trimmingAudio": "正在裁剪音频…",
+  "audioTrimmed": "音频已裁剪，仅保留所选片段。",
+  "sharedAudioImporting": "正在准备分享的语音消息…",
+  "customizeOutput": "自定义输出内容",
+  "defaultOutput": "自动包含摘要和逐字转写",
+  "fullTranscript": "逐字转写",
+  "fullTranscriptDescription": "完整保留录音中的原话，方便查看、搜索或复制。",
+  "summaryAndKeyPoints": "摘要与要点",
+  "actionItemsAndDates": "任务与日期",
+  "suggestedReplies": "回复建议",
+  "translateSummaryEnglish": "将摘要翻译成英语",
+  "sharedAudioReadySemantics": "分享的语音消息已导入并就绪。",
+  "sharedAudioReady": "语音消息已导入，只需再点一下。",
+  "creatingBrief": "正在生成摘要",
+  "processingFallbackError": "处理未能完成。服务器上的安全副本已删除，您的私密本地副本可用于重试。",
+  "processingKeepOpen": "请保持 VoiceBrief 打开，直到安全上传完成。所需时间取决于录音长度和网络连接。",
+  "preparingAudio": "正在准备音频",
+  "uploadingSecurely": "正在安全上传",
+  "transcribing": "正在转写",
+  "creatingYourBrief": "正在生成摘要",
+  "finalizing": "正在完成",
+  "brief": "摘要",
+  "briefUnavailable": "此摘要已不可用。",
+  "copyAll": "复制全部",
+  "shareResult": "分享结果",
+  "savedLocally": "已保存在本机",
+  "notSaved": "未保存",
+  "saved": "已保存",
+  "saveResult": "保存结果",
+  "deleteResult": "删除结果",
+  "deleteBriefTitle": "删除此摘要？",
+  "deleteBriefMessage": "已保存的文字将从此设备删除。",
+  "keyPoints": "要点",
+  "actionItems": "任务",
+  "importantDates": "重要日期",
+  "addToCalendar": "添加到日历",
+  "setReminder": "设置提醒",
+  "reminderSet": "已设置 VoiceBrief 闹钟。",
+  "reminderUnavailable": "无法设置提醒，请启用 VoiceBrief 通知后重试。",
+  "reminderMustBeFuture": "请选择未来的提醒时间。",
+  "chooseAlarmTone": "闹钟声音",
+  "chooseAlarmToneDescription": "使用 iPhone 原始铃声，或选择自己的声音。",
+  "previewTone": "试听铃声",
+  "confirmAlarm": "使用此声音",
+  "alarmsAndReminders": "闹钟与提醒",
+  "voiceBriefAlarms": "闹钟",
+  "voiceBriefAlarmsDescription": "查看或取消已安排的闹钟。",
+  "noScheduledAlarms": "暂无即将响起的闹钟",
+  "noScheduledAlarmsMessage": "从摘要中的日期设置闹钟后，它会显示在此处。",
+  "alarmsUnavailable": "暂时无法加载 VoiceBrief 闹钟。",
+  "alarmScheduled": "已安排",
+  "alarmToneLabel": "声音：{tone}",
+  "alarmSoundTitle": "闹钟声音",
+  "systemAlarmSound": "iPhone 默认声音",
+  "systemAlarmSoundDescription": "系统提供的原始声音。",
+  "customAlarmSound": "自定义声音",
+  "changeAlarmSound": "更改",
+  "addCustomAlarmSound": "添加自己的声音",
+  "importAudioSound": "选择音频文件",
+  "importVideoSound": "从视频提取声音",
+  "soundLimitNotice": "将保存前 29 秒，并转换为适用于闹钟的格式。",
+  "preparingAlarmSound": "正在准备声音…",
+  "soundImportFailed": "无法使用此文件，请选择包含音频的文件。",
+  "importedSoundReady": "声音已就绪。",
+  "useThisSound": "使用此声音",
+  "upcomingAlarms": "即将响起的闹钟",
+  "loadingAlarms": "正在加载闹钟…",
+  "cancelAlarm": "取消闹钟",
+  "cancelAlarmTitle": "取消此闹钟？",
+  "cancelAlarmMessage": "取消后，闹钟“{title}”将不再响起。",
+  "alarmCancelled": "闹钟已取消。",
+  "alarmCancelFailed": "无法取消闹钟，请重试。",
+  "refresh": "刷新",
+  "reminderNotificationTitle": "提醒：{title}",
+  "@reminderNotificationTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "reminderNotificationBody": "来自 VoiceBrief：“{phrase}”",
+  "@reminderNotificationBody": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "ownerLabel": "负责人：{owner}",
+  "@ownerLabel": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "heardLabel": "原话：“{phrase}”",
+  "@heardLabel": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "needsConfirmation": "需要确认",
+  "taskDeadline": "任务截止时间",
+  "shortTone": "简短",
+  "friendlyTone": "友好",
+  "professionalTone": "专业",
+  "shortReply": "简短回复",
+  "friendlyReply": "友好回复",
+  "professionalReply": "专业回复",
+  "replyText": "回复内容",
+  "shareEditedReply": "分享编辑后的回复",
+  "copyEditedReply": "复制编辑后的回复",
+  "confirmDatePhrase": "确认“{phrase}”",
+  "@confirmDatePhrase": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmEventTime": "确认事件时间",
+  "openCalendarTitle": "打开日历？",
+  "openCalendarMessage": "VoiceBrief 将“{phrase}”理解为 {date}。保存前，日历会请您确认。",
+  "@openCalendarMessage": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "openCalendar": "打开日历",
+  "calendarDescription": "通过 VoiceBrief 创建，已确认：“{phrase}”",
+  "@calendarDescription": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOpened": "已打开日历编辑器。",
+  "datesFound": "找到 {count} 个日期 · 设置提醒或添加到日历",
+  "@datesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "datesFoundSemantics": "找到 {count} 个日期。请先检查，再设置提醒或添加到系统日历。",
+  "@datesFoundSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "account": "账户",
+  "notSignedIn": "未登录",
+  "verifiedAccount": "已验证账户",
+  "emailVerificationRequired": "需要验证邮箱",
+  "voiceBriefPro": "VoiceBrief Pro",
+  "freePlan": "免费方案",
+  "minutesRemaining": "剩余 {count} 分钟",
+  "@minutesRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restorePurchases": "恢复购买",
+  "purchasesRestored": "购买已恢复。",
+  "noPurchasesRestored": "未恢复任何购买。",
+  "manageSubscription": "管理订阅",
+  "appearance": "外观",
+  "systemTheme": "跟随系统",
+  "lightTheme": "浅色",
+  "darkTheme": "深色",
+  "privacyAndData": "隐私与数据",
+  "audioHandlingTitle": "音频临时处理；文字可选择保存",
+  "audioHandlingDescription": "音频仅临时用于转写，随后自动删除。只有您选择保存的摘要和转写会留在历史记录中。",
+  "exportSavedText": "分享已保存文字",
+  "exportSubject": "VoiceBrief 导出",
+  "exportSavedTextDescription": "生成包含摘要、要点、任务、日期、回复和转写的 TXT 文件，并打开分享菜单。绝不包含音频。",
+  "exportSavedTextFailed": "无法创建用于分享的文字文件。",
+  "noSavedTextOnDevice": "此设备上没有已保存的文字。",
+  "clearLocalHistory": "删除已保存文字",
+  "clearSavedTextDescription": "仅删除此设备上的摘要和转写。此处不保存录音。",
+  "clearHistoryTitle": "删除已保存文字？",
+  "clearHistoryMessage": "此设备上的全部摘要和转写将被永久删除。音频文件已在处理后删除。",
+  "clearHistory": "删除文字",
+  "savedTextCleared": "已删除保存的文字。",
+  "clearSavedTextFailed": "无法删除文字，请重试。",
+  "termsOfService": "服务条款",
+  "support": "支持",
+  "contactSupport": "联系支持",
+  "appVersion": "应用版本",
+  "deleteAccountTitle": "删除账户？",
+  "deleteAccountMessage": "这将删除服务器账户和本地历史记录。商店订阅将继续，直到您在商店账户中取消。",
+  "deleteAccount": "删除账户",
+  "active": "已启用",
+  "proHeadline": "将每条语音消息转为可执行的摘要",
+  "accurateTranscripts": "准确转写",
+  "instantSummaries": "即时摘要",
+  "threeReplyTones": "三种可直接发送的回复风格",
+  "loadingStorePrices": "正在加载商店价格…",
+  "subscriptionOptionsUnavailable": "订阅选项不可用。正式版本不会显示备用价格。",
+  "yearly": "按年",
+  "monthly": "按月",
+  "bestValue": "超值之选",
+  "proActive": "Pro 已启用",
+  "subscriptionRenewalNotice": "除非在当前周期结束至少 24 小时前取消，否则订阅将自动续订。您可随时在商店账户中管理或取消。",
+  "privacy": "隐私",
+  "proActivatedToast": "VoiceBrief Pro 已启用。",
+  "noActivePurchases": "未找到有效购买。",
+  "errorNoInternet": "您似乎处于离线状态，请检查网络后重试。",
+  "errorAuthentication": "无法登录，请检查您的信息后重试。",
+  "errorProviderCanceled": "登录已取消。",
+  "errorEmailVerification": "请打开邮箱中的验证链接，然后返回 VoiceBrief。",
+  "errorUnsupportedAudio": "不支持此音频格式。",
+  "errorFileTooLarge": "此音频文件超出当前上传大小限制。",
+  "errorUnreadableAudio": "无法读取此音频，请尝试其他文件。",
+  "errorAudioEditing": "无法在此设备上裁剪此音频，原文件未更改。",
+  "errorMicrophoneDenied": "仅在选择录音时才需要麦克风权限。",
+  "errorUploadInterrupted": "安全上传已中断，您可以放心重试。",
+  "errorProcessingTimeout": "处理超时，未扣除您的分钟额度。",
+  "errorTranscription": "无法转写音频，请稍后重试。",
+  "errorInvalidResponse": "结果不完整，未予保存。",
+  "errorQuotaExhausted": "您的分钟额度不足以处理此音频。",
+  "errorSubscriptionUnavailable": "订阅选项暂不可用。",
+  "errorSubscriptionSyncPending": "购买已确认，Pro 仍在同步中。请保持 VoiceBrief 打开，稍后重试。",
+  "errorPurchaseCanceled": "购买已取消。",
+  "errorPurchaseFailed": "购买未完成，VoiceBrief 未向您收费。",
+  "errorRestoreFailed": "无法恢复购买，请稍后重试。",
+  "errorServiceUnavailable": "VoiceBrief 暂不可用，请稍后重试。",
+  "errorShareHandoff": "无法安全导入分享的音频。",
+  "errorConfiguration": "此功能仍需要完成正式环境配置。",
+  "errorUnknown": "出现问题，请重试。"
+}

@@ -88,14 +88,12 @@ final class ShareViewController: UIViewController {
     return button
   }()
 
-  private var isArabic: Bool {
-    Locale.preferredLanguages.first?.lowercased().hasPrefix("ar") == true
-  }
-
   override func loadView() {
     let root = UIView()
     root.backgroundColor = .systemBackground
     view = root
+    root.semanticContentAttribute = ["ar", "ur"].contains(VoiceBriefLocalization.language)
+      ? .forceRightToLeft : .forceLeftToRight
 
     let stack = UIStackView(arrangedSubviews: [
       symbolView,
@@ -679,12 +677,7 @@ final class ShareViewController: UIViewController {
         "translation": false,
       ],
     ]
-    let language = Locale.preferredLanguages.first?.lowercased() ?? ""
-    if language.hasPrefix("ar") {
-      body["languageHint"] = "ar"
-    } else if language.hasPrefix("en") {
-      body["languageHint"] = "en"
-    }
+    // Device/UI language need not match the recording. Detect speech on the server.
     guard let requestBody = try? JSONSerialization.data(withJSONObject: body) else {
       completion(.failure(.invalidResponse))
       return
@@ -813,10 +806,10 @@ final class ShareViewController: UIViewController {
         english: "Your brief is ready"
       )
       if dateCount > 0 {
-        content.body = self.localized(
-          arabic: "تم العثور على \(dateCount) موعد. اضغط لعرض الملخص وضبط المواعيد.",
-          english: "\(dateCount) date item(s) found. Tap to review the brief and add dates."
-        )
+        content.body = String(format: self.localized(
+          arabic: "تم العثور على %d موعد. اضغط لعرض الملخص وضبط المواعيد.",
+          english: "%d date item(s) found. Tap to review the brief and add dates."
+        ), dateCount)
       } else {
         content.body = self.localized(
           arabic: "اكتملت معالجة التسجيل. اضغط لعرض الملخص.",
@@ -995,7 +988,7 @@ final class ShareViewController: UIViewController {
   }
 
   private func localized(arabic: String, english: String) -> String {
-    isArabic ? arabic : english
+    VoiceBriefLocalization.text(english, fallback: VoiceBriefLocalization.language == "ar" ? arabic : english)
   }
 
   @objc private func closeExtension() {

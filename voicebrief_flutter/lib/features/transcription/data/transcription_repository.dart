@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path/path.dart' as path;
@@ -163,11 +162,8 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
     onStage?.call('transcribing');
     try {
       final timeZoneOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-      final deviceLanguage = PlatformDispatcher.instance.locale.languageCode
-          .toLowerCase();
-      final languageHint = deviceLanguage == 'ar' || deviceLanguage == 'en'
-          ? deviceLanguage
-          : null;
+      // UI/device language is not evidence of the language spoken in this file.
+      // Let transcription detect it, including multilingual recordings.
       final requestBody = <String, Object?>{
         'jobId': jobId,
         'storagePath': storagePath,
@@ -178,7 +174,6 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
         'timeZoneOffsetMinutes': timeZoneOffsetMinutes,
         'options': options.toJson(),
       };
-      if (languageHint != null) requestBody['languageHint'] = languageHint;
       final response = await _client.functions.invoke(
         'process-audio',
         body: requestBody,

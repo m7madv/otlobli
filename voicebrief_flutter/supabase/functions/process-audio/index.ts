@@ -472,7 +472,8 @@ Deno.serve(async (request) => {
       : "This is the Free plan: return transcript, summary, every important date, no key points or action items, and only the short reply; friendly and professional must be empty strings.";
     const prompt = [
       "Create an accurate VoiceBrief result from the transcript below.",
-      "The audio may be English, Arabic, or mixed Arabic/English. detectedLanguage should be en, ar, or mixed.",
+      "The transcript may be in any language, including Arabic, English, Simplified Chinese, Hindi, Spanish, French, Bengali, Portuguese, Russian, Urdu, Indonesian, or a mixture. Detect the actual spoken language: set detectedLanguage to its ISO 639-1 code, or mixed for multiple languages. Never infer it from the interface language.",
+      "Keep transcript exactly in its original language and wording. Write title, summary, key points, tasks, date labels, and suggested replies in the transcript's main language. Only when the translation option is true, translate the summary to English; never translate the transcript or invent facts.",
       "Never invent facts, owners, dates, phone numbers, or commitments.",
       `Reference instant: ${referenceInstant}. The user's UTC offset is ${timeZoneOffsetMinutes} minutes. Their local calendar date is ${localReferenceDate}, and tomorrow is ${localTomorrowDate}. Resolve relative dates from those local dates.`,
       "When a date or time is sufficiently clear, return an ISO 8601 value with the user's explicit UTC offset. Preserve the spoken phrase in originalPhrase.",

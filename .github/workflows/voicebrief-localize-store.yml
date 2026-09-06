@@ -1,0 +1,46 @@
+name: VoiceBrief localized store draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect versions or prepare the 0.1.2 localized draft (never submit)
+        type: choice
+        options: [inspect, prepare]
+        default: inspect
+  push:
+    branches: [codex/voicebrief-ios]
+    paths: [.github/workflows/voicebrief-localize-store.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voicebrief-store-localization
+  cancel-in-progress: false
+
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate local assets
+        run: node scripts/prepare_store_localizations.mjs
+        working-directory: voicebrief_flutter
+      - name: Inspect or prepare VoiceBrief draft only
+        env:
+          VOICEBRIEF_STORE_MODE: ${{ inputs.mode || 'inspect' }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: node scripts/app_store_localizations.mjs
+        working-directory: voicebrief_flutter
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voicebrief-localization-report
+          path: ${{ runner.temp }}/voicebrief-localization-report

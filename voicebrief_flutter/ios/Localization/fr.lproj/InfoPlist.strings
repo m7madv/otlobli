@@ -1,0 +1,4 @@
+"NSAlarmKitUsageDescription" = "VoiceBrief programme une alarme uniquement après confirmation de sa date et de son heure.";
+"NSCalendarsUsageDescription" = "VoiceBrief ajoute une date importante uniquement après votre confirmation.";
+"NSMicrophoneUsageDescription" = "VoiceBrief utilise le microphone uniquement lorsque vous choisissez d’enregistrer.";
+"NSCalendarsFullAccessUsageDescription" = "VoiceBrief ajoute une date importante uniquement après votre confirmation.";
