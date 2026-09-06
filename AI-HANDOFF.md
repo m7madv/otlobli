@@ -4,10 +4,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 The build21 App Store release workflow has a read-only push registration trigger; submit still requires explicit workflow_dispatch confirmation. The first dispatch before registration returned404 and made no store change.
 
-Use wait_for_build=true for bounded Apple processing follow-up (up to11minutes, once/minute); no re-upload. Inspection34041050805 still found no build21 at15:02UTC despite the successful14:58UTC delivery.
+Apple21 is now VALID: inspect34041320489 passed every preflight; UI confirms Complete/Ready to Submit and VoiceBrief Internal. Build Upload warnings show only90068 (minimum iOS14;15 required Spring2027), not a current rejection. Owner asked to inspect the Apple email; we verified the actual upload warning in App Store Connect, not the email inbox. Submission is being dispatched under prior owner approval; do not rebuild just to suppress this non-blocking future requirement.
+
+Heartbeat automation `voicebrief-0-1-2` is active every2hours in this thread, quiet unless there is a meaningful change. It tracks Apple/Google publication and real production eligibility; no emulator/test-account actions.
 
 ## أحدث متابعة — اللغات وصور VoiceBrief، 2026-09-06
 
+- التقديم34041578197 توقف عندreviewSubmissionItems409 بعد اختيار21 وAFTER_APPROVAL وإنشاء المسودةالفارغةdf53c6ca-4690-4ccc-ad52-2e25af964208. واجهة أبل أظهرتKeywords required للغات الجديدة. أضيف store_keywords.mjs وحقولmanifest وفحص100حرف وثلاثة اختبارات؛ قدّم بعدprepareوفحصinspect. الناشر يستأنف هذه المسودة المعروفة فقط دون إنشاء أخرى. لا يوجد رفضAppReview، بل حقل متجر ناقص قبلالإرسال.
 - اكتملت الأسماء11 والصور88 في34040271022 وكلهاCOMPLETE؛ فحص مستقل34040542895 و34040895845 يطابق البيانات والصور وبيانات المراجع محفوظة وفرنسا مستثناة. التقارير output/voicebrief-localization-34040271022 وoutput/voicebrief-release-{run}/. لا تعِد رفع الصور أو الأسماء؛ السكربت يعالج إنشاء أبل التلقائي للغات دون تكرار.
 - نجح TestFlight21 في34040157335، build ID cee042ab-1a98-44a3-9dd2-fc6ac6ce3477؛ لا تكرر الرفع. IPA الموقع والتقرير في output/voicebrief-ios-34040157335، التفاصيل والبصمات فيCURRENT_STATE. بعد ظهورVALID شغّل inspect ثم submit على voicebrief-appstore-release.yml بالتأكيد6805194629:0.1.2:21:submit. يضبطAFTER_APPROVAL، ولا يسجل كلمات مرور أو يغيّر البلدان؛ الفحص السابق لم يجد البناء لأن المعالجة كانت جارية.
 - Google: AAB21 مرفوع وحُفظ Alpha release2 وأُرسل تغييره الوحيد للمراجعة؛ الصفحة تؤكد قيد المراجعة والفحص السريع.4مختبرين فقط، Productionمعطل. ملفاتAndroidالموقعة والبصمات فيCURRENT_STATE. لم تغيّر البلدان/المختبرين أو المحاكيات. لا تعِد رفع21 ولا تشغّل ناشرinternal القديم20.

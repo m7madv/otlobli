@@ -79,6 +79,7 @@ try{
   report.names=infos.map(l=>({locale:l.attributes.locale,name:l.attributes.name}));
   check('All 11 approved localized names and privacy links',infos.length===11 && infos.every(l=>l.attributes.name===storeNames[l.attributes.locale] && !!l.attributes.privacyPolicyUrl));
   const manifest=JSON.parse(readFileSync(resolve(import.meta.dirname,'../store_assets/localized/manifest.json'),'utf8'));
+  check('Release manifest and required search keywords',manifest.version===VERSION && manifest.build===Number(BUILD) && manifest.localizations.length===11 && manifest.localizations.every(l=>l.attributes.keywords?.trim() && [...l.attributes.keywords].length<=100));
   const locales=await list(`/v1/appStoreVersions/${VERSION_ID}/appStoreVersionLocalizations?limit=200`);
   check('Exactly 11 version localizations',locales.length===11);
   report.locales=[];
@@ -119,19 +120,27 @@ try{
       if(report.checks.some(c=>!c.passed))throw new Error('Release preflight failed; no submission performed');
       if(!['PREPARE_FOR_SUBMISSION','READY_FOR_REVIEW'].includes(report.state))throw new Error('Unexpected release state');
       await api(`/v1/appStoreVersions/${VERSION_ID}/relationships/build`,'PATCH',{data:{type:'builds',id:build.id}});
+      const linked=(await api(`/v1/appStoreVersions/${VERSION_ID}/build`)).data;
+      if(linked?.id!==build.id)throw new Error('Selected build readback mismatch');
+      report.selectedBuild={id:linked.id,number:linked.attributes.version};save();
       await api(`/v1/appStoreVersions/${VERSION_ID}`,'PATCH',{data:{type:'appStoreVersions',id:VERSION_ID,attributes:{releaseType:'AFTER_APPROVAL'}}});
-      let submission;
+      let submission,needsItem=false;
       for(const candidate of submissions.filter(s=>s.attributes.state==='READY_FOR_REVIEW')){
         const items=await list(`/v1/reviewSubmissions/${candidate.id}/items?include=appStoreVersion&limit=200`);
         if(items.length===1 && items[0].relationships?.appStoreVersion?.data?.id===VERSION_ID)submission=candidate;
+        // Resume only our known empty draft left by the missing-keywords error.
+        if(items.length===0 && candidate.id==='df53c6ca-4690-4ccc-ad52-2e25af964208'){
+          submission=candidate;needsItem=true;
+        }
       }
       if(!submission){
         // Never modify an unrelated review submission.
         if(submissions.some(s=>!['COMPLETE','CANCELED'].includes(s.attributes.state)))throw new Error('Another review submission is active; inspect before creating one');
         submission=(await api('/v1/reviewSubmissions','POST',{data:{type:'reviewSubmissions',attributes:{platform:'IOS'},relationships:{app:rel('apps',APP)}}})).data;
         report.createdSubmission=submission.id;save();
-        await api('/v1/reviewSubmissionItems','POST',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:rel('reviewSubmissions',submission.id),appStoreVersion:rel('appStoreVersions',VERSION_ID)}}});
+        needsItem=true;
       }
+      if(needsItem)await api('/v1/reviewSubmissionItems','POST',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:rel('reviewSubmissions',submission.id),appStoreVersion:rel('appStoreVersions',VERSION_ID)}}});
       const submitted=(await api(`/v1/reviewSubmissions/${submission.id}`,'PATCH',{data:{type:'reviewSubmissions',id:submission.id,attributes:{submitted:true}}})).data;
       report.submitted={id:submitted.id,state:submitted.attributes.state};
       report.result='SUBMITTED_WITH_AUTOMATIC_RELEASE_AFTER_APPROVAL';

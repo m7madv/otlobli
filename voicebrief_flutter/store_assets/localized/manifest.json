@@ -7,6 +7,7 @@
       "language": "ar",
       "attributes": {
         "locale": "ar-SA",
+        "keywords": "تفريغ صوتي,تحويل صوت لنص,تلخيص,رسائل صوتية,مهام,مواعيد,ردود,تسجيل,ملخصات,تقويم,ذكاء اصطناعي",
         "description": "حوّل الرسائل الصوتية إلى خطوات واضحة\n\nشارك من واتساب، اختر ملفًا صوتيًا، أو سجّل من هنا.\n\n• النص الحرفي للتسجيل\n• الملخص والنقاط الأساسية\n• المهام والمواعيد\n• الردود المقترحة\n\nاسحب المقبضين لتحديد الجزء الذي تريد تلخيصه. يمكنك تشغيله قبل المتابعة.\n\nيُستخدم ملف الصوت مؤقتًا للتحويل ثم يُحذف تلقائيًا. لا يبقى في السجل إلا الملخص والنص عندما تضغط حفظ.\n\nيتطلب التطبيق اتصالًا بالإنترنت وحساب Apple أو Google. بعض الأقسام وأنماط الردود تتطلب VoiceBrief Pro. راجع الكلمات والتواريخ التي يستخرجها الذكاء الاصطناعي قبل الاعتماد عليها. صفحات الشروط والخصوصية والدعم متاحة بالعربية والإنجليزية.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=ar",
         "promotionalText": "حوّل الرسائل الصوتية إلى خطوات واضحة",
         "whatsNew": "أضفنا 11 لغة للواجهة. اختر لغتك المفضلة من الإعدادات؛ يبقى اختيارك محفوظًا بعد إعادة تشغيل التطبيق.",
@@ -83,6 +84,7 @@
       "language": "en",
       "attributes": {
         "locale": "en-US",
+        "keywords": "transcript,voice notes,speech to text,recording,tasks,calendar,replies,reminders",
         "description": "Turn voice notes into clear next steps\n\nShare from WhatsApp, choose an audio file, or record here.\n\n• Word-for-word transcript\n• Summary and key points\n• Action items and dates\n• Suggested replies\n\nDrag both handles to choose the part you want summarized. You can play it before continuing.\n\nAudio is used temporarily for transcription, then deleted automatically. Only a brief and transcript you choose to save can remain in history.\n\nAn internet connection and an Apple or Google account are required. Some sections and reply styles require VoiceBrief Pro. Review AI-generated words and dates before relying on them. Legal and support pages are available in Arabic and English.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Turn voice notes into clear next steps",
         "whatsNew": "Now available in 11 interface languages. Choose your preferred language in Settings; your choice is saved after restarting.",
@@ -159,6 +161,7 @@
       "language": "zh",
       "attributes": {
         "locale": "zh-Hans",
+        "keywords": "语音,转文字,录音,摘要,笔记,待办,日程,提醒,回复",
         "description": "将语音消息化为清晰的行动\n\n从 WhatsApp 分享、选择音频文件，或在此录音。\n\n• 逐字转写\n• 摘要与要点\n• 任务与日期\n• 回复建议\n\n拖动两端选择要总结的片段。继续前可以试听。\n\n音频仅临时用于转写，随后自动删除。只有您选择保存的摘要和转写会留在历史记录中。\n\n需要互联网连接及 Apple 或 Google 账户。部分内容和回复风格需要 VoiceBrief Pro。请核对 AI 生成的文字和日期后再使用。法律和支持页面提供阿拉伯语和英语版本。\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "将语音消息化为清晰的行动",
         "whatsNew": "界面现支持 11 种语言。在设置中选择偏好语言，重启应用后仍会保留。",
@@ -235,6 +238,7 @@
       "language": "hi",
       "attributes": {
         "locale": "hi",
+        "keywords": "आवाज़,प्रतिलेखन,सारांश,रिकॉर्डिंग,कार्य,कैलेंडर,अनुस्मारक",
         "description": "वॉइस मैसेज से पाएँ स्पष्ट अगले कदम\n\nWhatsApp से साझा करें, ऑडियो चुनें या यहाँ रिकॉर्ड करें।\n\n• शब्दशः ट्रांसक्रिप्ट\n• सारांश और मुख्य बातें\n• काम और तारीखें\n• जवाबों के सुझाव\n\nदोनों किनारे खींचकर हिस्सा चुनें। आगे बढ़ने से पहले उसे सुन सकते हैं।\n\nऑडियो ट्रांसक्रिप्ट बनाने के लिए अस्थायी रूप से इस्तेमाल होता है और अपने आप हट जाता है। केवल आपके चुने हुए सारांश और ट्रांसक्रिप्ट इतिहास में रहते हैं।\n\nइंटरनेट और Apple या Google खाता ज़रूरी है। कुछ हिस्सों और जवाबों के तरीकों के लिए VoiceBrief Pro चाहिए। AI के शब्दों और तारीखों पर भरोसा करने से पहले जाँचें। कानूनी और सहायता पृष्ठ अरबी और अंग्रेज़ी में उपलब्ध हैं।\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "वॉइस मैसेज से पाएँ स्पष्ट अगले कदम",
         "whatsNew": "इंटरफ़ेस अब 11 भाषाओं में है। सेटिंग में भाषा चुनें; ऐप दोबारा खोलने पर भी पसंद सुरक्षित रहेगी।",
@@ -311,6 +315,7 @@
       "language": "es",
       "attributes": {
         "locale": "es-ES",
+        "keywords": "transcripción,voz,texto,notas,grabación,tareas,calendario,recordatorios",
         "description": "Convierte notas de voz en próximos pasos claros\n\nComparte desde WhatsApp, elige un audio o graba aquí.\n\n• Transcripción literal\n• Resumen y puntos clave\n• Tareas y fechas\n• Respuestas sugeridas\n\nArrastra ambos extremos para elegir el fragmento. Puedes escucharlo antes de continuar.\n\nEl audio se usa temporalmente para transcribirlo y se elimina automáticamente. Solo los resúmenes y transcripciones que decidas guardar quedan en el historial.\n\nNecesitas internet y una cuenta de Apple o Google. Algunas secciones y estilos de respuesta requieren VoiceBrief Pro. Revisa las palabras y fechas generadas por IA antes de confiar en ellas. Las páginas legales y de ayuda están en árabe e inglés.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Convierte notas de voz en próximos pasos claros",
         "whatsNew": "La interfaz está disponible en 11 idiomas. Elige tu idioma en Ajustes; se conservará al reiniciar.",
@@ -387,6 +392,7 @@
       "language": "fr",
       "attributes": {
         "locale": "fr-FR",
+        "keywords": "transcription,voix,texte,notes,enregistrement,tâches,calendrier,rappels",
         "description": "Transformez vos messages vocaux en actions claires\n\nPartagez depuis WhatsApp, choisissez un fichier audio ou enregistrez ici.\n\n• Transcription intégrale\n• Résumé et points clés\n• Tâches et dates\n• Suggestions de réponses\n\nFaites glisser les deux poignées pour sélectionner le passage. Vous pouvez l’écouter avant de continuer.\n\nL’audio sert temporairement à la transcription, puis est supprimé automatiquement. Seuls les résumés et transcriptions que vous enregistrez restent dans l’historique.\n\nUne connexion Internet et un compte Apple ou Google sont requis. Certaines sections et certains styles de réponse nécessitent VoiceBrief Pro. Vérifiez les mots et les dates produits par l’IA. Les pages juridiques et d’assistance sont en arabe et en anglais.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Transformez vos messages vocaux en actions claires",
         "whatsNew": "L’interface est disponible en 11 langues. Choisissez votre langue dans les réglages ; elle reste enregistrée après redémarrage.",
@@ -463,6 +469,7 @@
       "language": "bn",
       "attributes": {
         "locale": "bn-BD",
+        "keywords": "অডিও,লিপ্যন্তর,সারাংশ,রেকর্ডিং,নোট,কাজ,ক্যালেন্ডার,রিমাইন্ডার",
         "description": "ভয়েস মেসেজ থেকে স্পষ্ট পরবর্তী পদক্ষেপ\n\nWhatsApp থেকে শেয়ার করুন, অডিও বাছুন বা এখানে রেকর্ড করুন।\n\n• হুবহু প্রতিলিপি\n• সারসংক্ষেপ ও মূল বিষয়\n• কাজ ও তারিখ\n• উত্তরের পরামর্শ\n\nদুই প্রান্ত টেনে অংশ বাছুন। এগোনোর আগে শুনতে পারবেন।\n\nঅডিও সাময়িকভাবে প্রতিলিপি তৈরিতে ব্যবহৃত হয়, তারপর নিজে থেকে মুছে যায়। শুধু আপনার সংরক্ষণ করা সারসংক্ষেপ ও প্রতিলিপি ইতিহাসে থাকে।\n\nইন্টারনেট এবং Apple বা Google অ্যাকাউন্ট প্রয়োজন। কিছু বিভাগ ও উত্তরের ধরনে VoiceBrief Pro লাগে। AI-এর শব্দ ও তারিখের ওপর নির্ভর করার আগে যাচাই করুন। আইনি ও সহায়তা পৃষ্ঠা আরবি এবং ইংরেজিতে উপলব্ধ।\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "ভয়েস মেসেজ থেকে স্পষ্ট পরবর্তী পদক্ষেপ",
         "whatsNew": "ইন্টারফেস এখন 11টি ভাষায়। সেটিংসে ভাষা বাছুন; অ্যাপ আবার খুললেও আপনার পছন্দ সংরক্ষিত থাকবে।",
@@ -539,6 +546,7 @@
       "language": "pt",
       "attributes": {
         "locale": "pt-BR",
+        "keywords": "transcrição,voz,texto,notas,gravação,tarefas,calendário,lembretes",
         "description": "Transforme mensagens de voz em próximos passos claros\n\nCompartilhe pelo WhatsApp, escolha um áudio ou grave aqui.\n\n• Transcrição literal\n• Resumo e pontos principais\n• Tarefas e datas\n• Sugestões de respostas\n\nArraste as duas extremidades para escolher o trecho. Você pode ouvi-lo antes de continuar.\n\nO áudio é usado temporariamente na transcrição e excluído automaticamente. Só os resumos e transcrições que você salvar ficam no histórico.\n\nÉ necessário internet e uma conta Apple ou Google. Algumas seções e estilos de resposta exigem VoiceBrief Pro. Confira as palavras e datas geradas por IA antes de confiar nelas. As páginas legais e de suporte estão em árabe e inglês.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Transforme mensagens de voz em próximos passos claros",
         "whatsNew": "A interface está disponível em 11 idiomas. Escolha o idioma em Configurações; ele será mantido ao reiniciar.",
@@ -615,6 +623,7 @@
       "language": "ru",
       "attributes": {
         "locale": "ru",
+        "keywords": "голос,расшифровка,текст,заметки,запись,задачи,календарь,напоминания",
         "description": "Превратите голосовые сообщения в понятный план\n\nПоделитесь из WhatsApp, выберите аудиофайл или запишите здесь.\n\n• Дословная расшифровка\n• Сводка и ключевые мысли\n• Задачи и даты\n• Варианты ответов\n\nПеремещайте оба края, чтобы выбрать фрагмент. Его можно прослушать перед продолжением.\n\nАудио временно используется для расшифровки и автоматически удаляется. В истории остаются только сводки и расшифровки, которые вы сохраните.\n\nНужны интернет и аккаунт Apple или Google. Некоторые разделы и стили ответов требуют VoiceBrief Pro. Проверяйте слова и даты, созданные ИИ, прежде чем полагаться на них. Правовые страницы и поддержка доступны на арабском и английском.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Превратите голосовые сообщения в понятный план",
         "whatsNew": "Интерфейс доступен на 11 языках. Выберите язык в настройках — он сохранится после перезапуска.",
@@ -691,6 +700,7 @@
       "language": "ur",
       "attributes": {
         "locale": "ur-PK",
+        "keywords": "آواز,نقل,خلاصہ,ریکارڈنگ,نوٹس,کام,کیلنڈر,یاددہانی",
         "description": "صوتی پیغامات سے واضح اگلے قدم حاصل کریں\n\nWhatsApp سے شیئر کریں، آڈیو چنیں یا یہاں ریکارڈ کریں۔\n\n• لفظ بہ لفظ متن\n• خلاصہ اور اہم نکات\n• کام اور تاریخیں\n• مجوزہ جوابات\n\nدونوں کنارے کھینچ کر حصہ چنیں۔ آگے بڑھنے سے پہلے اسے سن سکتے ہیں۔\n\nآڈیو لفظی متن بنانے کے لیے عارضی طور پر استعمال ہو کر خودکار طور پر حذف ہو جاتا ہے۔ صرف آپ کے محفوظ کردہ خلاصے اور متن ہسٹری میں رہتے ہیں۔\n\nانٹرنیٹ اور Apple یا Google اکاؤنٹ درکار ہے۔ کچھ حصوں اور جواب کے انداز کے لیے VoiceBrief Pro چاہیے۔ AI کے الفاظ اور تاریخوں پر بھروسا کرنے سے پہلے جائزہ لیں۔ قانونی اور معاونت کے صفحات عربی اور انگریزی میں دستیاب ہیں۔\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "صوتی پیغامات سے واضح اگلے قدم حاصل کریں",
         "whatsNew": "انٹرفیس اب 11 زبانوں میں ہے۔ ترتیبات میں زبان چنیں؛ ایپ دوبارہ کھولنے پر بھی انتخاب محفوظ رہے گا۔",
@@ -767,6 +777,7 @@
       "language": "id",
       "attributes": {
         "locale": "id",
+        "keywords": "transkripsi,suara,teks,catatan,rekaman,tugas,kalender,pengingat",
         "description": "Ubah pesan suara menjadi langkah yang jelas\n\nBagikan dari WhatsApp, pilih file audio, atau rekam di sini.\n\n• Transkrip kata demi kata\n• Ringkasan dan poin utama\n• Tugas dan tanggal\n• Saran balasan\n\nGeser kedua ujung untuk memilih bagian yang diringkas. Anda dapat memutarnya sebelum melanjutkan.\n\nAudio digunakan sementara untuk transkripsi lalu dihapus otomatis. Hanya ringkasan dan transkrip yang Anda pilih untuk disimpan yang tetap ada di riwayat.\n\nMemerlukan internet dan akun Apple atau Google. Beberapa bagian dan gaya balasan memerlukan VoiceBrief Pro. Periksa kata dan tanggal yang dihasilkan AI sebelum mengandalkannya. Halaman hukum dan bantuan tersedia dalam bahasa Arab dan Inggris.\n\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nhttps://voicebrief-legal.vercel.app/privacy?lang=en",
         "promotionalText": "Ubah pesan suara menjadi langkah yang jelas",
         "whatsNew": "Antarmuka tersedia dalam 11 bahasa. Pilih bahasa di Pengaturan; pilihan tetap tersimpan setelah memulai ulang.",

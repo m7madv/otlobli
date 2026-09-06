@@ -4,10 +4,13 @@ Last updated: 2026-09-06
 
 Release automation note: the new App Store release workflow runs read-only inspection on its own file pushes so GitHub registers it on this release branch; review submission remains explicit workflow_dispatch only.
 
-Apple processing follow-up: inspect34041050805 still found no build21 after successful delivery. The release workflow now optionally waits up to11minutes (60-second API intervals) before its full preflight; default remains immediate/read-only and no re-upload occurs.
+Apple processing completed: inspect34041320489 confirms build21 VALID/unexpired and all preflight checks pass. The App Store UI independently shows Complete/Ready to Submit, attached to VoiceBrief Internal. Owner reported an Apple warning email; Build Upload21 shows only warning90068 (minimum iOS14; iOS15 required starting Spring2027), not a current rejection. Explicit review submission is now being dispatched under the existing publication approval.
+
+متابعة تلقائية مفعّلة كل ساعتين: heartbeat `voicebrief-0-1-2` في هذه المهمة، صامتة عند عدم تغير الحالة؛ تتابع مراجعة أبل وGoogleAlpha والنشر الفعلي وشروط إنتاجGoogle دون لمس المحاكيات أو اختلاق اختبار.
 
 ## VoiceBrief — اللغات وصور المتجر، 2026-09-06
 
+- محاولة التقديم34041578197 اختارت21 وضبطتAFTER_APPROVAL، ثم أنشأت review draft `df53c6ca-4690-4ccc-ad52-2e25af964208` وتوقفت قبل الإرسال. واجهة أبل أكدت نقصKeywords في اللغات الجديدة؛ هذا نقص بيانات متجر منفصل عن تحذير90068. أضيفت كلمات مفتاحية مترجمة لكل اللغات مع تحقق100حرف وثلاثة اختبارات ناجحة، وإعادة استخدام المسودة الفارغة المحددة فقط. الإصلاح قيد رفع البيانات ولا يحتاج بناء جديد.
 - اكتمل رفع الأسماء11 والصور88 والوصف/ملاحظات التحديث للغات11 في تشغيل34040271022؛ كل الصور COMPLETE. التقرير والنسخ السابقة محليًا `output/voicebrief-localization-34040271022/`، artifact9991595455 (9173 بايت، ZIP SHA256 `16a00a4a527521177fc4ec25cb6330b7744b467b515261bc2e0be31335aa03ce`). نجح فحص مستقل34040542895 ثم34040895845 لكل البيانات والأسماء ووجود بيانات المراجع واستثناء فرنسا؛ البناء لم يظهر بعد وقت الفحص.
 - نجح رفع iOS21 في34040157335 من7d06685؛ Delivery/build ID `cee042ab-1a98-44a3-9dd2-fc6ac6ce3477`. IPA محلي `output/voicebrief-ios-34040157335/ios/signed/VoiceBrief-0.1.2-build21-AppStore.ipa` حجمه34911006 وSHA256 `E0A2669E1B4142C236D87B31B92F9F5169B9554E0148B520BCAF28F7A1E0279E`؛ artifact9991614076 حجمه34631239 وبصمته `54e983775139ff5a86ff17f960c88532709057a10aea3b210109690d8ed38322`. اجتاز التوقيع والملفات الأصلية11للتطبيق/الامتداد والتحقق والرفع؛ تحذير iOS14 الأدنى سيصبح15 في ربيع2027 غير مانع الآن. ننتظر VALID قبل التقديم.
 - Google Play: رُفع البناء21 وحُفظ إصدار Alpha رقم2 باسم `VoiceBrief 0.1.2 build 21` وأُرسل تغيير واحد للمراجعة؛ واجهة النشر أكدت «التغييرات قيد المراجعة» مع الفحص السريع، وmanaged publishing متوقف. لم تتغير قائمة المختبرين أو البلدان؛ التوافق لم يفقد أجهزة مقارنة18. لوحة الإنتاج تؤكد4مختبرين فقط، وزر طلب الإنتاج معطّل حتى12مختبرًا/14يومًا؛ لا نشر عام Google ولا لمس محاكيات.

@@ -45,7 +45,9 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: node voicebrief_flutter/scripts/app_store_release.mjs
+        run: |
+          node --test voicebrief_flutter/scripts/store_metadata_test.mjs
+          node voicebrief_flutter/scripts/app_store_release.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

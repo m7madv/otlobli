@@ -1,6 +1,7 @@
 import {readFileSync, writeFileSync, readdirSync, mkdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve, join} from 'node:path';
+import {storeKeywords} from './store_keywords.mjs';
 
 // Deterministic build output, no external services or credentials.
 const root = resolve(import.meta.dirname, '..');
@@ -12,6 +13,7 @@ for (const [language, locale] of Object.entries(locales)) {
   const strings = JSON.parse(readFileSync(join(root, `lib/l10n/app_${language}.arb`), 'utf8'));
   const attributes = {
     locale,
+    keywords: storeKeywords[language],
     description: [strings.homeHeadline,strings.homeSupporting,
       [strings.fullTranscript,strings.summaryAndKeyPoints,strings.actionItemsAndDates,strings.suggestedReplies].map(s=>'• '+s).join('\n'),
       strings.trimAudioHelp,strings.audioHandlingDescription,release[language][1],
@@ -21,8 +23,8 @@ for (const [language, locale] of Object.entries(locales)) {
     whatsNew: release[language][0],
     supportUrl: `https://voicebrief-legal.vercel.app/support?lang=${language==='ar'?'ar':'en'}`,
   };
-  for (const [key,max] of Object.entries({description:4000,promotionalText:170,whatsNew:4000})) {
-    if ([...attributes[key]].length>max) throw new Error(`${locale}.${key} exceeds ${max}`);
+  for (const [key,max] of Object.entries({description:4000,promotionalText:170,whatsNew:4000,keywords:100})) {
+    if (!attributes[key]?.trim() || [...attributes[key]].length>max) throw new Error(`${locale}.${key} missing or exceeds ${max}`);
   }
   const screenshots=[];
   for (const [device,type,width,height] of [['iphone','APP_IPHONE_65',1284,2778],['ipad','APP_IPAD_PRO_3GEN_129',2064,2752]]) {

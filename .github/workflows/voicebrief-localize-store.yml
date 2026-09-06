@@ -29,7 +29,9 @@ jobs:
         with:
           node-version: '22'
       - name: Validate local assets
-        run: node scripts/prepare_store_localizations.mjs
+        run: |
+          node scripts/prepare_store_localizations.mjs
+          node --test scripts/store_metadata_test.mjs
         working-directory: voicebrief_flutter
       - name: Inspect or prepare VoiceBrief draft only
         env:
