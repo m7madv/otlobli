@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,7 +12,10 @@ import 'package:voicebrief/core/storage/app_preferences.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/home/presentation/home_screen.dart';
+import 'package:voicebrief/features/history/presentation/history_screen.dart';
+import 'package:voicebrief/features/reminders/presentation/scheduled_reminders_screen.dart';
 import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
+import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
 import 'package:voicebrief/l10n/app_languages.dart';
 import 'package:voicebrief/l10n/app_localizations.dart';
@@ -21,6 +25,19 @@ import 'helpers/test_harness.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadTestFonts);
+  const reminderChannel = MethodChannel('voicebrief/reminders');
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(reminderChannel, (call) async {
+          if (call.method == 'list') return <Object>[];
+          if (call.method == 'getPreferredTone') return {'soundKey': 'system'};
+          return false;
+        });
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(reminderChannel, null);
+  });
 
   test('all 11 catalogs contain every message and placeholder', () {
     final base =
@@ -185,11 +202,20 @@ void main() {
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(360, 900));
         addTearDown(() => tester.binding.setSurfaceSize(null));
+        final onError = FlutterError.onError;
+        FlutterError.onError = (details) {
+          debugPrint(details.toString());
+          onError?.call(details);
+        };
+        addTearDown(() => FlutterError.onError = onError);
         for (final screen in <Widget>[
           const AuthScreen(),
           const Scaffold(body: HomeScreen()),
           const Scaffold(body: SettingsScreen()),
           const ResultScreen(),
+          const PaywallScreen(),
+          const ScheduledRemindersScreen(),
+          const Scaffold(body: HistoryScreen()),
         ]) {
           final controller = createTestController();
           await controller.signInWithProvider(IdentityProvider.google);
@@ -200,6 +226,9 @@ void main() {
               home: screen,
               locale: locale,
               textScale: 1.3,
+              fontFamily: const bool.fromEnvironment('L10N_FALLBACK_FONT')
+                  ? 'Ahem'
+                  : null,
               config: providerReadyTestConfig,
             ),
           );

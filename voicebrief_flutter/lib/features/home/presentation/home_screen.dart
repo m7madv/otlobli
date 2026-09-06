@@ -41,31 +41,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         AppSpacing.xxl,
       ),
       children: [
-        Row(
-          children: [
-            SizedBox(
-              width: 44,
-              child: AudioWaveform(
-                height: 32,
-                activeFraction: 0.5,
-                levels: const [0.3, 0.62, 1, 0.62, 0.3],
+        LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              SizedBox(
+                width: 44,
+                child: AudioWaveform(
+                  height: 32,
+                  activeFraction: 0.5,
+                  levels: const [0.3, 0.62, 1, 0.62, 0.3],
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                'VoiceBrief',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontSize: 20),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'VoiceBrief',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontSize: 20),
+                ),
               ),
-            ),
-            if (state.subscription.tier == SubscriptionTier.free)
-              TextButton(
-                onPressed: () => context.push('/paywall'),
-                child: Text(context.l10n.goPro),
-              ),
-          ],
+              if (state.subscription.tier == SubscriptionTier.free)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth / 2,
+                  ),
+                  child: TextButton(
+                    onPressed: () => context.push('/paywall'),
+                    child: Text(
+                      context.l10n.goPro,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(

@@ -13,6 +13,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - مسودة0.1.2 أُنشئت بتشغيل34036907851 وقبلت صور العربية الثماني. الإنجليزية تعثرت بسبب تعارض الاسم مع حساب آخر. السؤال غير المتزامن ينتظر موافقة المالك على VoiceBrief: Audio Summaries للمتجر فقط ووصف مترجم عند الحاجة؛ لا تتجاوز هذا القرار. أُضيف استعلام appInfoLocalizations إلى وضع inspect للتشخيص.
 - مسودة0.1.2 ID `4ad274c0-fb1f-4f61-947a-ce57c461554c` وAppInfo القابل للتحرير `176e4637-e8be-499e-a3f2-93acf9dfeb92`؛ يوجد ar-SA فقط. تقرير ونسخ قبل تغيير الصور في `output/voicebrief-localization-20260906/` محليًا وartifact لتشغيل34036907851. بعد موافقة الاسم، أنشئ AppInfoLocalization بالاسم المعتمد أولًا ثم version localization. لا تعدّل AppInfo المنشور `77f9a1b5-31d1-47ec-8166-b2a1c63ceba5`.
 - Xcode تجمّع فيCI الأول؛ فشل التغليف لشرط20 القديم فقط. CI الآن يفحص21 وملفات11 لغة في التطبيق والامتداد. مسارا TestFlight/Google الموقّعان لا يزالان20، لا تشغلهما لـ21 قبل تحديث الحماية والأسماء؛ تعديل ملف TestFlight نفسه قد يسبب تشغيل دفع تلقائي، فاضبط المشغّل قبل أي تعديل لاحق.
+- Xcode والتحقق من موارد11لغة وتغليف21 نجحت كاملة في34037395642. أُصلح ازدحام Pro في HomeScreen عند font fallback العربي على Linux؛ لا تتجاوز اختبارات كبيرة النص. توسعت اختبارات اللغات إلى Paywall/Alarms/History مع mock لقناة المنبهات. اختبار Ahem الاختياري يعيد إنتاج الحالة على Windows (`--dart-define=L10N_FALLBACK_FONT=true --plain-name 'ar screens fit'`). حدثت فقط goldens auth_ar/home_light/home_dark بعد مراجعة فرق الاحتواء. آخر فحص محلي15لغة/12golden/analyze ناجح.
 
 ## متابعة حالية — 2026-09-05
 
