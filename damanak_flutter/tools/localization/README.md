@@ -48,6 +48,11 @@ Installed Windows fonts are used for the screenshot harness only and must not
 be redistributed inside the application. Inspect every screenshot for glyphs,
 clipping, RTL/LTR, terminology, and sample data before upload.
 
+For the British English store variant, set `DAMANAK_SCREENSHOT_LOCALE=en` and
+`DAMANAK_SCREENSHOT_STORE_LOCALE=en-GB`. The application still has ten languages;
+its store listing has eleven localizations and 110 screenshots, including the
+English U.S. and U.K. variants. See Apple's [store localization rules](https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations/).
+
 App Store screenshot uploader accepts `DAMANAK_STORE_VERSION` and an exact
 `DAMANAK_STORE_LOCALE`. A new localization must already exist in the editable
 version; it never substitutes a different language. Do not run apply against

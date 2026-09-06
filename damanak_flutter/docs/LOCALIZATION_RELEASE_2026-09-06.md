@@ -3,7 +3,7 @@
 ## Scope and source
 
 - Branch: `codex/damanak-simple-pos`, original checkout under `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
-- App source and assets: `8f1327b`; subsequent commits adjust publishing automation only. Current automation: `c28b650`.
+- App source and initial assets: `8f1327b`; subsequent commits adjust automation/docs and add en-GB store assets without runtime changes. Store variant source: `f3d184f`.
 - Ten bundled locales: Arabic, English, Spanish, French, German, Portuguese, Simplified Chinese, Hindi, Japanese and Russian. Each has 1205 translation keys with preserved placeholders.
 - Device language resolution, manual preference, RTL/LTR, locale-aware dates and native iOS display-name/camera permission resources. Customer-entered data and store currency remain unchanged.
 - No translation model, Python runtime or translation service is shipped. Draft translation received targeted editorial corrections, not comprehensive native-speaker approval.
@@ -13,7 +13,7 @@
 
 - `flutter analyze --no-pub`: no issues.
 - `flutter test --no-pub --concurrency=1`: **299/299** passed, including **53** localization/layout tests with 320px width and 150% text scale.
-- Both localization verification scripts passed: complete catalog keys/placeholders, metadata field limits, 100 correctly-sized screenshots.
+- Both localization verification scripts passed: complete catalog keys/placeholders, metadata field limits, 110 correctly-sized screenshots. The additional en-GB screenshot harness run passed 5/5 tests (two sizes each).
 - Final web release passed in 75.1s; not deployed as a website.
 - iOS run `34039342937` succeeded: dependency analysis/tests, native compilation, signing, IPA checks and upload. Apple reported `UPLOAD SUCCEEDED` at 2026-09-06 14:39:47 UTC, delivery `7848f16a-97f9-4315-93bd-daea14024fc2`.
 - IPA: `output/github-run-34039342937/ضمانك.ipa`, **24,965,730 bytes**, SHA-256 **E4728DFE2289CEC91FD9449AB057A514593F682BE1815B543F2F2DEF6CBBA1A7**. The ten native InfoPlist.strings resources were verified inside the downloaded IPA.
@@ -22,17 +22,18 @@
 ## App Store state
 
 - Follow-up inspect `34040072308` confirmed Build32 **VALID**, ID `7848f16a-97f9-4315-93bd-daea14024fc2`, included in the existing `Damanak Internal` group. Minimum iOS15; non-exempt encryption false. No testers were added or removed.
-- An additional **en-GB** metadata/screenshot localization is being prepared for the Gulf's documented default English locale. This is an English regional variant, not an eleventh in-app language or an app binary change. Final target: 11 store localizations and 110 screenshots. Existing 100 deliveries remain complete.
+- Additional **en-GB** metadata and screenshots completed in runs `34040227259` and `34040273515`. This is an English regional variant for the Gulf's documented default store locale, not an eleventh in-app language or a binary change. Final result: **11 store localizations, 110 COMPLETE screenshots**, with every reported SHA-256 matching the local file.
 
 - Live version remains **4.5.0**. New **4.6.0** draft: `af5f3581-d237-476d-b8c4-a42c73f7cc19`, `PREPARE_FOR_SUBMISSION`, manual release.
-- Metadata run `34039402544` succeeded for all ten locales.
-- All **100 screenshots** reached Apple delivery state **COMPLETE**; all reported SHA-256 values matched the local source PNGs.
+- Initial metadata run `34039402544` succeeded for ten locales; `34040227259` verified all eleven including en-GB.
+- All **110 screenshots** reached Apple delivery state **COMPLETE**; all reported SHA-256 values matched the local source PNGs.
 - Assets: `app_store_assets/ios/localized/<store-locale>/`, five iPhone 1284×2778 and five iPad 2048×2732 PNGs per locale.
 
 | App Store locale | Screenshot run |
 | --- | --- |
 | ar-SA | 34039473534 |
 | en-US | 34039476125 |
+| en-GB | 34040273515 |
 | es-ES | 34039477707 |
 | fr-FR | 34039479341 |
 | de-DE | 34039481618 |
