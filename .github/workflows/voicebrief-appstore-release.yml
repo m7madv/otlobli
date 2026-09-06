@@ -12,6 +12,9 @@ on:
         description: For submission type 6805194629:0.1.2:21:submit
         type: string
         default: ''
+  push:
+    branches: [codex/voicebrief-ios]
+    paths: [.github/workflows/voicebrief-appstore-release.yml]
 
 permissions:
   contents: read
@@ -32,7 +35,7 @@ jobs:
           node-version: '22'
       - name: Verify release and inspect or submit
         env:
-          VOICEBRIEF_RELEASE_MODE: ${{ inputs.mode }}
+          VOICEBRIEF_RELEASE_MODE: ${{ inputs.mode || 'inspect' }}
           VOICEBRIEF_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}

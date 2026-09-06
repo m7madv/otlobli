@@ -2,6 +2,8 @@
 
 Last updated: 2026-09-06
 
+Release automation note: the new App Store release workflow runs read-only inspection on its own file pushes so GitHub registers it on this release branch; review submission remains explicit workflow_dispatch only.
+
 ## VoiceBrief — اللغات وصور المتجر، 2026-09-06
 
 - أضيف مسار `voicebrief-appstore-release.yml` للبناء21 فقط: inspect قراءة فقط افتراضيًا؛ submit يتطلب تأكيدًا صريحًا، بناء VALID مطابقًا،11اسمًا/88صورة مطابقة وبيانات المراجع الموجودة واستثناء فرنسا. لا يسجل كلمات المرور أو يغيّر الهوية/البلدان/الاشتراكات، ويضبط AFTER_APPROVAL عند تقديم المراجعة. لم يُشغّل بعد. استئناف الصور34040271022 جارٍ؛ Android21 الموقّع قيد البناء محليًا بالإعدادات الإنتاجية الصحيحة.

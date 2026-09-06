@@ -2,6 +2,8 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+The build21 App Store release workflow has a read-only push registration trigger; submit still requires explicit workflow_dispatch confirmation. The first dispatch before registration returned404 and made no store change.
+
 ## أحدث متابعة — اللغات وصور VoiceBrief، 2026-09-06
 
 - أضيف app_store_release.mjs ومساره الصريح voicebrief-appstore-release.yml لفحص/تقديم0.1.2(21). لا تستخدم submit قبل نجاح inspect وفحص التقرير؛ التأكيد6805194629:0.1.2:21:submit. يتحقق من11لغة/88صورة والبناءVALID وبيانات المراجع دون تسجيلها وفرنسا مستثناة، ثم AFTER_APPROVAL. لا تنفيذ بعد؛ رفع الصور مستأنف34040271022 وAndroidالموقع قيد البناء.
