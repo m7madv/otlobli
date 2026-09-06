@@ -2,6 +2,8 @@
 
 ## ضمانك — استئناف اللغات 2026-09-06
 
+آخر iOS run `34039168233` فشل في تحليل أدوات `tools/localization/bin` لأن CI لم يثبت حزمة analyzer المستقلة. الرقعة تضيف `(cd tools/localization && dart pub get && dart analyze)` قبل فحص التطبيق، دون إضافة تبعيات التطبيق. أعد dispatch من أحدث HEAD؛ لا تعِد run القديم لأنه يستخدم المصدر القديم. metadata run `34039292196` جارٍ؛ افحص النتيجة قبل الصور.
+
 تصحيح: سير الصور أيضاً يرد 404. استخدم `damanak-apple-setup.yml` المسجّل برقم `341412875` مع `asset_kind=metadata` أو `screenshots`، `version=4.6.0` وlocale مناسب وmode صريح. الفروع الجديدة تتجاوز كل خطوات setup القديمة وترفض الجمع مع flags الأسعار/المراجعة. لا تستخدم `asset_kind=setup` للنشر اللغوي. لم تنجح كتابة Apple بعد.
 
 المصدر المرفوع `8f1327b`؛ iOS run `34039168233` بدأ مع `upload_to_testflight=true` ولم ينتهِ بعد. الويب النهائي ناجح (75.1s). GitHub رفض استدعاء workflow metadata الجديد بـ404 لعدم تسجيله على الفرع الافتراضي؛ البديل داخل سير الصور الموجود `damanak-app-store-screenshots.yml` هو `asset_kind=metadata` مع `mode=apply` و`version=4.6.0`. هذا يشغّل سكربت metadata المحدد فقط ولا يغيّر الأسعار/البلدان. لم يُنشأ إصدار خارجي بعد؛ تحقق من تقرير التنفيذ قبل الصور.

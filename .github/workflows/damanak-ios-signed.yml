@@ -40,6 +40,8 @@ jobs:
           test -n "$DAMANAK_SUPABASE_URL"
           test -n "$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
           flutter pub get
+          # Authoring tools are a separate Dart package, not app dependencies.
+          (cd tools/localization && dart pub get && dart analyze)
           node scripts/verify_localizations.mjs
           flutter analyze
           flutter test --concurrency=1
