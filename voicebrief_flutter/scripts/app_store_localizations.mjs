@@ -121,7 +121,9 @@ try{
         throw new Error(`Existing ${locale} name differs; preserve owner metadata`);
       }
       report.storeNames.push({locale,name,id:infoLocale.id});save();
-      let record=localized.find(l=>l.attributes.locale===locale);
+      // Apple can also create the version locale when AppInfo is localized.
+      const currentLocales=await list(`/appStoreVersions/${version.id}/appStoreVersionLocalizations?limit=200`);
+      let record=currentLocales.find(l=>l.attributes.locale===locale);
       if(!record)record=(await api('/appStoreVersionLocalizations','POST',{data:{type:'appStoreVersionLocalizations',attributes:local.attributes,relationships:{appStoreVersion:relationship('appStoreVersions',version.id)}}})).data;
       else{
         const {locale:ignored,...attributes}=local.attributes;

@@ -4,6 +4,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## أحدث متابعة — اللغات وصور VoiceBrief، 2026-09-06
 
+- تشغيل34040159491 قبل اسم en-US بالفعل ثم توقف عند إنشاء VersionLocalization مكرر؛ السكربت الآن يعيد القراءة بعد إنشاء AppInfo لتبني الصفحة التلقائية. تقارير التشغيل في output/voicebrief-localization-34040159491. TestFlight21 جارٍ في34040157335؛ لا تكرر رفعه.
 - المصدر الحالي `0.1.2+21` والالتزام البرمجي `1cec214` في VoiceBriefAuthRepair على codex/voicebrief-ios. الواجهة11لغة، و266رسالة لكل ARB، مع حفظ اختيار اللغة واتباع النظام بحسب الأولوية وRTL للعربية والأردية. لا تغييرات على الاشتراك أو المظهر أو المحاكيات. أعد flutter gen-l10n بعد تعديل ARB.
 - process-audio17 ACTIVE نُشر حصريًا على jyehqpdbayslhzebdycj لدعم لغة التسجيل الأصلية دون فرض لغة الجهاز؛ لا تغييرات أسرار/SQL. خطأ Unsupported Config Type تجاوزناه بعزل `C:\Users\MOHAMMAD\.supabase\profile` مؤقتًا وتشغيل supabase-go دون --profile ثم إعادته كما كان. لا تعدّل الحسابات أو المشاريع الأخرى.
 - صور المتجر88PNG من عناصر Flutter الحقيقية ببيانات توضيحية، أربع لكل لغة وجهاز، في `voicebrief_flutter/store_assets/localized/`. manifest يسجل البصمات والمقاسات والترجمات. راجع `voicebrief_flutter/docs/LOCALIZATION.md` للتجديد وأصل الصور والقيود. لا تدّعِ تصوير iPad فعلي.
