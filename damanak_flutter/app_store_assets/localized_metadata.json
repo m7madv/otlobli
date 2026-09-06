@@ -6,6 +6,13 @@
     "keywords": "ضمان,متجر,باركود,مطالبات,صيانة,مخزون,فريق,فروع",
     "whatsNew": "دعم 10 لغات مع اختيار لغة الجهاز أو لغة يدوية، واتجاه عرض مناسب لكل لغة، وتحسين قراءة النصوص الطويلة."
   },
+  "en-GB": {
+    "name": "Damanak - Warranties",
+    "subtitle": "Your store, organised",
+    "description": "Damanak helps stores organise warranties and after-sales service in one place.\n\nAdd products and customers, scan a barcode or enter a serial number, then issue a shareable digital warranty card. Track claims, their status and assigned team members. Manage branches, inventory, points of sale and team permissions.\n\nFollow your device language or choose a display language in the app. Your customer data and store currency stay unchanged. Features and limits depend on your plan. Final subscription prices come from the App Store, with purchase restoration and subscription management available in the app.\n\nDamanak is a store-management and warranty tool, not an in-app marketplace for consumer goods.",
+    "keywords": "warranty,store,barcode,claims,service,inventory,team,retail",
+    "whatsNew": "Support for 10 languages, automatic device-language selection, a manual language picker, appropriate reading direction and improved long-text layouts."
+  },
   "en-US": {
     "name": "Damanak - Warranties",
     "subtitle": "Your store, organised",

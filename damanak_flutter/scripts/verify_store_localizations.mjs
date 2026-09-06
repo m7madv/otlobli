@@ -3,7 +3,7 @@ import {readFileSync, readdirSync, existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
 const metadata=JSON.parse(readFileSync(resolve(root,'app_store_assets/localized_metadata.json'),'utf8'));
-const locales=['ar-SA','en-US','es-ES','fr-FR','de-DE','pt-BR','zh-Hans','hi','ja','ru'];
+const locales=['ar-SA','en-US','en-GB','es-ES','fr-FR','de-DE','pt-BR','zh-Hans','hi','ja','ru'];
 const errors=[];
 for (const locale of locales) {
   const entry=metadata[locale];
@@ -23,4 +23,4 @@ for (const locale of locales) {
   }
 }
 if(errors.length){console.error(errors.join('\n'));process.exitCode=1;}
-else console.log('10 metadata localizations and 100 screenshot dimensions verified. Visual and linguistic approval remain separate.');
+else console.log(`${locales.length} metadata localizations and ${locales.length * 10} screenshot dimensions verified. Visual and linguistic approval remain separate.`);

@@ -21,6 +21,9 @@
 
 ## App Store state
 
+- Follow-up inspect `34040072308` confirmed Build32 **VALID**, ID `7848f16a-97f9-4315-93bd-daea14024fc2`, included in the existing `Damanak Internal` group. Minimum iOS15; non-exempt encryption false. No testers were added or removed.
+- An additional **en-GB** metadata/screenshot localization is being prepared for the Gulf's documented default English locale. This is an English regional variant, not an eleventh in-app language or an app binary change. Final target: 11 store localizations and 110 screenshots. Existing 100 deliveries remain complete.
+
 - Live version remains **4.5.0**. New **4.6.0** draft: `af5f3581-d237-476d-b8c4-a42c73f7cc19`, `PREPARE_FOR_SUBMISSION`, manual release.
 - Metadata run `34039402544` succeeded for all ten locales.
 - All **100 screenshots** reached Apple delivery state **COMPLETE**; all reported SHA-256 values matched the local source PNGs.
@@ -52,7 +55,7 @@ Language selection on the App Store depends on supported localizations and Apple
 
 ## Remaining release checks
 
-- Upload and IPA hash are confirmed. The immediate post-upload inspect run `34039915098` still returned Build31 as newest; do not claim Build32 VALID or available in TestFlight until a later Apple read confirms it. The internal group `18666e73-e100-42a5-a223-f3620e97bf04` has access to all builds and one tester; no tester changes were made.
+- Upload, IPA hash, Build32 VALID and internal-group inclusion are confirmed by `34040072308`. The earlier immediate read `34039915098` had not yet seen it; no duplicate upload was performed. Internal group `18666e73-e100-42a5-a223-f3620e97bf04` has access to all builds and one tester.
 - No new review submission was sent and no build was linked to the 4.6.0 draft in this batch. Before public review, verify the documented Sandbox access requirement with project-owner access. A fresh read of current Supabase CLI access still did not include `exxayzlklvgeyqhvtzgi` (two other projects only); the user was asked to sign in as its owner, without sharing credentials.
 - Comprehensive linguistic/device acceptance is unperformed. External legal/warranty pages and native store product metadata were not localized in this batch.
 - Storefront availability remains the existing six Gulf countries; adding languages does not expand distribution or change regional billing checks. An optional user question about expansion remains unanswered.

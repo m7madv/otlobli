@@ -30,6 +30,7 @@ on:
         options:
           - ar-SA
           - en-US
+          - en-GB
           - es-ES
           - fr-FR
           - de-DE

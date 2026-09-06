@@ -20,7 +20,7 @@ const PRIMARY_LOCALE = process.env.DAMANAK_STORE_LOCALE || 'ar-SA';
 const LOCALIZED_ROOT = process.env.DAMANAK_STORE_LOCALE
   ? `app_store_assets/ios/localized/${PRIMARY_LOCALE}`
   : 'app_store_assets/ios';
-if (!['ar-SA','en-US','es-ES','fr-FR','de-DE','pt-BR','zh-Hans','hi','ja','ru'].includes(PRIMARY_LOCALE)) {
+if (!['ar-SA','en-US','en-GB','es-ES','fr-FR','de-DE','pt-BR','zh-Hans','hi','ja','ru'].includes(PRIMARY_LOCALE)) {
   throw new Error('Unsupported explicit App Store locale');
 }
 

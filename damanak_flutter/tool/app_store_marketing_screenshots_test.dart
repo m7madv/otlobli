@@ -28,7 +28,12 @@ import 'package:damanak/state/app_scope.dart';
 import 'package:damanak/widgets/brand_mark.dart';
 
 final _language = Platform.environment['DAMANAK_SCREENSHOT_LOCALE'] ?? 'ar';
-final _outputRoot = 'app_store_assets/ios/localized/${storeLocales[_language]}';
+final _storeLocale =
+    _language == 'en' &&
+        Platform.environment['DAMANAK_SCREENSHOT_STORE_LOCALE'] == 'en-GB'
+    ? 'en-GB'
+    : storeLocales[_language];
+final _outputRoot = 'app_store_assets/ios/localized/$_storeLocale';
 String get _fontFamily => switch (_language) {
   'zh' => 'StoreChinese',
   'ja' => 'StoreJapanese',
