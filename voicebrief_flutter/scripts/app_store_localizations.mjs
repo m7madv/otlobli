@@ -74,6 +74,12 @@ try{
   report.versions=versions.map(v=>({id:v.id,version:v.attributes.versionString,state:v.attributes.appStoreState}));save();
   if(mode==='inspect'){
     console.log(JSON.stringify(report.versions));
+    report.appInfos=[];
+    for(const info of await list(`/apps/${APP}/appInfos?limit=200`)){
+      const locales=await list(`/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+      report.appInfos.push({id:info.id,state:info.attributes.appStoreState,localizations:locales.map(l=>({id:l.id,...l.attributes}))});
+    }
+    console.log(JSON.stringify(report.appInfos));save();
   }else{
     const manifest=JSON.parse(readFileSync(join(directory,'manifest.json'),'utf8'));
     if(manifest.version!==VERSION||manifest.localizations.length!==11)throw new Error('Unexpected localization manifest');
