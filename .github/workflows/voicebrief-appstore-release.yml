@@ -1,0 +1,45 @@
+name: VoiceBrief App Store release 21
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect or submit the verified localized 0.1.2 build 21
+        type: choice
+        options: [inspect, submit]
+        default: inspect
+      confirmation:
+        description: For submission type 6805194629:0.1.2:21:submit
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voicebrief-store-localization
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'm7madv/otlobli' && github.ref == 'refs/heads/codex/voicebrief-ios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify release and inspect or submit
+        env:
+          VOICEBRIEF_RELEASE_MODE: ${{ inputs.mode }}
+          VOICEBRIEF_RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: node voicebrief_flutter/scripts/app_store_release.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voicebrief-appstore-release-report
+          path: ${{ runner.temp }}/voicebrief-release-report
