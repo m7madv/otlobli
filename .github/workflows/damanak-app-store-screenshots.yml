@@ -3,6 +3,12 @@ name: Damanak App Store Screenshots
 on:
   workflow_dispatch:
     inputs:
+      asset_kind:
+        description: Localized screenshots or localized metadata for the exact version
+        required: true
+        type: choice
+        default: screenshots
+        options: [screenshots, metadata]
       mode:
         description: Inspect is read-only; apply uploads the approved screenshots
         required: true
@@ -54,6 +60,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           DAMANAK_STORE_VERSION: ${{ inputs.version }}
           DAMANAK_STORE_LOCALE: ${{ inputs.locale }}
+          ASSET_KIND: ${{ inputs.asset_kind }}
         shell: bash
         run: |
           MODE_FLAG=""
@@ -62,15 +69,21 @@ jobs:
             node scripts/verify_store_localizations.mjs
             MODE_FLAG="--apply"
           fi
-          node scripts/app_store_screenshots.mjs \
-            $MODE_FLAG \
-            --output build/app-store-assets/report.json
+          if [[ "$ASSET_KIND" == "metadata" ]]; then
+            node scripts/app_store_localizations.mjs $MODE_FLAG
+          else
+            node scripts/app_store_screenshots.mjs \
+              $MODE_FLAG \
+              --output build/app-store-assets/report.json
+          fi
 
       - name: Upload screenshot report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: damanak-app-store-screenshots-${{ inputs.mode }}-${{ github.run_number }}
-          path: damanak_flutter/build/app-store-assets/report.json
+          path: |
+            damanak_flutter/build/app-store-assets/report.json
+            damanak_flutter/build/app-store-localizations/report.json
           if-no-files-found: warn
           retention-days: 14
