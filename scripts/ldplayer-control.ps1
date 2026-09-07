@@ -77,6 +77,33 @@ function Invoke-GuestRead {
     Invoke-ReadCommand $AdbPath (@('-s', $Serial, 'shell') + $Command)
 }
 
+function Get-EmulatorListeners {
+    # Android Studio/QEMU can use the same ports and serials as LDPlayer.
+    # Do not mistake another emulator for the requested LDPlayer account/device.
+    @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object {
+        $_.LocalPort -ge 5554 -and $_.LocalPort -le 5577
+    })
+}
+
+function Assert-PortsAvailable {
+    param($Rows, $Listeners)
+    foreach ($row in $Rows) {
+        $expectedPorts = @(5554 + 2 * $row.Index; 5555 + 2 * $row.Index)
+        $conflicts = @($Listeners | Where-Object { $_.LocalPort -in $expectedPorts })
+        if ($conflicts.Count -gt 0) {
+            $conflictPorts = ($conflicts.LocalPort | Sort-Object -Unique) -join ','
+            throw "Instance $($row.Instance) ports ($conflictPorts) are already in use by another process. No emulator was launched or stopped."
+        }
+    }
+}
+
+function Test-GuestPortOwnership {
+    param($Row, $Listeners)
+    $adbPort = 5555 + 2 * $Row.Index
+    $portOwners = @($Listeners | Where-Object LocalPort -eq $adbPort)
+    return ($Row.EnginePid -gt 0 -and $portOwners.Count -gt 0 -and @($portOwners | Where-Object OwningProcess -ne $Row.EnginePid).Count -eq 0)
+}
+
 function Get-Diagnostics {
     param($Rows)
     $os = Get-CimInstance Win32_OperatingSystem
@@ -85,6 +112,7 @@ function Get-Diagnostics {
     if (Test-Path -LiteralPath $AdbPath -PathType Leaf) {
         $deviceRows = Invoke-ReadCommand $AdbPath @('devices')
     }
+    $listeners = @(Get-EmulatorListeners)
     $guestReports = @(foreach ($row in $Rows) {
         $serial = 'emulator-' + (5554 + 2 * $row.Index)
         $report = [ordered]@{
@@ -94,6 +122,11 @@ function Get-Diagnostics {
             GuestDiagnostics = 'Unavailable: not running or ADB is not enabled. No setting was changed.'
         }
         if ($row.Running -and $deviceRows -match "(?m)^$serial\s+device\s*$") {
+            if (!(Test-GuestPortOwnership $row $listeners)) {
+                $report.GuestDiagnostics = 'Port ownership mismatch: guest query skipped to avoid inspecting another emulator.'
+                [pscustomobject]$report
+                continue
+            }
             try {
                 $memory = Invoke-GuestRead $serial @('cat', '/proc/meminfo')
                 $chrome = Invoke-GuestRead $serial @('dumpsys', 'package', 'com.android.chrome')
@@ -133,6 +166,10 @@ if ($Action -eq 'Start') {
     $toStart = @($allRows | Where-Object { $_.Instance -in $selected -and !$_.Running })
     if ($running.Count + $toStart.Count -gt 2) {
         throw 'Maximum two running instances. Stop a specified instance first; nothing was stopped automatically.'
+    }
+    if ($toStart.Count -gt 0) {
+        $listeners = @(Get-EmulatorListeners)
+        Assert-PortsAvailable $toStart $listeners
     }
     $freeMB = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1024
     $requiredMB = 2048 + ($toStart.Count * 4096)
