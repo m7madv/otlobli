@@ -27,8 +27,11 @@ Passed isolated provider/restart/concurrency/rate-limit/replay tests, local actu
 HTTP start/verify routes with mocked provider/RPC, existing OTP and admin/auth
 guards, release-service checks, secret scan and SHEIN freeze guard. Live malformed
 start/verify requests return400 without sending. No real OTP or production customer
-session created by this task. Owner asked to request/enter OTP in the current app;
-real delivery AND successful login acceptance remains pending. Do not guess codes.
+session created by the automated tests. After being asked to request/enter OTP
+in the installed app, owner confirmed the integration works («شتغل»).
+Record this as owner-reported acceptance, not agent-observed device testing.
+Owner did not identify device/platform/build; do not infer separate acceptance
+of both platforms or a specific build. Do not guess codes.
 This is OTP only; old WhatsApp notifications are not mapped to MZ3B staff messages.
 Do not claim those notifications work or enroll recipients without separate scope.
 
