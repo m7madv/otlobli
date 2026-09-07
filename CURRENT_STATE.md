@@ -1,6 +1,10 @@
 # Otlobli Current State
 
-Last updated: 2026-09-06
+Last updated: 2026-09-07
+
+متابعة 2026-09-07 الساعة09:40 UTC: فحص أبل `34107360333` ناجح؛ الإصدار0.1.2(21) والإرسال `df53c6ca-4690-4ccc-ad52-2e25af964208` ما زالا WAITING_FOR_REVIEW، وكل الفحوص ناجحة وفرنسا مستثناة. التقرير `output/voicebrief-release-34107360333/report.json`، SHA256 `0664DB2D7973AE02BD1FDCBB07BCA0E7EE7B263DC37C4403829BC450466AA778`. لا إعادة رفع أو تقديم.
+
+جلسة Google Play انتهت عند تحديث الصفحة في09:40 UTC؛ لا يمكن تأكيد حالة أحدث من فحص07:40 UTC الذي أكد Alpha21 متاحًا بالكامل في177بلدًا والإنتاج معطلًا مع4مختبرين. صفحة اختيار الحساب محفوظة في تبويب1 بالمتصفح المدمج وتنتظر دخول المالك؛ لا تُعرض كلمات مرور ولا تُمس حسابات المختبرين أو المحاكيات. المتابعة مستمرة، ولا تكرر التنبيه ما دام السبب نفسه بلا تغيير.
 
 Release automation note: the new App Store release workflow runs read-only inspection on its own file pushes so GitHub registers it on this release branch; review submission remains explicit workflow_dispatch only.
 

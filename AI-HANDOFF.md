@@ -2,6 +2,8 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+Latest monitor 2026-09-07 09:40 UTC: Apple inspect `34107360333` passed all checks; 0.1.2(21) and its submission remain WAITING_FOR_REVIEW, France excluded. Report/hash in CURRENT_STATE. Google Play redirected to the signed-out account chooser on refresh; owner login is now required in retained in-app tab1. Last successful Google check was07:40 UTC: Alpha21 fully available in177countries, production disabled with4testers. Do not report that stale observation as a fresh check, repeat the login notification unchanged, or touch tester accounts/emulators. Keep the heartbeat active.
+
 The build21 App Store release workflow has a read-only push registration trigger; submit still requires explicit workflow_dispatch confirmation. The first dispatch before registration returned404 and made no store change.
 
 Apple 0.1.2 (21) is now WAITING_FOR_REVIEW: successful run `34042091900` confirms both version and submission `df53c6ca-4690-4ccc-ad52-2e25af964208`, with AFTER_APPROVAL. Build `cee042ab-1a98-44a3-9dd2-fc6ac6ce3477` is VALID and selected. Do not resubmit or re-upload it. Follow review and actual public release; 0.1.1 remains public. The submission report is in `output/voicebrief-release-34042091900/report.json`; artifact/hash in CURRENT_STATE.
