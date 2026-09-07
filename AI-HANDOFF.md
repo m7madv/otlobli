@@ -12,7 +12,8 @@ against Otlobli orders; no customer P2P transfer/cashout path was found in revie
 source. Not an exhaustive live-production DB audit. Saved Play financial declaration
 as no financial features, replacing mobile payments/digital wallets. All runtime
 features remain unchanged. Console confirmed save and no additional financial
-documents currently required. Review submission still pending the new AAB.
+documents currently required. New AAB is now saved on alpha as draft; final
+Console review submission remains pending.
 
 Only Android versionCode changed: `86.244 (1113)`. Full web build and release,
 auth/security, SHEIN/Temu and performance guards passed. Android sync and signed
@@ -27,8 +28,12 @@ deletion additions already tracked); app JS/CSS/store assets unchanged.
 Gate/script now target exact 1113/hash and only alpha, releaseStatus draft.
 Run `34140843006` from `a80061c` uploaded into an edit, then Google rejected commit
 requiring `changesNotSentForReview=true`. The uncommitted edit was deleted, with
-no saved new release/review. Commit now explicitly uses that flag to stage only;
-retry pending. Final review blocked on Edge extension disconnection
+no saved new release/review in that first run. Commit now explicitly uses that
+flag to stage only. Retry `34141060561` from `68efa11` succeeded: exact AAB uploaded
+and edit committed; alpha holds `86.244 (1113)` as draft, review not submitted.
+Production has no releases. AAB is tracked/pushed; APK stays local per .gitignore.
+Do not rebuild or reupload: resume the existing draft's Console review/save and
+publishing-overview submission. Final review blocked on Edge extension disconnection
 and live WhatsApp `/health` returning connected/senderReady false (HTTP 200).
 Google configuration-check with the actual fallback client ID passed HTTP 200.
 Initial Google/Apple probes using absent env vars returned 400; do not misreport
