@@ -1,3 +1,50 @@
+# Active handoff — Google declaration correction, Android 1113 (2026-09-07)
+
+This section supersedes historical status below. Same exact workspace/branch.
+User authorized only the Google correction/build/closed-test resubmission flow.
+Google rejected 1112 on September 1 for organization-account requirements.
+Albert's September 5 support reply, case `4-1130000041592`, conditionally advises
+auditing declarations, incrementing versionCode and resubmitting; it is not approval.
+
+Read-only audit of customer UI/API and payment schema/migrations found a closed-loop
+Otlobli purchase balance, topped up through external ShamCash payments and spent
+against Otlobli orders; no customer P2P transfer/cashout path was found in reviewed
+source. Not an exhaustive live-production DB audit. Saved Play financial declaration
+as no financial features, replacing mobile payments/digital wallets. All runtime
+features remain unchanged. Console confirmed save and no additional financial
+documents currently required. Review submission still pending the new AAB.
+
+Only Android versionCode changed: `86.244 (1113)`. Full web build and release,
+auth/security, SHEIN/Temu and performance guards passed. Android sync and signed
+R8 bundleRelease/assembleRelease passed. Artifacts in `artifacts/release-86.244/`:
+AAB `Otlobli-86.244-1113-release.aab`, 5,775,711 bytes, SHA256
+`5E27349B35D66C0F627DCD888FAFABD3520ADA4A578DD4721800E698BA5A0352`;
+APK `Otlobli-86.244-1113-release.apk`, 4,114,340 bytes, SHA256
+`9A6067409F91BF12F7044340ECCC8D7451FC56D0936FCA30DAD995F6879C2636`.
+APK v2/v3 signer exactly matches 1112; AAB jar verified. Of 25 compared bundled
+assets only pre-existing privacy/support/legal pages differ from 1112 (account
+deletion additions already tracked); app JS/CSS/store assets unchanged.
+Gate/script now target exact 1113/hash and only alpha, releaseStatus draft.
+Upload not confirmed yet. Final review blocked on Edge extension disconnection
+and live WhatsApp `/health` returning connected/senderReady false (HTTP 200).
+Google configuration-check with the actual fallback client ID passed HTTP 200.
+Initial Google/Apple probes using absent env vars returned 400; do not misreport
+this as a Google outage. Android Apple web-login env is unset, same as 1112 assets;
+do not expand scope to configure it. Do not modify shared WhatsApp session.
+No Android device is connected. iOS unchanged and not rebuilt/synced this batch
+because no new shared runtime/config change was made. Do not touch user untracked
+captures/artifacts. No new physical-device acceptance, no payment/OTP generated,
+no backend/session/tester/emulator changes. Live Console: Production inactive,
+0 opted-in testers. Use only `alpha` and existing `All Apps - Closed Testers`.
+
+iOS source/build stays `86.244 (1112)`. Latest conversation records Apple 5.2.2
+rejection for missing SHEIN/Temu authorization, not historical WAITING_FOR_REVIEW.
+No Apple inspection, upload or submission in this batch. September 5 mailbox check
+found only a SHEIN automatic reply and no Temu authorization. Do not use the old
+Apple gate as authority to submit another build.
+
+## Historical handoff below (2026-08-30; superseded)
+
 # Active handoff — v86.244/1112 submitted, WAITING_FOR_REVIEW (2026-08-30)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

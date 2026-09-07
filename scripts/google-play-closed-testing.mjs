@@ -13,12 +13,12 @@ for (const field of requiredFields) {
 }
 if (!['inspect', 'publish'].includes(authorization.operation)) throw new Error('Google Play operation must be inspect or publish.')
 if (authorization.packageName !== 'com.otlobli.app') throw new Error('Google Play authorization targets an unexpected package.')
-if (authorization.appVersion !== '86.244' || authorization.versionCode !== '1112') {
-  throw new Error('Google Play authorization is not bound to Otlobli 86.244 (1112).')
+if (authorization.appVersion !== '86.244' || authorization.versionCode !== '1113') {
+  throw new Error('Google Play authorization is not bound to Otlobli 86.244 (1113).')
 }
 if (!/^[A-F0-9]{64}$/.test(authorization.sha256)) throw new Error('Invalid authorized App Bundle SHA-256.')
-if (authorization.operation === 'publish' && !String(authorization.track || '').trim()) {
-  throw new Error('Publishing requires an exact Google Play track in the authorization record.')
+if (authorization.operation === 'publish' && authorization.track !== 'alpha') {
+  throw new Error('Publishing is authorized only for the alpha closed-testing track.')
 }
 if (authorization.operation === 'publish' && !['draft', 'completed'].includes(authorization.releaseStatus)) {
   throw new Error('Publishing requires an exact Google Play releaseStatus of draft or completed.')
