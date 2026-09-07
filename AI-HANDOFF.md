@@ -1,4 +1,30 @@
-# Active handoff — MZ3B OTP deployed without a mobile rebuild (2026-09-07)
+# Active handoff — existing Android 1113 submitted to Google (2026-09-08)
+
+Owner explicitly requested submission after confirming WhatsApp works. Completed
+Play Console release /2 (existing 86.244/1113 AAB; 1112 excluded), added Arabic
+release notes for closed-test update, restored WhatsApp OTP and privacy/support
+pages, saved, then confirmed "Send 14 changes for review". Observed around
+00:41 Riyadh September8 / 21:41 UTC September7. Publishing overview now says
+"التغييرات قيد المراجعة" and lists Otlobli86.244(1113), closed Alpha, full rollout
+WITHIN that closed track, Saudi Arabia and All Apps - Closed Testers. Financial
+declaration correction is listed among changes considered during review.
+
+IMPORTANT: automated pre-review checks were still running (UI estimated up to
+14 minutes). Console confirms the submission request and in-review section;
+it says routing to review follows successful checks. Do not claim checks passed,
+Google approved, closed testing started or public release. Do not submit twice.
+The only release warning was missing native debug symbols, non-blocking.
+
+No new AAB upload/build/native sync/version increment, no runtime/backend change,
+no Production/tester/emulator changes. Apple86.244(1112) untouched; its 5.2.2
+authorization rejection remains separate. Changed CLOSED_TEST_AUTHORIZED.json
+operation to inspect (old releaseStatus=draft retained as historical upload
+configuration) to prevent an accidental re-stage of the submitted release.
+Do not run publish again or remove current review changes without owner direction.
+Next: Google decision, then opt-in/real tests after availability; 14-day continuous
+opt-in clock does not start merely from review submission.
+
+## Earlier handoff — MZ3B OTP deployed without a mobile rebuild (2026-09-07)
 
 Owner intentionally deleted the legacy WhatsApp sender and explicitly selected
 `https://mz3b.com`, then supplied the API key for project «اطلبلي». Read-only

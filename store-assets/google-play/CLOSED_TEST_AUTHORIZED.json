@@ -1,5 +1,5 @@
 {
-  "operation": "publish",
+  "operation": "inspect",
   "track": "alpha",
   "releaseStatus": "draft",
   "packageName": "com.otlobli.app",
