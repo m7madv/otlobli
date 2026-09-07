@@ -193,11 +193,13 @@ try {
       throw new Error('Google Play closed-test track did not retain the authorized release status/version.')
     }
 
-    await apiRequest(`${apiRoot}/applications/${packageName}/edits/${editId}:commit`, { method: 'POST', body: {} })
+    // Keep review submission explicit in Play Console. Rejected applications
+    // require this flag even when the new closed-track release is only a draft.
+    await apiRequest(`${apiRoot}/applications/${packageName}/edits/${editId}:commit?changesNotSentForReview=true`, { method: 'POST', body: {} })
     committed = true
     console.log(
-      `Published ${authorization.appVersion} (${authorization.versionCode}) to Google Play track ` +
-      `${authorization.track}; status=${authorization.releaseStatus}.`,
+      `Saved ${authorization.appVersion} (${authorization.versionCode}) to Google Play track ` +
+      `${authorization.track}; status=${authorization.releaseStatus}; review not submitted.`,
     )
   }
 } finally {

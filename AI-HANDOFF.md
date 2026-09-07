@@ -25,7 +25,10 @@ APK v2/v3 signer exactly matches 1112; AAB jar verified. Of 25 compared bundled
 assets only pre-existing privacy/support/legal pages differ from 1112 (account
 deletion additions already tracked); app JS/CSS/store assets unchanged.
 Gate/script now target exact 1113/hash and only alpha, releaseStatus draft.
-Upload not confirmed yet. Final review blocked on Edge extension disconnection
+Run `34140843006` from `a80061c` uploaded into an edit, then Google rejected commit
+requiring `changesNotSentForReview=true`. The uncommitted edit was deleted, with
+no saved new release/review. Commit now explicitly uses that flag to stage only;
+retry pending. Final review blocked on Edge extension disconnection
 and live WhatsApp `/health` returning connected/senderReady false (HTTP 200).
 Google configuration-check with the actual fallback client ID passed HTTP 200.
 Initial Google/Apple probes using absent env vars returned 400; do not misreport
