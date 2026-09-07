@@ -13,7 +13,7 @@
     "test:release-services": "node scripts/test-release-services.mjs",
     "test:group-orders": "node scripts/test-group-orders.mjs",
     "test:phone-auth-config": "node scripts/test-phone-auth-config.mjs",
-    "test:server-otp-security": "node scripts/test-server-otp-security.mjs",
+    "test:server-otp-security": "node scripts/test-server-otp-security.mjs && node scripts/test-mz3b-otp.mjs",
     "test:whatsapp-admin-security": "node scripts/test-whatsapp-admin-security.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 5174",
     "verify:performance-budget": "node scripts/verify-performance-budget.mjs",

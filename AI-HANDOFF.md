@@ -1,4 +1,45 @@
-# Active handoff — Google declaration correction, Android 1113 (2026-09-07)
+# Active handoff — MZ3B OTP deployed without a mobile rebuild (2026-09-07)
+
+Owner intentionally deleted the legacy WhatsApp sender and explicitly selected
+`https://mz3b.com`, then supplied the API key for project «اطلبلي». Read-only
+account summary returned ready=true. Do NOT revive/relink legacy Baileys sessions.
+The unrelated Mela Wood browser account was not used or changed.
+
+Deployed ONLY Otlobli service `otlobli-wa` on the existing Oracle host after all
+live source hashes matched pre-change HEAD. Installed URL remains
+`https://84-8-100-128.sslip.io`; existing start/verify request and response shapes
+are unchanged. Env selects `WHATSAPP_OTP_PROVIDER=mz3b`; key is server-only in
+private .env mode 600, never in Git, VITE variables, artifacts, or summaries.
+Live health after restart: HTTP200, provider=mz3b, connected/senderReady=true,
+sessionStoreReady/otpSecurityReady=true, authContract=customer-session-v1.
+pm2 is one online fork. API readiness is not proof of WhatsApp delivery.
+
+New `server/src/mz3bOtp.js` persists idempotency and cumulative budgets to private
+`server/mz3b-otp-db.json` (ignored). Phone identifiers and approved codes are HMACs;
+raw phones, codes, keys and customer tokens are not journaled. Write-before-send,
+reuse exact operation/body after uncertainty, one-time approved verification,
+and exact-code recovery after customer-session RPC failure. Requires ONE process
+and persistent disk; do not scale to workers/replicas without a shared transactional
+store. Existing Supabase schema and create_customer_session RPC are unchanged.
+Legacy session loading/archive restoration is disabled in MZ3B mode, not deleted.
+
+Passed isolated provider/restart/concurrency/rate-limit/replay tests, local actual
+HTTP start/verify routes with mocked provider/RPC, existing OTP and admin/auth
+guards, release-service checks, secret scan and SHEIN freeze guard. Live malformed
+start/verify requests return400 without sending. No real OTP or production customer
+session created by this task. Owner asked to request/enter OTP in the current app;
+real delivery AND successful login acceptance remains pending. Do not guess codes.
+This is OTP only; old WhatsApp notifications are not mapped to MZ3B staff messages.
+Do not claim those notifications work or enroll recipients without separate scope.
+
+No client source/dependency/config change: Android86.244(1113) still alpha draft,
+iOS86.244(1112) unchanged. No mobile build/sync/upload or store review submission.
+Private rollback backup: `/home/ubuntu/otlobli-server/.mz3b-backup-XjWXmE`.
+SSH: existing key `C:\Users\MOHAMMAD\.ssh\mz3b_waha_oracle_ed25519` works for
+ubuntu@84.8.100.128; old Downloads key was rejected. Keep host-key verification.
+See `docs/MZ3B_OTP_INTEGRATION.md` for exact scope and storage/rollback constraints.
+
+## Earlier today — Google declaration correction, Android 1113
 
 This section supersedes historical status below. Same exact workspace/branch.
 User authorized only the Google correction/build/closed-test resubmission flow.

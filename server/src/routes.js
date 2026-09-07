@@ -9,6 +9,7 @@ import { sendOtpMessage, sendNotificationMessage, getConnectionStatusForAdmin, g
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
 import { requireWhatsappAdminSecret } from './adminAuth.js'
+import { isMz3bEnabled, mz3bOtp, respondMz3bError } from './mz3bOtp.js'
 
 const router = Router()
 const CUSTOMER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -195,14 +196,14 @@ router.post('/auth/whatsapp/start', async (req, res) => {
   try {
     const { phone } = req.body
 
-    if (!phone) {
+    if (typeof phone !== 'string' || !phone) {
       return res.status(400).json({ error: 'invalid_phone', message: 'أدخل رقم واتساب صحيح مع رمز الدولة.' })
     }
 
     // تنظيف الرقم
     const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '')
 
-    if (cleanPhone.length < 10) {
+    if (!/^[1-9]\d{9,14}$/.test(cleanPhone)) {
       return res.status(400).json({ error: 'invalid_phone', message: 'رقم الهاتف قصير جدًا.' })
     }
 
@@ -216,6 +217,10 @@ router.post('/auth/whatsapp/start', async (req, res) => {
       })
     }
 
+    if (isMz3bEnabled()) {
+      return res.json(await mz3bOtp.start(cleanPhone))
+    }
+
     // إنشاء OTP
     const { code, expiresInSeconds } = createOtp(cleanPhone)
 
@@ -227,6 +232,7 @@ router.post('/auth/whatsapp/start', async (req, res) => {
       otpExpiresInSeconds: expiresInSeconds,
     })
   } catch (error) {
+    if (isMz3bEnabled()) return respondMz3bError(error, res)
     const otpErrorResponse = otpStartErrorResponse(error, res)
     if (otpErrorResponse) return otpErrorResponse
     console.error('❌ Failed to send OTP:', error.message)
@@ -257,7 +263,7 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
   try {
     const { phone, code } = req.body
 
-    if (!phone || !code) {
+    if (typeof phone !== 'string' || !phone || !code) {
       return res.status(400).json({
         error: 'invalid_request',
         message: 'الرجاء إرسال رقم الهاتف ورمز التحقق.',
@@ -267,6 +273,9 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
     const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '')
     if (!/^\d{6}$/.test(String(code))) {
       return res.status(400).json({ error: 'invalid_code', message: 'رمز التحقق غير صحيح.' })
+    }
+    if (isMz3bEnabled()) {
+      return res.json(await mz3bOtp.verify(cleanPhone, String(code), createCustomerSession))
     }
     const result = verifyOtp(cleanPhone, code)
 
@@ -299,6 +308,7 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
       sessionToken,
     })
   } catch (error) {
+    if (isMz3bEnabled()) return respondMz3bError(error, res)
     console.error('❌ Verify error:', error.message)
 
     res.status(500).json({

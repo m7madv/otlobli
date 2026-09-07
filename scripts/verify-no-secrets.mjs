@@ -43,6 +43,7 @@ const allowedNonProductionCredentials = new Set([
 ])
 const forbiddenFileExtensions = new Set(['.p8', '.p12', '.mobileprovision', '.jks'])
 const patterns = [
+  ['MZ3B API key', /\bmz_(?:test|live)_[a-f0-9]{32,}\b/],
   ['private key PEM', /-----BEGIN (?:EC |RSA )?PRIVATE KEY-----/],
   ['Google service account', /"type"\s*:\s*"service_account"/],
   ['GitHub personal token', /\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b/],

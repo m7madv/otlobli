@@ -15,6 +15,7 @@ import routes from './routes.js'
 import { supabase } from './supabase.js'
 import { isOtpSecurityConfigured } from './otpStore.js'
 import { requireWhatsappAdminSecret } from './adminAuth.js'
+import { isMz3bEnabled, mz3bOtp } from './mz3bOtp.js'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -35,7 +36,7 @@ const sessionTar = VOLUME_PATH
   ? path.join(VOLUME_PATH, 'session.tar.gz')
   : path.join(__dirname, '..', 'session.tar.gz')
 
-if (fs.existsSync(sessionTar)) {
+if (!isMz3bEnabled() && fs.existsSync(sessionTar)) {
   try {
     const existingFiles = fs.existsSync(AUTH_DIR) ? fs.readdirSync(AUTH_DIR) : []
     if (existingFiles.length === 0) {
@@ -107,12 +108,14 @@ async function getAuthReadiness() {
 
 app.get('/health', async (req, res) => {
   const authReadiness = await getAuthReadiness().catch(() => ({ ready: false, contract: '' }))
+  const sender = isMz3bEnabled()
+    ? { whatsappProvider: 'mz3b', whatsappConnected: await mz3bOtp.readiness(), qrAvailable: false, whatsappCredentialsPresent: false }
+    : { whatsappProvider: 'baileys', whatsappConnected: isWhatsappConnected(),
+      whatsappSenderReady: isWhatsappConnected(), whatsappCredentialsPresent: hasWhatsappSessionCredentials(), qrAvailable: !isWhatsappConnected() }
   res.json({
     status: 'ok',
-    whatsappConnected: isWhatsappConnected(),
-    whatsappSenderReady: isWhatsappConnected(),
-    whatsappCredentialsPresent: hasWhatsappSessionCredentials(),
-    qrAvailable: !isWhatsappConnected(),
+    ...sender,
+    whatsappSenderReady: sender.whatsappConnected,
     sessionStoreReady: authReadiness.ready,
     authContract: authReadiness.contract,
     otpSecurityReady: isOtpSecurityConfigured(),
@@ -124,7 +127,7 @@ app.get('/api/qr-url', requireWhatsappAdminSecret, (req, res) => {
 })
 
 console.log('🚀 Server started — WhatsApp connects on-demand when OTP is requested')
-onConnection(() => {})
+if (!isMz3bEnabled()) onConnection(() => {})
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Talabieh OTP Server — QR Mode`)

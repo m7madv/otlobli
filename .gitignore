@@ -58,6 +58,7 @@ server/test-auth
 server/test-auth2
 server/*.tar.gz
 server/otp-db.json
+server/mz3b-otp-db.json*
 server/qr-code.png
 server/workingsession_b64.txt
 server/logs

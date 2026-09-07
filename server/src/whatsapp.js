@@ -707,6 +707,8 @@ export function getSocket() {
 }
 
 // تحميل الجلسات ومخزن الرسائل عند بدء السيرفر
-loadMsgStore()
-loadExistingSessions()
+if (process.env.WHATSAPP_OTP_PROVIDER !== 'mz3b') {
+  loadMsgStore()
+  loadExistingSessions()
+}
 console.log(`📱 ${sessions.size} جلسة واتساب محمّلة`)
