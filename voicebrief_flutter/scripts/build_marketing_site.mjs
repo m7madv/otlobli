@@ -1,13 +1,15 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
+import { marketingGuides } from './marketing_guides.mjs';
 
 // Public, static marketing only. No application credentials, tracking, or customer data.
 const root = resolve(import.meta.dirname, '..');
 const out = join(root, 'legal_site');
 const origin = 'https://voicebrief-legal.vercel.app';
 const appStore = 'https://apps.apple.com/app/id6805194629';
-const updated = '2026-09-19';
+const updated = '2026-09-20';
+const appCheckedOn = '2026-09-19';
 const languages = ['Arabic', 'English', 'Bengali', 'French', 'Hindi', 'Indonesian', 'Portuguese', 'Russian', 'Simplified Chinese', 'Spanish', 'Urdu'];
 const esc = (text) => String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const put = (path, data) => { const dest = join(out, path); mkdirSync(dirname(dest), { recursive: true }); writeFileSync(dest, data); };
@@ -15,6 +17,8 @@ const link = (url, text, attrs = '') => `<a href="${esc(url)}"${attrs ? ` ${attr
 const home = (lang) => lang === 'ar' ? '/ar' : '/';
 const guide = (lang) => `${lang === 'ar' ? '/ar' : ''}/guides/whatsapp-voice-notes`;
 const press = (lang) => `${lang === 'ar' ? '/ar' : ''}/press`;
+const resource = (lang, slug) => `${lang === 'ar' ? '/ar' : ''}/guides/${slug}`;
+const route = (lang, kind) => kind === 'home' ? home(lang) : kind === 'guide' ? guide(lang) : kind === 'press' ? press(lang) : resource(lang, kind);
 const legal = (page, lang) => `/${page}?lang=${lang}`;
 const copy = {
   en: {
@@ -130,18 +134,27 @@ const pages = [];
 const hashes = new Set();
 const cta = (c) => link(appStore, `${esc(c.download)} <span aria-hidden="true">↗</span>`, 'class="button"');
 const screenshot = (lang, index, attrs = '') => `<img src="/assets/${lang}-${['01_home', '02_brief', '03_dates', '04_history'][index]}.png" width="1284" height="2778" alt="${esc(copy[lang].galleryLabels[index])}" ${attrs}>`;
-const footer = (lang, c) => `<footer class="wrap footer"><div><a class="brand" href="${home(lang)}" translate="no">VoiceBrief</a><p>${esc(c.footer)}</p><p>© 2026 MOHAMMAD ALZOUABI</p></div><nav aria-label="${lang === 'ar' ? 'روابط إضافية' : 'Additional links'}">${[['privacy', c.privacy], ['terms', c.terms], ['support', c.help], ['delete-account', c.delete]].map(([page, text]) => link(legal(page, lang), esc(text))).join('')}${link(press(lang), esc(c.press))}</nav></footer>`;
+const footer = (lang, c) => `<footer class="wrap footer"><div><a class="brand" href="${home(lang)}" translate="no">VoiceBrief</a><p>${esc(c.footer)}</p><p>© 2026 MOHAMMAD ALZOUABI</p></div><nav aria-label="${lang === 'ar' ? 'روابط إضافية' : 'Additional links'}">${link(home(lang) + '#guides', lang === 'ar' ? 'أدلة الاستخدام' : 'Practical guides')}${[['privacy', c.privacy], ['terms', c.terms], ['support', c.help], ['delete-account', c.delete]].map(([page, text]) => link(legal(page, lang), esc(text))).join('')}${link(press(lang), esc(c.press))}</nav></footer>`;
+const resources = (lang, current = 'home') => `<section class="wrap resource-section"${current === 'home' ? ' id="guides"' : ''}><h2>${lang === 'ar' ? 'أدلة تساعدك على الاستفادة من تسجيلاتك' : 'Make more of your voice notes'}</h2><ul class="resource-list">${[
+  { kind: 'guide', title: copy[lang].guideTitle, description: copy[lang].guideDescription },
+  ...marketingGuides.map(g => ({ kind: g.slug, ...g[lang] })),
+].filter(g => g.kind !== current).map(g => `<li><h3>${link(route(lang, g.kind), esc(g.title))}</h3><p>${esc(g.description)}</p></li>`).join('')}</ul></section>`;
 
 function render(lang, kind, title, description, body) {
   const c = copy[lang];
-  const path = kind === 'home' ? home(lang) : kind === 'guide' ? guide(lang) : press(lang);
-  const alternate = kind === 'home' ? home(c.switchLang) : kind === 'guide' ? guide(c.switchLang) : press(c.switchLang);
+  const path = route(lang, kind);
+  const alternate = route(c.switchLang, kind);
   const english = lang === 'en' ? path : alternate;
   const arabic = lang === 'ar' ? path : alternate;
   const structured = JSON.stringify({ '@context': 'https://schema.org', '@graph': [
     application,
     { '@type': 'WebSite', '@id': `${origin}/#website`, url: `${origin}/`, name: 'VoiceBrief', inLanguage: ['en', 'ar'] },
-    { '@type': 'WebPage', '@id': origin + path, url: origin + path, name: title, description, inLanguage: lang, isPartOf: { '@id': `${origin}/#website` }, about: { '@id': `${origin}/#app` } },
+    { '@type': 'WebPage', '@id': origin + path, url: origin + path, name: title, description, inLanguage: lang, isPartOf: { '@id': `${origin}/#website` }, about: { '@id': `${origin}/#app` }, ...(kind !== 'home' ? { breadcrumb: { '@id': `${origin + path}#breadcrumb` } } : {}) },
+    ...(kind !== 'home' ? [{ '@type': 'BreadcrumbList', '@id': `${origin + path}#breadcrumb`, itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'VoiceBrief', item: origin + home(lang) },
+      { '@type': 'ListItem', position: 2, name: title, item: origin + path },
+    ] }] : []),
+    ...(!['home', 'press'].includes(kind) ? [{ '@type': 'Article', headline: title, description, inLanguage: lang, mainEntityOfPage: { '@id': origin + path }, author: { '@type': 'Person', name: 'mohammad alzouabi', url: `${origin}/press` }, datePublished: kind === 'guide' ? '2026-09-19' : '2026-09-20', dateModified: updated }] : []),
   ] }).replaceAll('<', '\\u003c');
   hashes.add(`'sha256-${createHash('sha256').update(structured).digest('base64')}'`);
   put(path === '/' ? 'index.html' : `${path.slice(1)}.html`, `<!doctype html>
@@ -177,7 +190,7 @@ function render(lang, kind, title, description, body) {
 <body>
 <a class="skip" href="#content">${esc(c.skip)}</a>
 <header class="wrap header"><a class="brand" href="${home(lang)}" translate="no"><img src="/assets/app-icon.png" alt="" width="38" height="38">VoiceBrief</a><nav aria-label="${esc(c.nav)}">${link(home(lang) + '#features', esc(c.features), 'class="nav-detail"')}${link(legal('support', lang), esc(c.help))}${link(alternate, esc(c.switch), `lang="${c.switchLang}" hreflang="${c.switchLang}" class="language"`)}</nav></header>
-<main id="content">${body}</main>
+<main id="content">${kind !== 'home' ? `<nav class="wrap breadcrumbs" aria-label="${lang === 'ar' ? 'مسار الصفحة' : 'Breadcrumb'}"><ol><li>${link(home(lang), 'VoiceBrief', 'translate="no"')}</li><li aria-current="page">${esc(title)}</li></ol></nav>` : ''}${body}${kind !== 'home' ? resources(lang, kind) : ''}</main>
 ${footer(lang, c)}
 </body></html>\n`);
   pages.push({ path, lang, kind });
@@ -191,9 +204,15 @@ for (const [lang, c] of Object.entries(copy)) {
 <section class="wrap section"><h2>${esc(c.gallery)}</h2><div class="gallery">${c.galleryLabels.map((label, i) => `<figure>${link(`/assets/${lang}-${['01_home', '02_brief', '03_dates', '04_history'][i]}.png`, screenshot(lang, i, 'loading="lazy" decoding="async"'), `aria-label="${esc(label)}"`)}<figcaption>${esc(label)}</figcaption></figure>`).join('')}</div><p class="fine">${esc(c.caption)}</p></section>
 <section class="wrap details-section"><div><h2>${esc(c.langTitle)}</h2><p>${esc(c.langBody)}</p><p class="languages" lang="en" dir="ltr">${esc(languages.join(' · '))}</p></div><div><h2>${esc(c.privacyTitle)}</h2><p>${esc(c.privacyBody)}</p>${link(legal('privacy', lang), esc(c.privacyLink), 'class="text-link"')}</div></section>
 <section class="wrap section faq"><h2>${esc(c.faqTitle)}</h2>${c.faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>
+${resources(lang)}
 <section class="closing"><div class="wrap"><h2>${esc(c.bottom)}</h2><p>${esc(c.bottomText)}</p>${cta(c)}</div></section>`);
 
   render(lang, 'guide', c.guideTitle, c.guideDescription, `<article class="wrap article"><p class="eyebrow">VOICEBRIEF · ${lang === 'ar' ? 'دليل الاستخدام' : 'PRACTICAL GUIDE'}</p><h1>${esc(c.guideTitle)}</h1><p class="intro">${esc(c.guideIntro)}</p><ol class="guide-steps">${c.guideSteps.map(([h, p]) => `<li><h2>${esc(h)}</h2><p>${esc(p)}</p></li>`).join('')}</ol><aside class="notice"><h2>${esc(c.guideTrouble)}</h2><p>${esc(c.guideTroubleText)}</p>${link(legal('support', lang), esc(c.help))}</aside><p>${esc(c.price)}</p>${cta(c)}<p class="fine">${esc(c.require)}</p></article>`);
+
+  for (const entry of marketingGuides) {
+    const g = entry[lang];
+    render(lang, entry.slug, g.title, g.description, `<article class="wrap article"><p class="eyebrow">VOICEBRIEF · ${lang === 'ar' ? 'دليل الاستخدام' : 'PRACTICAL GUIDE'}</p><h1>${esc(g.title)}</h1><p class="intro">${esc(g.intro)}</p>${g.sections.map(s => `<section><h2>${esc(s.title)}</h2>${s.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</section>`).join('')}<aside class="notice"><h2>${lang === 'ar' ? 'الخلاصة' : 'The takeaway'}</h2><p>${esc(g.takeaway)}</p></aside><p>${link(legal('privacy', lang), esc(c.privacyLink))} · ${link(legal('support', lang), esc(c.help))}</p><p class="fine">${lang === 'ar' ? 'دليل من ناشر التطبيق، MOHAMMAD ALZOUABI، وليس مراجعة مستقلة.' : 'A guide from the app publisher, MOHAMMAD ALZOUABI, not an independent review.'}</p>${cta(c)}<p class="fine">${esc(c.price)} · ${esc(c.require)}</p></article>`);
+  }
 
   render(lang, 'press', c.pressTitle, c.pressDescription, `<article class="wrap article"><p class="eyebrow">VOICEBRIEF · ${lang === 'ar' ? 'المصدر الرسمي' : 'OFFICIAL SOURCE'}</p><h1>${esc(c.pressTitle)}</h1><p class="intro">${esc(c.pressIntro)}</p><h2>${esc(c.short)}</h2><p>${esc(c.description)}</p><h2>${esc(c.long)}</h2><p>${esc(c.intro)} ${esc(c.storyText)} ${esc(c.price)}.</p><dl class="facts">${c.facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl><p>${link(appStore, 'VoiceBrief: Audio Summaries ↗', 'translate="no"')}</p><p>${link('/assets/app-icon.png', esc(c.icon), 'download="VoiceBrief-icon.png"')}</p><h2>${esc(c.images)}</h2><p>${esc(c.screenshotsNote)}</p><div class="gallery">${c.galleryLabels.map((label, i) => `<figure>${link(`/assets/${lang}-${['01_home', '02_brief', '03_dates', '04_history'][i]}.png`, screenshot(lang, i, 'loading="lazy" decoding="async"'), 'download')}<figcaption>${esc(label)}</figcaption></figure>`).join('')}</div><h2>${esc(c.privacyTitle)}</h2><p>${esc(c.privacyBody)}</p>${link(legal('privacy', lang), esc(c.privacyLink))}<p>${link(legal('support', lang), esc(c.help))}</p></article>`);
 }
@@ -203,7 +222,7 @@ copyFileSync(join(root, 'assets/brand/voicebrief_icon.png'), join(out, 'assets/a
 for (const lang of ['en', 'ar']) for (const name of ['01_home', '02_brief', '03_dates', '04_history']) {
   copyFileSync(join(root, `store_assets/localized/${lang}/iphone/${name}.png`), join(out, `assets/${lang}-${name}.png`));
 }
-put('app-facts.json', JSON.stringify({ checkedOn: updated, application, limitations: ['Not an offline application.', 'AI output must be reviewed.', 'Some features require Pro.', 'Not affiliated with WhatsApp or Meta.', 'This site promotes the iPhone and iPad App Store release only.'], sources: [appStore, `${origin}/privacy?lang=en`, `${origin}/press`] }, null, 2) + '\n');
+put('app-facts.json', JSON.stringify({ checkedOn: appCheckedOn, application, limitations: ['Not an offline application.', 'AI output must be reviewed.', 'Some features require Pro.', 'Not affiliated with WhatsApp or Meta.', 'This site promotes the iPhone and iPad App Store release only.'], sources: [appStore, `${origin}/privacy?lang=en`, `${origin}/press`] }, null, 2) + '\n');
 const keyPath = join(out, 'indexnow-key.txt');
 if (!existsSync(keyPath)) put('indexnow-key.txt', randomBytes(16).toString('hex') + '\n');
 put('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`);
@@ -219,4 +238,4 @@ for (const group of vercel.headers) for (const header of group.headers) if (head
   header.value = [...directives, `script-src 'self' ${[...hashes].join(' ')}`].join('; ');
 }
 put('vercel.json', JSON.stringify(vercel, null, 2) + '\n');
-console.log(`Built ${pages.length} static marketing pages; copied 8 existing screenshots. Legal pages unchanged.`);
+console.log(`Built ${pages.length} static marketing pages; copied 8 existing screenshots. Legal content and forms are not generated.`);

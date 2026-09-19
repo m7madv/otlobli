@@ -7,7 +7,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://jyehqpdbayslhzebdycj.supabase.co; form-action https://jyehqpdbayslhzebdycj.supabase.co; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'sha256-5BwowA6gsv2Q8fusFQH0n/eGVdvQWkz7FyTaLMtri9k=' 'sha256-GB/3OJdghN7jvO3BP1NOvvVBWwtptyr83Vkw2ScFBdQ=' 'sha256-CYCQOj8wvVY6qCXruCv+EhcaOmYFzbEG9kinFvpTmPo=' 'sha256-lW54fkjFOEssoNTUvBQJcDtxvNaTwWHq99QbiVQL2Oc=' 'sha256-3AlQQjU10rnO60gt1xWM68NMDmxAMbJAjddCWfm1YvA=' 'sha256-jINCrfDV41FGenrioVmo26TDlfgNfcARLCPmomECYpk='"
+          "value": "default-src 'self'; connect-src 'self' https://jyehqpdbayslhzebdycj.supabase.co; form-action https://jyehqpdbayslhzebdycj.supabase.co; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'sha256-5BwowA6gsv2Q8fusFQH0n/eGVdvQWkz7FyTaLMtri9k=' 'sha256-5ZaKcFKT278zQPl/hKD7m8SguVTA62Bw9ItKl721Z4k=' 'sha256-r8MttIvJfcJexv8sfgM/quEC5V6/filGYA0npofaaXY=' 'sha256-jNvbWZNXX6XIq0ZRfYUDq4erBPMaXGxbxJ+vSmCcSXU=' 'sha256-6ASgCejzPTX/4AYJ62TOsF+9jo2pAW6QXvV6u6ZlTOY=' 'sha256-lW54fkjFOEssoNTUvBQJcDtxvNaTwWHq99QbiVQL2Oc=' 'sha256-IzEpgNHwD7MgdsLv9rO5PJJJ46Zm+OeeEY78JHzjSVw=' 'sha256-fj4+jTZRuD36+2L3lvd4Nu7MGl+qTBIaEo/1RSaIg7k=' 'sha256-JSXHMMys1/yM1DNfSDbAPJg4ZUMIircLue32v+GHFaQ=' 'sha256-ACuUOeULhHHWklEE2a2w5uz9kq59PcV2kltimFFB2Xg='"
         },
         {
           "key": "Cross-Origin-Opener-Policy",

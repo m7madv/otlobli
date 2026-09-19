@@ -69,6 +69,17 @@ details p{color:var(--muted);padding-block:8px 14px;max-width:740px}
 .article .intro{max-width:none;margin-bottom:42px}
 .article h2{font-size:27px;margin-block:32px 14px}
 .article .button{margin-top:22px}
+.breadcrumbs{padding-top:24px;max-width:850px}
+.breadcrumbs ol{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;list-style:none;padding:0;margin:0;font-size:13px;color:var(--muted)}
+.breadcrumbs li:last-child{min-width:0;overflow-wrap:anywhere}
+.breadcrumbs li+li::before{content:"/";margin-inline-end:14px;color:var(--muted)}
+.breadcrumbs a{color:var(--blue)}
+.resource-section{padding-block:48px 64px;border-top:1px solid var(--line)}
+.resource-section h2{font-size:28px}
+.resource-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:32px;list-style:none;padding:0;margin:30px 0 0}
+.resource-list h3{font-size:20px;line-height:1.5}
+.resource-list a{display:inline-block;min-height:44px}
+.resource-list p{font-size:15px;color:var(--muted);margin-top:12px}
 .guide-steps{padding-inline-start:28px}
 .guide-steps li{padding-inline-start:12px;margin-block:34px}
 .guide-steps li::marker{color:var(--blue);font-weight:650}

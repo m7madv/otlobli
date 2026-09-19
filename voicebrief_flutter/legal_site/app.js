@@ -20,6 +20,14 @@ document.title =
 
 const skipLink = document.querySelector(".skip");
 if (skipLink && language === "ar") skipLink.href = "#content-ar";
+const brandLink = document.querySelector(".brand");
+if (brandLink) {
+  brandLink.href = language === "ar" ? "/ar" : "/";
+  brandLink.setAttribute(
+    "aria-label",
+    language === "ar" ? "VoiceBrief — الرئيسية" : "VoiceBrief — Home",
+  );
+}
 const navigation = document.querySelector("nav");
 if (navigation)
   navigation.setAttribute(
