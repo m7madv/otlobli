@@ -79,6 +79,16 @@ test('Sitemap, crawlers, identity and ownership key are consistent', () => {
   assert.ok(!csp.includes('unsafe-inline'));
 });
 
+test('Google ownership proof survives regeneration in both homepage heads', () => {
+  const proof = '<meta name="google-site-verification" content="xj01l4NyENmfI34W8c1lRz-b_4P7XSo2dQO_WKqiT1Q">';
+  for (const path of ['/', '/ar']) {
+    const html = readFileSync(fileFor(path), 'utf8');
+    const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1];
+    assert.ok(head?.includes(proof), 'Keep the owner-approved public verification token');
+    assert.equal((html.match(/name="google-site-verification"/g) ?? []).length, 1);
+  }
+});
+
 test('Marketing assets are byte-identical to approved app assets', () => {
   const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
   assert.equal(hash(join(site, 'assets/app-icon.png')), hash(join(root, 'assets/brand/voicebrief_icon.png')));

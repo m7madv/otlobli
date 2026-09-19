@@ -8,6 +8,9 @@ const root = resolve(import.meta.dirname, '..');
 const out = join(root, 'legal_site');
 const origin = 'https://voicebrief-legal.vercel.app';
 const appStore = 'https://apps.apple.com/app/id6805194629';
+// Public ownership proof supplied by Search Console for the owner-approved account.
+// Keep this across rebuilds; it is not an API key or a tracking integration.
+const googleSiteVerification = 'xj01l4NyENmfI34W8c1lRz-b_4P7XSo2dQO_WKqiT1Q';
 const updated = '2026-09-20';
 const appCheckedOn = '2026-09-19';
 const languages = ['Arabic', 'English', 'Bengali', 'French', 'Hindi', 'Indonesian', 'Portuguese', 'Russian', 'Simplified Chinese', 'Spanish', 'Urdu'];
@@ -167,6 +170,7 @@ function render(lang, kind, title, description, body) {
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta name="theme-color" content="#ffffff">
 <meta name="apple-itunes-app" content="app-id=6805194629">
+${kind === 'home' ? `<meta name="google-site-verification" content="${googleSiteVerification}">\n` : ''}\
 <link rel="canonical" href="${origin + path}">
 <link rel="alternate" hreflang="en" href="${origin + english}">
 <link rel="alternate" hreflang="ar" href="${origin + arabic}">
