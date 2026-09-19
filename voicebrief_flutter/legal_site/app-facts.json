@@ -1,0 +1,65 @@
+{
+  "checkedOn": "2026-09-19",
+  "application": {
+    "@type": "MobileApplication",
+    "@id": "https://voicebrief-legal.vercel.app/#app",
+    "name": "VoiceBrief: Audio Summaries",
+    "alternateName": "VoiceBrief",
+    "applicationCategory": "ProductivityApplication",
+    "operatingSystem": "iOS 14.0 or later; iPadOS 14.0 or later",
+    "url": "https://voicebrief-legal.vercel.app",
+    "downloadUrl": "https://apps.apple.com/app/id6805194629",
+    "installUrl": "https://apps.apple.com/app/id6805194629",
+    "sameAs": [
+      "https://apps.apple.com/app/id6805194629"
+    ],
+    "identifier": "6805194629",
+    "image": "https://voicebrief-legal.vercel.app/assets/app-icon.png",
+    "softwareVersion": "0.1.2",
+    "inLanguage": [
+      "ar",
+      "en",
+      "bn",
+      "fr",
+      "hi",
+      "id",
+      "pt",
+      "ru",
+      "zh-Hans",
+      "es",
+      "ur"
+    ],
+    "author": {
+      "@type": "Person",
+      "name": "mohammad alzouabi"
+    },
+    "description": "Turn shared WhatsApp voice notes and audio files into transcripts, summaries, tasks, dates, and suggested replies. VoiceBrief for iPhone and iPad.",
+    "featureList": [
+      "Audio transcription",
+      "Audio summaries and key points",
+      "Action items and dates for review",
+      "Suggested replies",
+      "Audio range selection",
+      "On-device saved text history"
+    ],
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+      "description": "Free download with limited free usage and optional in-app subscriptions.",
+      "url": "https://apps.apple.com/app/id6805194629"
+    }
+  },
+  "limitations": [
+    "Not an offline application.",
+    "AI output must be reviewed.",
+    "Some features require Pro.",
+    "Not affiliated with WhatsApp or Meta.",
+    "This site promotes the iPhone and iPad App Store release only."
+  ],
+  "sources": [
+    "https://apps.apple.com/app/id6805194629",
+    "https://voicebrief-legal.vercel.app/privacy?lang=en",
+    "https://voicebrief-legal.vercel.app/press"
+  ]
+}

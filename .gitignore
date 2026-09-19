@@ -55,6 +55,10 @@ server/pair-auth
 server/test-auth
 server/test-auth2
 server/*.tar.gz
+
+# Local browser QA snapshots and fetched web research
+.playwright-cli/
+.firecrawl/
 server/otp-db.json
 server/qr-code.png
 server/workingsession_b64.txt

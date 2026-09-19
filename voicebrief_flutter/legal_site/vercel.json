@@ -1,20 +1,30 @@
 {
   "cleanUrls": true,
-  "redirects": [
-    { "source": "/", "destination": "/privacy", "permanent": false }
-  ],
+  "redirects": [],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://jyehqpdbayslhzebdycj.supabase.co; form-action https://jyehqpdbayslhzebdycj.supabase.co; base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; connect-src 'self' https://jyehqpdbayslhzebdycj.supabase.co; form-action https://jyehqpdbayslhzebdycj.supabase.co; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'sha256-5BwowA6gsv2Q8fusFQH0n/eGVdvQWkz7FyTaLMtri9k=' 'sha256-GB/3OJdghN7jvO3BP1NOvvVBWwtptyr83Vkw2ScFBdQ=' 'sha256-CYCQOj8wvVY6qCXruCv+EhcaOmYFzbEG9kinFvpTmPo=' 'sha256-lW54fkjFOEssoNTUvBQJcDtxvNaTwWHq99QbiVQL2Oc=' 'sha256-3AlQQjU10rnO60gt1xWM68NMDmxAMbJAjddCWfm1YvA=' 'sha256-jINCrfDV41FGenrioVmo26TDlfgNfcARLCPmomECYpk='"
         },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "Referrer-Policy", "value": "no-referrer" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" }
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
       ]
     }
   ]
