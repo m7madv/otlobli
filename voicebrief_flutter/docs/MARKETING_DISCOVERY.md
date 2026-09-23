@@ -1,5 +1,9 @@
 # VoiceBrief organic discovery
 
+## Latest read-only check — 2026-09-23
+
+At about06:00UTC (09:00Riyadh), English remained INDEXED and Arabic remained CRAWLED - CURRENTLY NOT INDEXED. No manual requests: still within the22Sep quota cooldown, whose earliest next request remains23Sep08:14:36Z. Arabic inspection's sitemap association showed a temporary processing error; the separate sitemap report still confirmed SUCCESS/10discovered/latest read22Sep. Do not infer sitemap failure or resubmit it. No actionable change or owner action required; heartbeat continues without a new user alert. Inspection IDs on the same approved property: Arabic `K4lquyl0Uh9J31BmMD_pAQ`, English `aCns-AbUqzh9P9WiRJeZ9w`. This is documentation only, no deployment/build/app/store/automation changes. Preserve the refusal ledger below: no new refusal or accepted request today.
+
 ## Latest Google inspection — 2026-09-22
 
 - Direct owner-session inspection confirms English `https://voicebrief-legal.vercel.app/` **INDEXED**: “URL is on Google” and “Page is indexed”. No new request was sent for it. Inspection reference: `https://search.google.com/u/1/search-console/inspect?resource_id=https%3A%2F%2Fvoicebrief-legal.vercel.app%2F&id=QoLOSw7xzkhSsGsRD82Oow`.
